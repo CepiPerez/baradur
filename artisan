@@ -195,17 +195,44 @@ elseif ($action == 'make:controller' && count($argv)>0)
     if (file_exists('app/controllers/'.$controller.'.php'))
         die ("Error: there's already a controller called ".$controller."\n");
 
-    $class = "<?php\n\nclass ".$controller." extends Controller\n".
+    /* $class = "<?php\n\nclass ".$controller." extends Controller\n".
         "{\n\t".'//protected $tokenVerification = false;'."\n\n\n}";
-    file_put_contents('app/controllers/'.$controller.'.php', $class);
+    file_put_contents('app/controllers/'.$controller.'.php', $class); */
+
+    require('app/AppServiceProvider.php');
+
+    $class = "<?php\n\nclass ".$controller." extends Controller\n".
+    "{\n\t".'//protected $tokenVerification = false;'. "\n\n";
+    
+    if ($resource)
+    {
+        $name = isset(Route::$_strings['index']) ? Route::$_strings['index'] : 'index';
+        $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
+        $name = isset(Route::$_strings['create']) ? Route::$_strings['create'] : 'create';
+        $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
+        $name = isset(Route::$_strings['store']) ? Route::$_strings['store'] : 'store';
+        $class .= "\tpublic function ".$name."(".'$request'.")\n\t{\n\t\t//\n\t}\n\n";
+        $name = isset(Route::$_strings['show']) ? Route::$_strings['show'] : 'show';
+        $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
+        $name = isset(Route::$_strings['edit']) ? Route::$_strings['edit'] : 'edit';
+        $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
+        $name = isset(Route::$_strings['update']) ? Route::$_strings['update'] : 'update';
+        $class .= "\tpublic function ".$name."(".'$request, $id'.")\n\t{\n\t\t//\n\t}\n\n";
+        $name = isset(Route::$_strings['destroy']) ? Route::$_strings['destroy'] : 'destroy';
+        $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";        
+    }
+        
+    $class .= "\n}";
+    file_put_contents('app/controllers/'.$model.'Controller.php', $class);
+    printf("Controller created successfully.\n");
 
     if (!file_exists('app/models/'.ucfirst($model).'.php'))
     {
         $class = "<?php\n\nclass ".ucfirst($model)." extends Model\n{\n\n\n}";
         file_put_contents('app/models/'.ucfirst($model).'.php', $class);  
+        printf("Model created successfully.\n");
     }
 
-    printf("Controller created successfully.\n");
 
 }
 
@@ -272,19 +299,19 @@ elseif ($action == 'make:model' && count($argv)>0)
         
         if ($resource)
         {
-            $name = Route::$_strings['index'] ? Route::$_strings['index'] : 'index';
+            $name = isset(Route::$_strings['index']) ? Route::$_strings['index'] : 'index';
             $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
-            $name = Route::$_strings['create'] ? Route::$_strings['create'] : 'create';
+            $name = isset(Route::$_strings['create']) ? Route::$_strings['create'] : 'create';
             $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
-            $name = Route::$_strings['store'] ? Route::$_strings['store'] : 'store';
+            $name = isset(Route::$_strings['store']) ? Route::$_strings['store'] : 'store';
             $class .= "\tpublic function ".$name."(".'$request'.")\n\t{\n\t\t//\n\t}\n\n";
-            $name = Route::$_strings['show'] ? Route::$_strings['show'] : 'show';
+            $name = isset(Route::$_strings['show']) ? Route::$_strings['show'] : 'show';
             $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
-            $name = Route::$_strings['edit'] ? Route::$_strings['edit'] : 'edit';
+            $name = isset(Route::$_strings['edit']) ? Route::$_strings['edit'] : 'edit';
             $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
-            $name = Route::$_strings['update'] ? Route::$_strings['update'] : 'update';
+            $name = isset(Route::$_strings['update']) ? Route::$_strings['update'] : 'update';
             $class .= "\tpublic function ".$name."(".'$request, $id'.")\n\t{\n\t\t//\n\t}\n\n";
-            $name = Route::$_strings['destroy'] ? Route::$_strings['destroy'] : 'destroy';
+            $name = isset(Route::$_strings['destroy']) ? Route::$_strings['destroy'] : 'destroy';
             $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";        
         }
             
