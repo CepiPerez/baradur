@@ -1,0 +1,303 @@
+<?php
+
+# Autoload function registration
+spl_autoload_register('custom_autoloader');
+
+# Enviroment variables
+require_once('vendor/baradur/DotEnv.php');
+DotEnv::load(__DIR__.'/.env');
+
+# Autoload function
+function custom_autoloader($class) 
+{
+    global $version, $home;
+
+    //printf("Loading class: ".$class."\n");
+    $version = version_compare(phpversion(), '5.3.0', '>=')?'NEW':'OLD';
+
+    $newclass = '';
+    if (file_exists(__DIR__.'/vendor/baradur/'.$class.'.php'))
+        $newclass = __DIR__.'/vendor/baradur/'.$class.'.php';
+
+    # Recursive search (class is not in predefined folders)
+    if ($newclass=='') {
+        $it = new RecursiveDirectoryIterator(__DIR__.'/vendor/baradur');
+        foreach(new RecursiveIteratorIterator($it) as $file)
+        {
+            if (basename($file) == $class.'.php' || basename($file) == $class.'.PHP')
+            {
+                $newclass = $file;
+                break;
+            }
+        }
+    }
+    if ($newclass!='')
+    {
+        require_once($newclass);
+    }
+    
+}
+
+array_shift($argv);
+$action = count($argv)>0? array_shift($argv) : null;
+$params = null; //count($argv)>0? array_shift($argv) : null;
+
+function upper($text) { return strtoupper(str_replace('_', '', $text[0])); }
+
+if ($action == 'make:migration' && count($argv)>0)
+{
+    list($table, $create) = TableGuesser::guess($argv[0]);
+    $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $argv[0]);
+
+    //printf('Creating migration: ' . $table . ' - new: ' . ($create?'true':'false') . ' - class: ' . $converted . PHP_EOL);
+
+    if ($create)
+    {
+        $controller = "<?php\n\nclass ".$converted." extends Migration\n".
+            "{\n\tpublic function up()\n\t{\n\t\t".'$table = new Table'.";\n\n\t\t".
+            "Schema::create('".$table."',\n\t\t\t".'$table->id()'."\n\t\t);\n\n\t}".
+            "\n\n\tpublic function down()\n\t{\n\t\tSchema::dropIfExists('".$table."');\n\t}\n}";
+
+        $timestamp = date("Y_m_d_Hm");
+
+        file_put_contents('database/migrations/'.$timestamp.'_'.$argv[0].'.php', $controller);
+
+        printf("Migration created\n");
+    }
+    else
+    {
+        $controller = "<?php\n\nclass ".$converted." extends Migration\n".
+        "{\n\tpublic function up()\n\t{\n\t\t".'$table = new Table'.";\n\n\t\t".
+        "Schema::table('".$table."',\n\t\t\t".'//$table->string(?)'."\n\t\t);\n\n\t}".
+        "\n\n\tpublic function down()\n\t{\n\t\t".'$table = new Table'.";\n\n\t\t".
+        "Schema::table('".$table."',\n\t\t\t".'$table->dropColumn('."'')\n\t\t);\n\n\t}\n\n}";
+
+        $timestamp = date("Y_m_d_Hm");
+
+        file_put_contents('database/migrations/'.$timestamp.'_'.$argv[0].'.php', $controller);
+
+        printf("Migration created\n");
+
+    }
+
+
+}
+
+else if ($action == 'migrate')
+{
+    //printf("Making migrations\n");
+
+    $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+    $query = 'select * from migrations';
+    $result = $database->execSQL($query);
+    
+    $applied = array();
+    if ($result)
+        $applied = (array)$result->pluck('migration');
+
+    $count = 0;
+    $it = new RecursiveDirectoryIterator(__DIR__.'/database/migrations');
+    foreach(new RecursiveIteratorIterator($it) as $file)
+    {
+        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
+        {
+            $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+            $short =  substr($name, 16);
+            $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
+
+            if (!in_array($name, $applied))
+            {
+                printf("Migrating: ".$short."\n");
+    
+                include ($file);
+                Schema::init($name);
+                $class = new $converted;
+                $class->up();
+
+                DB::table('migrations')->insert(array('migration' => $name));
+
+                ++$count;
+            }
+        }
+    }
+
+    if ($count == 0)
+        printf("Nothing to migrate\n");
+    else
+        printf("Done\n");
+}
+
+else if ($action == 'migrate:rollback')
+{
+    $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+    $query = 'select * from migrations';
+    $applied = (array)$database->execSQL($query)->pluck('migration')->last();
+
+    if (count($applied)>0)
+    {
+        $rollback = $applied[0];
+        
+        $it = new RecursiveDirectoryIterator(__DIR__.'/database/migrations');
+        foreach(new RecursiveIteratorIterator($it) as $file)
+        {
+            if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
+            {
+                $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+                $short =  substr($name, 16);
+
+                if ($name == $rollback)
+                {
+                    $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
+
+                    printf("Rolling back: ".$short."\n");
+        
+                    include ($file);
+                    Schema::init($name);
+                    $class = new $converted;
+                    $class->down();
+
+                    DB::table('migrations')->where('migration', $name)->delete();
+
+                }
+
+            }
+        }
+        printf("Done\n");
+
+    }
+    else
+    {
+        printf("Nothing to rollback\n");
+    }
+
+
+}
+
+elseif ($action == 'make:controller' && count($argv)>0)
+{
+    $controller = null;
+    $model = null;
+    $resource = false;
+
+    foreach ($argv as $arg)
+    {
+        if (strpos($arg, '-model=')==1)
+            $model = str_replace('--model=', '', $arg);
+
+        elseif ($arg=='--resource')
+            $resource = true;
+
+        elseif (strrpos($arg, '-')==false)
+            $controller = $arg;
+    }
+
+
+    if (file_exists('app/controllers/'.$controller.'.php'))
+        die ("Error: there's already a controller called ".$controller."\n");
+
+    $class = "<?php\n\nclass ".$controller." extends Controller\n".
+        "{\n\t".'//protected $tokenVerification = false;'."\n\n\n}";
+    file_put_contents('app/controllers/'.$controller.'.php', $class);
+
+    if (!file_exists('app/models/'.ucfirst($model).'.php'))
+    {
+        $class = "<?php\n\nclass ".ucfirst($model)." extends Model\n{\n\n\n}";
+        file_put_contents('app/models/'.ucfirst($model).'.php', $class);  
+    }
+
+    printf("Controller created successfully.\n");
+
+}
+
+elseif ($action == 'make:model' && count($argv)>0)
+{
+    $model = null;
+    $controller = false;
+    $resource = false;
+    $migration = false;
+
+    foreach ($argv as $arg)
+    {
+        if ($arg=='--controller') $controller = true;
+        elseif ($arg=='--migration') $migration = true;
+        elseif ($arg=='--resource') $resource = true;
+        else if (substr($arg, 0, 1)=='-' && strlen($arg)>1)
+        {
+            foreach (str_split(str_replace('_', '', $arg)) as $a)
+            {
+                if ($a == 'm') $migration = true;
+                else if ($a == 'r') $resource = true;
+                else if ($a == 'c') $controller = true;
+                else if ($a == 'a') { $controller=true; $resource=true; $migration=true; }
+            }
+        }
+        else $model = ucfirst($arg);
+    }
+
+    if (file_exists('app/models/'.$model.'.php'))
+        die ("Error: there's already a model called ".$model."\n");
+
+        
+    $class = "<?php\n\nclass ".ucfirst($model)." extends Model\n{\n\n\n}";
+    file_put_contents('app/models/'.ucfirst($model).'.php', $class);
+    printf("Model created successfully.\n");
+
+
+    if ($migration)
+    {
+        $table = Helpers::getPlural($model);
+        $arg = 'create_'.strtolower($table).'_table';
+
+        list($table, $create) = TableGuesser::guess($arg);
+        $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $arg);
+
+        $class = "<?php\n\nclass ".$converted." extends Migration\n".
+            "{\n\tpublic function up()\n\t{\n\t\t".'$table = new Table'.";\n\n\t\t".
+            "Schema::create('".$table."',\n\t\t\t".'$table->id()'."\n\t\t);\n\n\t}".
+            "\n\n\tpublic function down()\n\t{\n\t\tSchema::dropIfExists('".$table."');\n\t}\n}";
+
+        $timestamp = date("Y_m_d_Hm");
+
+        file_put_contents('database/migrations/'.$timestamp.'_'.$arg.'.php', $class);
+
+        printf("Created Migration: ".$timestamp.'_'.$arg."\n");
+    }
+
+    if (!file_exists('app/controllers/'.$model.'Controller.php') && $controller)
+    {
+        require('app/AppServiceProvider.php');
+
+        $class = "<?php\n\nclass ".$model."Controller extends Controller\n".
+        "{\n\t".'//protected $tokenVerification = false;'. "\n\n";
+        
+        if ($resource)
+        {
+            $name = Route::$_strings['index'] ? Route::$_strings['index'] : 'index';
+            $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
+            $name = Route::$_strings['create'] ? Route::$_strings['create'] : 'create';
+            $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
+            $name = Route::$_strings['store'] ? Route::$_strings['store'] : 'store';
+            $class .= "\tpublic function ".$name."(".'$request'.")\n\t{\n\t\t//\n\t}\n\n";
+            $name = Route::$_strings['show'] ? Route::$_strings['show'] : 'show';
+            $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
+            $name = Route::$_strings['edit'] ? Route::$_strings['edit'] : 'edit';
+            $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
+            $name = Route::$_strings['update'] ? Route::$_strings['update'] : 'update';
+            $class .= "\tpublic function ".$name."(".'$request, $id'.")\n\t{\n\t\t//\n\t}\n\n";
+            $name = Route::$_strings['destroy'] ? Route::$_strings['destroy'] : 'destroy';
+            $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";        
+        }
+            
+        $class .= "\n}";
+        file_put_contents('app/controllers/'.$model.'Controller.php', $class);
+
+        printf("Controller created successfully.\n");
+    }
+
+
+    printf("Done\n");
+    
+
+
+
+}
