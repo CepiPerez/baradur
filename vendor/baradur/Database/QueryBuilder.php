@@ -1823,7 +1823,8 @@ Class QueryBuilder
         $nextrelation = null;
         if (strpos($relation, '.')>0)
         {
-            $current = array_shift(explode('.', $relation));
+            $temp = explode('.', $relation);
+            $current = array_shift($temp);
             $next = str_replace($current.'.', '', $relation);
             if (isset($extrawhere))
                 $nextrelation = array($next => $extrawhere);

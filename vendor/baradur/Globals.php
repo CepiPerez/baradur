@@ -32,6 +32,15 @@ if ( !function_exists('json_encode') )
     }
 }
 
+if ( !function_exists('lcfirst') )
+{
+    function lcfirst($content){
+        $first = strtolower(substr($content, 0, 1));
+        $rest = (strlen($content) > 1)? substr($content, 1, strlen($content)-1) : '';
+        return $first.$rest;
+    }
+}
+
 /* if(!function_exists('array_column'))
 {
 

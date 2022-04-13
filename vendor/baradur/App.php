@@ -80,14 +80,14 @@ Class App {
 
         list($file, $value) = explode('.', $string);
 
-        $filepath = __DIR__.'/../../resources/lang/'.$_SESSION['locale'].'/'.$file.'.php';
+        $filepath = _DIR_.'/../../resources/lang/'.$_SESSION['locale'].'/'.$file.'.php';
         if (file_exists($filepath))
         {
             $lang = include $filepath;
         }
         else
         {
-            $filepath = __DIR__.'/../../resources/lang/'.$_SESSION['locale'].'.json';
+            $filepath = _DIR_.'/../../resources/lang/'.$_SESSION['locale'].'.json';
             if (file_exists($filepath))
             {
                 $lang = json_decode(file_get_contents($filepath, 'r'), true);
@@ -95,7 +95,7 @@ Class App {
             }
             else
             {
-                $filepath = __DIR__.'/../../resources/lang/en/'.$file.'.php';
+                $filepath = _DIR_.'/../../resources/lang/en/'.$file.'.php';
                 $lang = include $filepath;
             }
         }
@@ -112,7 +112,7 @@ Class App {
         
     }
 
-    public static function choice($string, $value, $placeholder=null)
+    public static function trans_choice($string, $value, $placeholder=null)
     {
         $str = self::trans($string, $placeholder);
         $res = explode('|', $str);

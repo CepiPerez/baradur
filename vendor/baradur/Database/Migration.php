@@ -265,7 +265,7 @@ class Schema
 
         }
 
-        printf($query.PHP_EOL);
+        //printf($query.PHP_EOL);
         DB::table($table)->query($query);
         
     }

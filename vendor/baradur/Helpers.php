@@ -16,10 +16,10 @@ Class Helpers
 
     public static function getPlural($string)
     {
-        $filepath = __DIR__.'/../../resources/lang/'.$_SESSION['locale'].'/plurals.php';
+        $filepath = _DIR_.'/../../resources/lang/'.$_SESSION['locale'].'/plurals.php';
         
         if (!file_exists($filepath))
-            $filepath = __DIR__.'/../../resources/lang/en/plurals.php';
+            $filepath = _DIR_.'/../../resources/lang/en/plurals.php';
         
         $lang = include $filepath;
         $result = '';

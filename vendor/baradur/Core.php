@@ -20,7 +20,7 @@ if (version_compare(phpversion(), '8.0.0', '>='))
     error_reporting(0);
 }
 
-
+define (_DIR_, dirname(__FILE__));
 
 # Autoload function registration
 spl_autoload_register('custom_autoloader');
@@ -28,7 +28,7 @@ spl_autoload_register('custom_autoloader');
 
 # Enviroment variables
 require_once('DotEnv.php');
-DotEnv::load(__DIR__.'/../../.env');
+DotEnv::load(_DIR_.'/../../.env');
 
 # Globals
 require_once('Globals.php');
@@ -39,7 +39,7 @@ require_once('Global_functions.php');
 
 
 # Generating Application KEY (for Tokens usage)
-require_once(__DIR__.'/../random_compat/lib/random.php');
+require_once(_DIR_.'/../random_compat/lib/random.php');
 if (!isset($_SESSION['key']))
     $_SESSION['key'] = bin2hex(random_bytes(32));
 
@@ -48,10 +48,10 @@ if (!isset($_SESSION['key']))
 $app = new App();
 
 # Startup services
-include(__DIR__.'/../../app/AppServiceProvider.php');
+include(_DIR_.'/../../app/AppServiceProvider.php');
 
 # Routes
-include(__DIR__.'/../../routes/routes.php');
+include(_DIR_.'/../../routes/routes.php');
 
 # Autoload function
 function custom_autoloader($class) 
@@ -62,28 +62,28 @@ function custom_autoloader($class)
     $version = version_compare(phpversion(), '5.3.0', '>=')?'NEW':'OLD';
 
     $newclass = '';
-    if (file_exists(__DIR__.'/../../app/models/'.$class.'.php'))
-        $newclass = __DIR__.'/../../app/models/'.$class.'.php';
-    elseif (file_exists(__DIR__.'/../../app/models/auth/'.$class.'.php'))
-        $newclass = __DIR__.'/../../app/models/auth/'.$class.'.php';
-    elseif (file_exists(__DIR__.'/../../app/controllers/'.$class.'.php'))
-        $newclass = __DIR__.'/../../app/controllers/'.$class.'.php';
-    elseif (file_exists(__DIR__.'/../../app/controllers/auth/'.$class.'.php'))
-        $newclass = __DIR__.'/../../app/controllers/auth/'.$class.'.php';
-    elseif (file_exists(__DIR__.'/../../app/mddleware/'.$class.'.php'))
-        $newclass = __DIR__.'/../../app/middleware/'.$class.'.php';
-    elseif (file_exists(__DIR__.'/../../app/policies/'.$class.'.php'))
-        $newclass = __DIR__.'/../../app/policies/'.$class.'.php';
-    elseif (file_exists(__DIR__.'/View/'.$class.'.php'))
-        $newclass = __DIR__.'/View/'.$class.'.php';
-    elseif (file_exists(__DIR__.'/Database/'.$class.'.php'))
-        $newclass = __DIR__.'/Database/'.$class.'.php';
-    elseif (file_exists(__DIR__.'/'.$class.'.php'))
-        $newclass = __DIR__.'/'.$class.'.php';
+    if (file_exists(_DIR_.'/../../app/models/'.$class.'.php'))
+        $newclass = _DIR_.'/../../app/models/'.$class.'.php';
+    elseif (file_exists(_DIR_.'/../../app/models/auth/'.$class.'.php'))
+        $newclass = _DIR_.'/../../app/models/auth/'.$class.'.php';
+    elseif (file_exists(_DIR_.'/../../app/controllers/'.$class.'.php'))
+        $newclass = _DIR_.'/../../app/controllers/'.$class.'.php';
+    elseif (file_exists(_DIR_.'/../../app/controllers/auth/'.$class.'.php'))
+        $newclass = _DIR_.'/../../app/controllers/auth/'.$class.'.php';
+    elseif (file_exists(_DIR_.'/../../app/mddleware/'.$class.'.php'))
+        $newclass = _DIR_.'/../../app/middleware/'.$class.'.php';
+    elseif (file_exists(_DIR_.'/../../app/policies/'.$class.'.php'))
+        $newclass = _DIR_.'/../../app/policies/'.$class.'.php';
+    elseif (file_exists(_DIR_.'/View/'.$class.'.php'))
+        $newclass = _DIR_.'/View/'.$class.'.php';
+    elseif (file_exists(_DIR_.'/Database/'.$class.'.php'))
+        $newclass = _DIR_.'/Database/'.$class.'.php';
+    elseif (file_exists(_DIR_.'/'.$class.'.php'))
+        $newclass = _DIR_.'/'.$class.'.php';
 
     # Recursive search (class is not in predefined folders)
     if ($newclass=='') {
-        $it = new RecursiveDirectoryIterator(__DIR__.'/../../app');
+        $it = new RecursiveDirectoryIterator(_DIR_.'/../../app');
         foreach(new RecursiveIteratorIterator($it) as $file)
         {
             if (basename($file) == $class.'.php' || basename($file) == $class.'.PHP')
@@ -103,7 +103,7 @@ function custom_autoloader($class)
         {
             //echo "Class ".$class.' is Model's subclass!<br>';
 
-            $temp2 = file_get_contents(__DIR__.'/Model.php');
+            $temp2 = file_get_contents(_DIR_.'/Database/Model.php');
             $temp2 = str_replace('Model', $class.'Model', $temp2);
             $temp2 = str_replace('myparent', $class, $temp2);
 
@@ -124,17 +124,17 @@ function custom_autoloader($class)
             }
 
 
-            if (file_exists(__DIR__.'/../../resources/_system/'.$class.'Model.php'))
-                unlink(__DIR__.'/../../resources/_system/'.$class.'Model.php');
-            file_put_contents(__DIR__.'/../../resources/_system/'.$class.'Model.php', $temp2);
-            require_once(__DIR__.'/../../resources/_system/'.$class.'Model.php');
-            unlink(__DIR__.'/../../resources/_system/'.$class.'Model.php');
+            if (file_exists(_DIR_.'/../../resources/_system/'.$class.'Model.php'))
+                unlink(_DIR_.'/../../resources/_system/'.$class.'Model.php');
+            file_put_contents(_DIR_.'/../../resources/_system/'.$class.'Model.php', $temp2);
+            require_once(_DIR_.'/../../resources/_system/'.$class.'Model.php');
+            unlink(_DIR_.'/../../resources/_system/'.$class.'Model.php');
 
-            if (file_exists(__DIR__.'/../../resources/_system/'.$class.'.php'))
-                unlink(__DIR__.'/../../resources/_system/'.$class.'.php');
-            file_put_contents(__DIR__.'/../../resources/_system/'.$class.'.php', $temp);
-            require_once(__DIR__.'/../../resources/_system/'.$class.'.php');
-            unlink(__DIR__.'/../../resources/_system/'.$class.'.php');
+            if (file_exists(_DIR_.'/../../resources/_system/'.$class.'.php'))
+                unlink(_DIR_.'/../../resources/_system/'.$class.'.php');
+            file_put_contents(_DIR_.'/../../resources/_system/'.$class.'.php', $temp);
+            require_once(_DIR_.'/../../resources/_system/'.$class.'.php');
+            unlink(_DIR_.'/../../resources/_system/'.$class.'.php');
 
     
         }

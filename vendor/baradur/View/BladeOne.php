@@ -393,7 +393,7 @@ class BladeOne
 
     protected function compileChoice($expression)
     {
-        return $this->phpTag."echo App::choice$expression; ?>";
+        return $this->phpTag."echo App::trans_choice$expression; ?>";
     }
 
     protected function compileElse()

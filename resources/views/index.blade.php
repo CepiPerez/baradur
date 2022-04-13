@@ -2,8 +2,7 @@
 
 @section('content')
 
-@if ($data)<div class="center-screen">
-@else<div class="center-screen pt-5">@endif
+<div class="center-screen">
     
     <div class="text-center">
         <img src="{{ asset('logo.ico') }}" alt="" height="64px">

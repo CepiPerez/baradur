@@ -58,7 +58,7 @@ class Auth extends Controller
                         ));
 
             $domain = $_SERVER["HTTP_HOST"];
-            setcookie(APP_NAME.'_token', $token, time()+86400, '/', $domain, false, true);
+            setcookie(APP_NAME.'_token', $token, time()+86400, '/'.APP_FOLDER, $domain, false, true);
             unset($user->password);
             unset($user->validation);
             $_SESSION['user'] = (array)$user;
@@ -69,11 +69,18 @@ class Auth extends Controller
 
     public function logout()
     {
-        $domain = $_SERVER["HTTP_HOST"];
-        setcookie(APP_NAME.'_token', '', time() - 3600, '/', $domain);
+        global $version;
 
-        if (session_status() === PHP_SESSION_ACTIVE)
-            session_destroy();
+        $domain = $_SERVER["HTTP_HOST"];
+        setcookie(APP_NAME.'_token', '', time() - 3600, '/'.APP_FOLDER, $domain);
+
+        if ($version == 'NEW') {
+            if (session_status() === PHP_SESSION_ACTIVE)
+                session_destroy();
+        } else {
+            if (isset($_SESSION['user']))
+                unset($_SESSION['user']);
+        }
         
         /* unset($_SESSION['user']);
         unset($_SESSION['tokens']); */

@@ -27,7 +27,7 @@
     <main>
       
       <nav class="navbar justify-content-lg-between">
-        <li class="navbar-brand text-white">{{$app_name}}</li>
+        <a href="{{HOME}}"><li class="navbar-brand text-white">{{$app_name}}</li></a>
         @if ( Route::has('login') )
         <div class="row mr-2">
             @if ( Auth::user() )
@@ -54,7 +54,7 @@
           @if ($value == '#')
           <li class="breadcrumb-item">{{$key}}</li>
           @else
-          <li class="breadcrumb-item active"><a href="{{$value}}">{{$key}}</a></li>
+          <li class="breadcrumb-item active"><a href="{{HOME.$value}}">{{$key}}</a></li>
           @endif
         @endforeach
       </ol>

@@ -32,9 +32,9 @@ Class View
 	private static function checkFolders()
     {
 		$perror = false;
-		if ( !file_exists(__DIR__.'/../../../resources/_system/cache') )
+		if ( !file_exists(_DIR_.'/../../resources/_system/cache') )
 		{
-			if (!mkdir('/../../../resources/_system/cache', 0777))
+			if (!mkdir('/../../resources/_system/cache', 0777))
 			$perror = true;
 		}
 		if ($perror) 
@@ -52,7 +52,7 @@ Class View
 	{
 		global $app;
 
-		if (!file_exists(__DIR__.'/../../../resources/views/'.$file.'.blade.php'))
+		if (!file_exists(_DIR_.'/../../resources/views/'.$file.'.blade.php'))
 			abort(404);
 
 		self::checkFolders();
@@ -86,8 +86,8 @@ Class View
 
 
 		#include "BladeOne2.php";
-		$views = __DIR__.'/../../../resources/views';
-		$cache = __DIR__.'/../../../resources/_system/cache';
+		$views = _DIR_.'/../../resources/views';
+		$cache = _DIR_.'/../../resources/_system/cache';
 		$blade = new BladeOne($views, $cache);
 		define("BLADEONE_MODE", 1); // (optional) 1=forced (test),2=run fast (production), 0=automatic, default value.
 
