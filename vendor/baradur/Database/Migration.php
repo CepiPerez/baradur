@@ -46,7 +46,7 @@ class Table extends ArrayObject
         $col = new Column();
         $col->name = $name;
         $col->type = $type;
-        if ($increments) $col->incremntes = $increments;
+        if ($increments) $col->increments = $increments;
         if ($length) $col->length = $length;
         if ($precision) $col->precision = $precision;
         if ($scale) $col->scale = $scale;

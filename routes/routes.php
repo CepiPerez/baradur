@@ -9,3 +9,4 @@ Route::view('docs/{page}', 'docs/{page}');
 
 # Auth routes
 Auth::routes();
+

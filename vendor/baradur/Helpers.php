@@ -14,12 +14,15 @@ Class Helpers
             return $converted;
     }
 
-    public static function getPlural($string)
+    public static function getPlural($string, $fromCli=false)
     {
-        $filepath = _DIR_.'/../../resources/lang/'.$_SESSION['locale'].'/plurals.php';
+        $slocale = isset($_SESSION['locale']) ? $_SESSION['locale'] : 'en';
+
+        $filepath = _DIR_.'/../../resources/lang/'.$slocale.'/plurals.php';
         
         if (!file_exists($filepath))
-            $filepath = _DIR_.'/../../resources/lang/en/plurals.php';
+            $filepath = _DIR_.'/resources/lang/en/plurals.php';
+
         
         $lang = include $filepath;
         $result = '';

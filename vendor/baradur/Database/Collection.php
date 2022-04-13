@@ -384,7 +384,7 @@ Class Collection extends arrayObject
      */
     public function pull($index, $value=null)
     {
-        echo "Remiving: ".$index;
+        //echo "Remiving: ".$index;
         if (!is_integer($index))
         {
             $ind = -1;
@@ -410,97 +410,23 @@ Class Collection extends arrayObject
         return $res;
     }
 
+
+    
     /**
-     * Removes empty keys from each item in collection 
+     * Puts the collection in database 
      * 
-     * @param $item
      * @return Collection
      */
-    public function removeEmptyKeys($item, $collection, $child=null, $parent=null)
+    /* public function create()
     {
-        echo "Removing empty item:".$item." : child:".$child. " : parent:".$parent."<br>";
-
-        if (!isset($parent))
-            return $this->removeRecursive($item, $collection, $child, null);
-        elseif (isset($parent))
-            return $this->removeRecursive($item, $collection, null, $parent);
-
-
-    }
-
-    public function removeRecursive($item, $collection, $child, $parent)
-    {
-        //dd($collection);
-        $index = 0;
-
-        if (!isset($parent)) # Removing items from collection
+        $model = new self::$_parent;
+        foreach ($this as $record)
         {
-            echo "Removing items from collection<br>";
-            foreach ($collection as $current)
-            {
-                echo "checking: "; var_dump($current); echo "<br>";
-                if (isset($current->$item))
-                {
-                    echo "<br>found item: "; var_dump($current->$item); echo "<br>";
-
-                    if (count($current->$item) == 0)
-                    {
-                        echo "REMOVING: "; var_dump($current->$item); echo "<br>";
-                        /* foreach ($current as $key)
-                            unset($current->$key); */
-                        unset($current->$item);
-                    }    
-                    /* $ind = 0;
-                    foreach ($current->$item as $son)
-                    {
-                        echo "checking: "; var_dump($son); echo "<br>";
-                        if (!isset($son->$child))
-                        {
-                            echo "REMOVING: "; var_dump($current->$item[$ind]); echo "<br>";
-                            //foreach ($current as $key)
-                            //    unset($current->$key);
-                            array_splice($current->$item, $ind, 1);
-                            //dd($collection);
-                        }
-                        ++$ind;
-                    } */
-                    
-    
-                }
-                ++$index;
-            }
-            
+            $model::insert( (array)$record );
         }
-        else # Removing items from collection's child
-        {
-            echo "Removing items from collection's children<br>";
-            if (isset($collection))
-            {
-                foreach ($collection as $child)
-                {
-                    foreach ($child->$parent as $current)
-                    {
-                        //echo "checking: "; var_dump($current); echo "<br>";
-                        if (isset($current->$item))
-                        {
-                            //echo "<br>found item: "; var_dump($current->$item); echo "<br>";
-                            if (count($current->$item) == 0)
-                            {
-                                echo "REMOVING CHILD: "; var_dump($current->$item); echo "<br>";
-                                /* foreach ($current as $key)
-                                    unset($current->$key); */
-                                unset($current->$item);
-                            }            
-                        }
-                        ++$index;
-                    }
-                }
-            }
-            
-        }
-
-        return $collection;
-    }
+        return $this;
+        
+    } */
 
     
 }

@@ -20,7 +20,7 @@ if (version_compare(phpversion(), '8.0.0', '>='))
     error_reporting(0);
 }
 
-define (_DIR_, dirname(__FILE__));
+define ('_DIR_', dirname(__FILE__));
 
 # Autoload function registration
 spl_autoload_register('custom_autoloader');
@@ -84,6 +84,32 @@ function custom_autoloader($class)
     # Recursive search (class is not in predefined folders)
     if ($newclass=='') {
         $it = new RecursiveDirectoryIterator(_DIR_.'/../../app');
+        foreach(new RecursiveIteratorIterator($it) as $file)
+        {
+            if (basename($file) == $class.'.php' || basename($file) == $class.'.PHP')
+            {
+                $newclass = $file;
+                break;
+            }
+        }
+    }
+
+    # Recursive search in database folder
+    if ($newclass=='') {
+        $it = new RecursiveDirectoryIterator(_DIR_.'/../../database');
+        foreach(new RecursiveIteratorIterator($it) as $file)
+        {
+            if (basename($file) == $class.'.php' || basename($file) == $class.'.PHP')
+            {
+                $newclass = $file;
+                break;
+            }
+        }
+    }
+
+    # Recursive search in vendor folder
+    if ($newclass=='') {
+        $it = new RecursiveDirectoryIterator(_DIR_.'/../');
         foreach(new RecursiveIteratorIterator($it) as $file)
         {
             if (basename($file) == $class.'.php' || basename($file) == $class.'.PHP')

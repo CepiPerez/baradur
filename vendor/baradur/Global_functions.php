@@ -46,8 +46,6 @@ function view($template, $params=array())
  */
 function abort($error)
 {
-	global $app, $home;
-	$breadcrump = array('Inicio' => HOME, 'Error' => '#');
 	if ($error==403)
 		$errormsg = "Usted no tiene autorizacion para ingresar a la pagina solicitada";
 	else if ($error==404)
@@ -64,9 +62,8 @@ function abort($error)
  */
 function error($error, $message)
 {
-	global $app, $home;
-	$breadcrump = array(__('login.home') => HOME, 'Error' => '#');
-	echo View::loadTemplate('common/error', compact('error', 'message', 'breadcrump'));
+	$breadcrumb = array(__('login.home') => HOME, 'Error' => '#');
+	echo View::loadTemplate('common/error', compact('error', 'message', 'breadcrumb'));
 	exit();
 }
 
@@ -123,7 +120,7 @@ function redirect($url=null)
 {
 	if (isset($_POST)) $_SESSION['old'] = $_POST;
 
-	global $app, $home;
+	global $app;
 	$app->action = 'redirect';
 	if ($url) $app->result = HOME .'/'. ltrim($url, '/');
 	return $app;

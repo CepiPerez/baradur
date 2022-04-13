@@ -1,11 +1,15 @@
 <?php
 
+define ('_DIR_', dirname(__FILE__));
+
 # Autoload function registration
 spl_autoload_register('custom_autoloader');
 
 # Enviroment variables
 require_once('vendor/baradur/DotEnv.php');
-DotEnv::load(__DIR__.'/.env');
+DotEnv::load(_DIR_.'/.env');
+
+$database = null;
 
 # Autoload function
 function custom_autoloader($class) 
@@ -16,12 +20,12 @@ function custom_autoloader($class)
     $version = version_compare(phpversion(), '5.3.0', '>=')?'NEW':'OLD';
 
     $newclass = '';
-    if (file_exists(__DIR__.'/vendor/baradur/'.$class.'.php'))
-        $newclass = __DIR__.'/vendor/baradur/'.$class.'.php';
+    if (file_exists(_DIR_.'/vendor/baradur/'.$class.'.php'))
+        $newclass = _DIR_.'/vendor/baradur/'.$class.'.php';
 
     # Recursive search (class is not in predefined folders)
     if ($newclass=='') {
-        $it = new RecursiveDirectoryIterator(__DIR__.'/vendor/baradur');
+        $it = new RecursiveDirectoryIterator(_DIR_.'/vendor');
         foreach(new RecursiveIteratorIterator($it) as $file)
         {
             if (basename($file) == $class.'.php' || basename($file) == $class.'.PHP')
@@ -31,6 +35,31 @@ function custom_autoloader($class)
             }
         }
     }
+    # Recursive search in app folder
+    if ($newclass=='') {
+        $it = new RecursiveDirectoryIterator(_DIR_.'/app');
+        foreach(new RecursiveIteratorIterator($it) as $file)
+        {
+            if (basename($file) == $class.'.php' || basename($file) == $class.'.PHP')
+            {
+                $newclass = $file;
+                break;
+            }
+        }
+    }
+    # Recursive search in database folder
+    if ($newclass=='') {
+        $it = new RecursiveDirectoryIterator(_DIR_.'/database');
+        foreach(new RecursiveIteratorIterator($it) as $file)
+        {
+            if (basename($file) == $class.'.php' || basename($file) == $class.'.PHP')
+            {
+                $newclass = $file;
+                break;
+            }
+        }
+    }
+    
     if ($newclass!='')
     {
         require_once($newclass);
@@ -40,9 +69,87 @@ function custom_autoloader($class)
 
 array_shift($argv);
 $action = count($argv)>0? array_shift($argv) : null;
-$params = null; //count($argv)>0? array_shift($argv) : null;
+$params = null;
 
 function upper($text) { return strtoupper(str_replace('_', '', $text[0])); }
+
+
+function migrate()
+{
+    global $database;
+    $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+    $query = 'select * from migrations';
+    $applied = (array)$database->execSQL($query)->pluck('migration');
+
+    $count = 0;
+    $it = new RecursiveDirectoryIterator(_DIR_.'/database/migrations');
+    foreach(new RecursiveIteratorIterator($it) as $file)
+    {
+        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
+        {
+            $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+            $short =  substr($name, 16);
+            $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
+
+            if (!in_array($name, $applied))
+            {
+                printf("Migrating: ".$short."\n");
+    
+                if (!class_exists($converted))
+                    include ($file);
+                Schema::init($name);
+                $class = new $converted;
+                $class->up();
+
+                DB::table('migrations')->insert(array('migration' => $name));
+
+                ++$count;
+            }
+        }
+    }
+
+    if ($count == 0)
+        printf("Nothing to migrate\n");
+}
+
+function rollback($rollback)
+{
+    $it = new RecursiveDirectoryIterator(_DIR_.'/database/migrations');
+    foreach(new RecursiveIteratorIterator($it) as $file)
+    {
+        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
+        {
+            $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+            $short =  substr($name, 16);
+
+            if ($name == $rollback)
+            {
+                $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
+
+                printf("Rolling back: ".$short."\n");
+    
+                include ($file);
+                Schema::init($name);
+                $class = new $converted;
+                $class->down();
+
+                DB::table('migrations')->where('migration', $name)->delete();
+
+            }
+
+        }
+    }
+}
+
+function seed()
+{
+    global $database;
+    $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+    $seeder = new DatabaseSeeder;
+    $seeder->run();
+    
+}
+
 
 if ($action == 'make:migration' && count($argv)>0)
 {
@@ -86,45 +193,8 @@ if ($action == 'make:migration' && count($argv)>0)
 else if ($action == 'migrate')
 {
     //printf("Making migrations\n");
-
-    $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
-    $query = 'select * from migrations';
-    $result = $database->execSQL($query);
+    migrate();
     
-    $applied = array();
-    if ($result)
-        $applied = (array)$result->pluck('migration');
-
-    $count = 0;
-    $it = new RecursiveDirectoryIterator(__DIR__.'/database/migrations');
-    foreach(new RecursiveIteratorIterator($it) as $file)
-    {
-        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
-        {
-            $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
-            $short =  substr($name, 16);
-            $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
-
-            if (!in_array($name, $applied))
-            {
-                printf("Migrating: ".$short."\n");
-    
-                include ($file);
-                Schema::init($name);
-                $class = new $converted;
-                $class->up();
-
-                DB::table('migrations')->insert(array('migration' => $name));
-
-                ++$count;
-            }
-        }
-    }
-
-    if ($count == 0)
-        printf("Nothing to migrate\n");
-    else
-        printf("Done\n");
 }
 
 else if ($action == 'migrate:rollback')
@@ -136,32 +206,7 @@ else if ($action == 'migrate:rollback')
     if (count($applied)>0)
     {
         $rollback = $applied[0];
-        
-        $it = new RecursiveDirectoryIterator(__DIR__.'/database/migrations');
-        foreach(new RecursiveIteratorIterator($it) as $file)
-        {
-            if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
-            {
-                $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
-                $short =  substr($name, 16);
-
-                if ($name == $rollback)
-                {
-                    $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
-
-                    printf("Rolling back: ".$short."\n");
-        
-                    include ($file);
-                    Schema::init($name);
-                    $class = new $converted;
-                    $class->down();
-
-                    DB::table('migrations')->where('migration', $name)->delete();
-
-                }
-
-            }
-        }
+        rollback($rollback);
         printf("Done\n");
 
     }
@@ -195,44 +240,17 @@ elseif ($action == 'make:controller' && count($argv)>0)
     if (file_exists('app/controllers/'.$controller.'.php'))
         die ("Error: there's already a controller called ".$controller."\n");
 
-    /* $class = "<?php\n\nclass ".$controller." extends Controller\n".
-        "{\n\t".'//protected $tokenVerification = false;'."\n\n\n}";
-    file_put_contents('app/controllers/'.$controller.'.php', $class); */
-
-    require('app/AppServiceProvider.php');
-
     $class = "<?php\n\nclass ".$controller." extends Controller\n".
-    "{\n\t".'//protected $tokenVerification = false;'. "\n\n";
-    
-    if ($resource)
-    {
-        $name = isset(Route::$_strings['index']) ? Route::$_strings['index'] : 'index';
-        $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
-        $name = isset(Route::$_strings['create']) ? Route::$_strings['create'] : 'create';
-        $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
-        $name = isset(Route::$_strings['store']) ? Route::$_strings['store'] : 'store';
-        $class .= "\tpublic function ".$name."(".'$request'.")\n\t{\n\t\t//\n\t}\n\n";
-        $name = isset(Route::$_strings['show']) ? Route::$_strings['show'] : 'show';
-        $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
-        $name = isset(Route::$_strings['edit']) ? Route::$_strings['edit'] : 'edit';
-        $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
-        $name = isset(Route::$_strings['update']) ? Route::$_strings['update'] : 'update';
-        $class .= "\tpublic function ".$name."(".'$request, $id'.")\n\t{\n\t\t//\n\t}\n\n";
-        $name = isset(Route::$_strings['destroy']) ? Route::$_strings['destroy'] : 'destroy';
-        $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";        
-    }
-        
-    $class .= "\n}";
-    file_put_contents('app/controllers/'.$model.'Controller.php', $class);
-    printf("Controller created successfully.\n");
+        "{\n\t".'//protected $tokenVerification = false;'."\n\n\n}";
+    file_put_contents('app/controllers/'.$controller.'.php', $class);
 
     if (!file_exists('app/models/'.ucfirst($model).'.php'))
     {
         $class = "<?php\n\nclass ".ucfirst($model)." extends Model\n{\n\n\n}";
         file_put_contents('app/models/'.ucfirst($model).'.php', $class);  
-        printf("Model created successfully.\n");
     }
 
+    printf("Controller created successfully.\n");
 
 }
 
@@ -272,7 +290,7 @@ elseif ($action == 'make:model' && count($argv)>0)
 
     if ($migration)
     {
-        $table = Helpers::getPlural($model);
+        $table = Helpers::getPlural($model, true);
         $arg = 'create_'.strtolower($table).'_table';
 
         list($table, $create) = TableGuesser::guess($arg);
@@ -299,19 +317,19 @@ elseif ($action == 'make:model' && count($argv)>0)
         
         if ($resource)
         {
-            $name = isset(Route::$_strings['index']) ? Route::$_strings['index'] : 'index';
+            $name = Route::$_strings['index'] ? Route::$_strings['index'] : 'index';
             $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
-            $name = isset(Route::$_strings['create']) ? Route::$_strings['create'] : 'create';
+            $name = Route::$_strings['create'] ? Route::$_strings['create'] : 'create';
             $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
-            $name = isset(Route::$_strings['store']) ? Route::$_strings['store'] : 'store';
+            $name = Route::$_strings['store'] ? Route::$_strings['store'] : 'store';
             $class .= "\tpublic function ".$name."(".'$request'.")\n\t{\n\t\t//\n\t}\n\n";
-            $name = isset(Route::$_strings['show']) ? Route::$_strings['show'] : 'show';
+            $name = Route::$_strings['show'] ? Route::$_strings['show'] : 'show';
             $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
-            $name = isset(Route::$_strings['edit']) ? Route::$_strings['edit'] : 'edit';
+            $name = Route::$_strings['edit'] ? Route::$_strings['edit'] : 'edit';
             $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
-            $name = isset(Route::$_strings['update']) ? Route::$_strings['update'] : 'update';
+            $name = Route::$_strings['update'] ? Route::$_strings['update'] : 'update';
             $class .= "\tpublic function ".$name."(".'$request, $id'.")\n\t{\n\t\t//\n\t}\n\n";
-            $name = isset(Route::$_strings['destroy']) ? Route::$_strings['destroy'] : 'destroy';
+            $name = Route::$_strings['destroy'] ? Route::$_strings['destroy'] : 'destroy';
             $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";        
         }
             
@@ -328,3 +346,104 @@ elseif ($action == 'make:model' && count($argv)>0)
 
 
 }
+
+else if ($action == 'make:seeder' && count($argv)>0)
+{
+    $seeder = $argv[0];
+
+    if (file_exists('database/seeders/'.$seeder.'.php'))
+        die ("Error: there's already a seeder called ".$seeder."\n");
+
+    
+    $class = "<?php\n\nclass ".$seeder." extends Seeder\n".
+        "{\n\tpublic function run()\n\t{\n\t\t//\n\t}\n\n}";
+
+    file_put_contents('database/seeders/'.$seeder.'.php', $class);
+
+    printf("Seeder created successfully\n");
+
+}
+
+else if ($action == 'make:factory' && count($argv)>0)
+{
+    $factory = null;
+    $model = null;
+
+    foreach ($argv as $arg)
+    {
+        if (strpos($arg, '-model=')==1)
+            $model = str_replace('--model=', '', $arg);
+
+        elseif (strrpos($arg, '-')==false)
+            $factory = $arg;
+    }
+
+    if (file_exists('database/factories/'.$factory.'.php'))
+        die ("Error: there's already a factory called ".$factory."\n");
+
+
+    if (!isset($model)) $model = 'Model';
+    
+    $class = "<?php\n\nclass ".$factory." extends Factory\n".
+        "{\n\tprotected ".'$model = '.$model."::class;\n\n\t".
+        "public function definition()\n\t{\n\t\treturn array(".
+        "\n\t\t\t//\n\t\t);\n\t}\n\n}";
+
+    file_put_contents('database/factories/'.$factory.'.php', $class);
+
+    printf("Factory created successfully\n");
+
+
+}
+
+else if ($action == 'db:seed')
+{
+    seed();
+
+}
+
+else if ($action == 'migrate:fresh')
+{
+    $seed = false;
+
+    if (count($argv)>0) 
+    {
+        foreach ($argv as $arg)
+        {
+            if ($arg=='--seed')
+                $seed = true;
+        }
+    }
+
+    $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+    $query = 'select * from migrations';
+    $applied = (array)$database->execSQL($query)->pluck('migration');
+
+    foreach ($applied as $rollback)
+    {
+        rollback($rollback);
+    }
+
+    migrate();
+
+    if ($seed)
+    {
+        seed();
+    }
+
+    
+}
+
+else if ($action == 'migrate:reset')
+{
+    $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+    $query = 'select * from migrations';
+    $applied = (array)$database->execSQL($query)->pluck('migration');
+
+    foreach ($applied as $rollback)
+    {
+        rollback($rollback);
+    }
+    
+}
+

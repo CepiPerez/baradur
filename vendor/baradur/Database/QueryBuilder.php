@@ -8,6 +8,9 @@ Class QueryBuilder
     public $_foreign;
     public $_fillable;
     public $_guarded;
+    public $_fillableOff = false;
+
+    public $_factory = null;
 
     public $_relationship;
     public $_rparent = null;
@@ -857,22 +860,47 @@ Class QueryBuilder
     }
 
 
-   /**
+    /**
      * Creates a new record in database\
      * Returns new record
      * 
      * @param array $record
      * @return Model
      */
-    public function create($record)
+    public function create($record = null)
     {
+
         foreach ($record as $key => $val)
         {
-            if (in_array($key, $this->_fillable))
+            if (in_array($key, $this->_fillable) || $this->_fillableOff)
                 $this->set($key, $val, false);
             else
                 unset($record[$key]);
         }
+
+        if(count($this->_values) == 0)
+            return null;
+
+        if ($this->_insert(array()) == '')
+            return $this->insertUnique($record);
+        else
+            return null;
+
+    }
+
+    /**
+     * Creates a new record in database\
+     * ignoring fillable
+     * Returns new record
+     * 
+     * @param array $record
+     * @return Model
+     */
+    public function __create($record = null)
+    {
+
+        foreach ($record as $key => $val)
+            $this->set($key, $val, false);
 
         if(count($this->_values) == 0)
             return null;
@@ -999,7 +1027,7 @@ Class QueryBuilder
         $this->clear();
         foreach ($values as $key => $val)
         {
-            if (in_array($key, $this->_fillable))
+            if (in_array($key, $this->_fillable) || $this->_fillableOff)
                 $this->set($key, $val, false);
             else
                 unset($values[$key]);
@@ -1687,7 +1715,7 @@ Class QueryBuilder
 
     private function processEagerLoad()
     {
-        if (!$this->_eagerLoad) return;
+        if (count($this->_eagerLoad) == 0) return;
 
         $processed = array();
         foreach ($this->_eagerLoad as $extra)
@@ -2114,6 +2142,59 @@ Class QueryBuilder
     {
         return $this->_withWhereHas($relation, $filters);
     }
+
+
+    /**
+     * Sets the Query's factory
+     * 
+     * @return Factory
+     */
+    public function factory()
+    {
+        $class = $this->_parent;
+        $factory = $class::newFactory();
+
+        if (!$factory)
+        {
+            if (APP_DEBUG==true) throw new Exception('Error looking for '.$fname);
+            else return $null;
+        }
+
+        return $factory;
+
+    }
+
+
+    public function seed($data, $persist)
+    {
+
+        $this->_fillableOff = true;
+
+        $col = new Collection($this->_parent);
+
+        foreach ($data as $item)
+        {
+            if ($persist)
+            {
+                $col[] = $this->create($item);
+            }
+            else
+            {
+                $col[] = $this->insertUnique($item);
+            }
+        }
+
+        $this->_fillableOff = false;
+
+        return $col;
+
+    }
+    
+
+
+
+
+
 
 
     public function callScope($scope, $args)

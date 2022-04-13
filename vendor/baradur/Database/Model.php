@@ -9,6 +9,7 @@ class Model
     protected static $_primaryKey = 'id';
     protected static $_fillable = array();
     protected static $_guarded = array();
+    protected static $_factory;
     protected static $_connector;
     protected static $_query;
 
@@ -36,6 +37,11 @@ class Model
      * Default is empty array
      */
     Protected $guarded = array();
+
+    /**
+     * Sets the Model's factory
+     */
+    Protected $factory = null;
 
 
     /**
@@ -95,6 +101,15 @@ class Model
         else
         {
             self::$_primaryKey = 'id';
+        }
+
+        if ($this->factory)
+        {
+            self::$_factory = $this->factory; 
+        }
+        else
+        {
+            self::$_factory = self::$_parent.'Factory';
         }
 
         if ($this->fillable)
@@ -193,15 +208,16 @@ class Model
         //$res = null;
         if (method_exists($this, $name))
         {
-            /* $array = new stdClass;
+            $array = new stdClass;
             foreach ($this as $key => $val)
                 $array->$key = $val;
                         
             $inst = self::getInstance();
             $inst->getQuery()->_collection = array($array);
             $res = $inst->$name()->get();
-            return $res; */
-            return $this->$name()->get();
+            return $res;
+            //dd($this);
+            //return $this->$name()->get();
         }
 
     }
@@ -218,6 +234,14 @@ class Model
         {
             return self::getInstance()->getQuery()->$name($arguments);
         } */
+    }
+
+
+    public static function newFactory()
+    {
+        //echo "Called factory(): ".self::$_factory;
+        $class = self::$_factory;
+        return new $class;
     }
 
 
@@ -848,6 +872,7 @@ class Model
         
         if ($this->getQuery()->_collection==null)
         $this->getQuery()->_collection = array($array); */
+        
 
         return $this->getQuery()->processRelationship($class, $foreign, $primary, 'belongsTo');
     }
@@ -907,4 +932,20 @@ class Model
         return $this->getQuery()->processRelationshipThrough($class, $classthrough, $foreignthrough, $foreign, $primary, $primarythrough, 'hasOneThrough');
     }
     
+    /**
+     * Set a factory to seed the model
+     * 
+     * @return Factory
+     */
+    public static function factory()
+    {
+        return self::getInstance()->getQuery()->factory();
+    }
+
+    public static function seed($array, $persist)
+    {
+        return self::getInstance()->getQuery()->seed($array, $persist);
+    }
+
+
 }

@@ -48,9 +48,9 @@
         @endif
       </nav>
 
-      @if ($breadcrump)
+      @if ($breadcrumb)
       <ol class="breadcrumb">
-        @foreach ($breadcrump as $key => $value)
+        @foreach ($breadcrumb as $key => $value)
           @if ($value == '#')
           <li class="breadcrumb-item">{{$key}}</li>
           @else
