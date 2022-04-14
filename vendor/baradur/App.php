@@ -70,24 +70,25 @@ Class App {
         return $csrf;
     }
 
-    public static function setLocale($locale)
+    public static function setLocale($lang)
     {
-        $_SESSION['locale'] = $locale;
+        global $locale;
+        $locale = $lang;
     }
 
     public static function trans($string, $placeholder=null)
     {
-
+        global $locale;
         list($file, $value) = explode('.', $string);
 
-        $filepath = _DIR_.'/../../resources/lang/'.$_SESSION['locale'].'/'.$file.'.php';
+        $filepath = _DIR_.'/../../resources/lang/'.$locale.'/'.$file.'.php';
         if (file_exists($filepath))
         {
             $lang = include $filepath;
         }
         else
         {
-            $filepath = _DIR_.'/../../resources/lang/'.$_SESSION['locale'].'.json';
+            $filepath = _DIR_.'/../../resources/lang/'.$locale.'.json';
             if (file_exists($filepath))
             {
                 $lang = json_decode(file_get_contents($filepath, 'r'), true);

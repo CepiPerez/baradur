@@ -47,9 +47,9 @@ function view($template, $params=array())
 function abort($error)
 {
 	if ($error==403)
-		$errormsg = "Usted no tiene autorizacion para ingresar a la pagina solicitada";
+		$errormsg = "You don't have permission to access";
 	else if ($error==404)
-		$errormsg = "No se encontro la pagina solicitada";
+		$errormsg = "Resource not found on this server";
 	error($error, $errormsg);
 }
 
@@ -62,7 +62,7 @@ function abort($error)
  */
 function error($error, $message)
 {
-	$breadcrumb = array(__('login.home') => HOME, 'Error' => '#');
+	$breadcrumb = array(__('login.home') => '', 'Error' => '#');
 	echo View::loadTemplate('common/error', compact('error', 'message', 'breadcrumb'));
 	exit();
 }

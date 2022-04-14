@@ -45,7 +45,7 @@ They are defined in <b>web/routes.php</b></h5>
 <br><b>Localization for resources</b>
 <br><br>
 <p class="card-warning">
-   <b>NOTE:</b> Although it can be added in routes.php, you can use app/AppServiceProvider.php
+   <b>NOTE:</b> Although it can be added in routes.php, you can use app/config.php
 </p>
 
 <pre><code class="language-php7">Route::resourceVerbs(array(

@@ -5,12 +5,11 @@ abstract Class Factory
 
     protected $model;
     public $faker;
-    protected $count;
+    public $count = 1;
 
     public function __construct()
     {
         $this->faker = new Faker;
-        
     }
 
 
@@ -33,6 +32,9 @@ abstract Class Factory
      */
     public function create()
     {
+        Faker::resetUnique();
+        Faker::setCounter($this->count);
+
         $count = $this->count;
         $model = $this->model;
 
@@ -57,6 +59,9 @@ abstract Class Factory
      */
     public function make()
     {
+        Faker::resetUnique();
+        Faker::setCounter($this->count);
+
         $count = $this->count;
         $model = $this->model;
 
@@ -73,10 +78,7 @@ abstract Class Factory
          
     }
 
-
     abstract function definition();
-
     
-
 
 }

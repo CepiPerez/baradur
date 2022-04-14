@@ -48,7 +48,7 @@ if (!isset($_SESSION['key']))
 $app = new App();
 
 # Startup services
-include(_DIR_.'/../../app/AppServiceProvider.php');
+include(_DIR_.'/../../app/config.php');
 
 # Routes
 include(_DIR_.'/../../routes/routes.php');

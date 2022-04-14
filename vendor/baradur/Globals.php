@@ -9,6 +9,7 @@ $home = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off' ? 'https' : 'htt
 define('_ASSETS', 'assets');
 define('HOME', rtrim($home, '/'));
 
+$locale = 'en';
 
 if ( !function_exists('json_decode') )
 {

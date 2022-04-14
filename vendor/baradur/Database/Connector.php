@@ -11,10 +11,7 @@ Class Connector
         $this->connection->set_charset("utf8");
         mysqli_report(MYSQLI_REPORT_OFF);
         if (!$this->connection) {
-            echo "Error: No se pudo conectar a MySQL." . PHP_EOL;
-            echo "errno de depuración: " . mysqli_connect_errno() . PHP_EOL;
-            echo "error de depuración: " . mysqli_connect_error() . PHP_EOL;
-            exit;
+            throw new Exception("Error trying to connect to database");
         }
     }
 
@@ -79,7 +76,7 @@ Class Connector
         }
         $res = array();
 
-        $sql = str_replace("'NOW()'", "NOW()", $sql);
+        //$sql = str_replace("'NOW()'", "NOW()", $sql);
         
         //echo "SQL:".$sql."<br>";
         $query = $this->connection->query($sql);
@@ -89,12 +86,10 @@ Class Connector
         if (!$query) {
             throw new Exception($this->connection->error);
         }
-        //var_dump($query);echo "<br>";
 
+        
         if (!is_bool($query))
         {
-            
-    
             while( $r = $query->fetch_object() )
             {
                 $c = $collection->getParent();
@@ -107,7 +102,6 @@ Class Connector
                 $collection->put($obj);
 
             }
-            //var_dump($collection->first());
             return $collection;
         }
 

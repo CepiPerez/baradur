@@ -471,7 +471,7 @@ class Route
      * Check if route exists
      * 
      * @param string $name
-     * @return array
+     * @return bool
      */
     public static function has($name)
     {
@@ -482,7 +482,7 @@ class Route
      * Get the current route from its name
      * 
      * @param string $name
-     * @return array
+     * @return string
      */
     public static function getRoute($params)
     {
@@ -573,16 +573,7 @@ class Route
             abort(404);
         }
        
-        # If route has middleware then call it
-        if (isset($ruta->middleware))
-        {
-            call_user_func_array(array($ruta->middleware, 'check'), array($ruta));
-        }
-
-        # Save URLs history
-        self::saveHistory();
-
-        # Put POST values into Request
+        # Put GET values into Request
         $request = new Request;
         if (isset($_GET))
         {
@@ -596,7 +587,6 @@ class Route
                 //$request->$key = filter_input(INPUT_POST, $key, FILTER_SANITIZE_SPECIAL_CHARS);
             }
         }
-
 
         # Put POST values into Request
         //$request = new Request;
@@ -622,53 +612,69 @@ class Route
         }
         Helpers::setRequest($request);
         
-        
-        # Callback - Calls the assigned function in assigned controller
-        if (is_string($ruta->controller) && isset($ruta->func))
+        self::setCurrentRoute($ruta);
+
+        # If route has middleware then call it
+        $continue = true;
+        if (isset($ruta->middleware))
         {
-            $controlador = $ruta->controller;
-            $funcion = $ruta->func;
-            $controller = new $controlador();
-            $parametros = isset($ruta->parametros)? $ruta->parametros : array();
-            $ruta->method = $_SERVER['REQUEST_METHOD'];
+            $res = call_user_func_array(array($ruta->middleware, 'handle'), array($request));
 
-            self::setCurrentRoute($ruta);
-
-            if ($ruta->method=='POST' || $ruta->method=='PUT')
-                array_unshift($parametros, $request);
-
-            # Calls controller check()
-            # Verifies tokens if controller's $tokenVerification is true
-            if (method_exists($controller, 'check'))
-                $controller->check($ruta);
-
-            # Final callback
-            call_user_func_array(array($controller, $funcion), $parametros);
-
+            if (isset($res))
+                $continue = false;
         }
-        
-        # Route returns a view directly
-        elseif (is_string($ruta->controller) && !isset($ruta->func))
-        {
-            $controller = $ruta->controller;
-            $count = 0;
-            if ($ruta->parametros)
+
+        if ($continue)
+        {            
+            # Save URLs history
+            self::saveHistory();
+            
+            # Callback - Calls the assigned function in assigned controller
+            if (is_string($ruta->controller) && isset($ruta->func))
             {
-                foreach ($ruta->parametros as $param)
-                {
-                    $controller = str_replace($ruta->orig_parametros[$count], $param, $controller);
-                    //$controller = str_replace('$'.$ruta->orig_parametros[$count], $param, $controller);
-                    ++$count;
-                }
+                $controlador = $ruta->controller;
+                $funcion = $ruta->func;
+                $controller = new $controlador();
+                $parametros = isset($ruta->parametros)? $ruta->parametros : array();
+                $ruta->method = $_SERVER['REQUEST_METHOD'];
+    
+                if ($ruta->method=='POST' || $ruta->method=='PUT')
+                    array_unshift($parametros, $request);
+    
+                # Calls controller check()
+                # Verifies tokens if controller's $tokenVerification is true
+                if (method_exists($controller, 'check'))
+                    $controller->check($ruta);
+    
+                # Final callback
+                call_user_func_array(array($controller, $funcion), $parametros);
+    
             }
-            view($controller);
-        }
-        
-        # Using Closures as callback is only available for PHP => 5.3
-        else
-        {
-            #var_dump($ruta->controller);
-            echo call_user_func_array($ruta->controller, $ruta->parametros? $ruta->parametros : array());
+            
+            # Route returns a view directly
+            elseif (is_string($ruta->controller) && !isset($ruta->func))
+            {
+                $controller = $ruta->controller;
+                $count = 0;
+                if ($ruta->parametros)
+                {
+                    foreach ($ruta->parametros as $param)
+                    {
+                        $controller = str_replace($ruta->orig_parametros[$count], $param, $controller);
+                        //$controller = str_replace('$'.$ruta->orig_parametros[$count], $param, $controller);
+                        ++$count;
+                    }
+                }
+                view($controller);
+            }
+            
+            # Using Closures as callback is only available for PHP => 5.3
+            else
+            {
+                #var_dump($ruta->controller);
+                echo call_user_func_array($ruta->controller, $ruta->parametros? $ruta->parametros : array());
+            }
+
         }
 
         # Show the results
