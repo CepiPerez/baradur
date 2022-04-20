@@ -388,12 +388,12 @@ class BladeOne
     protected function compileLang($expression)
     {
         /* return $this->phpTag."echo app('translator')->get$expression; ?>"; */
-        return $this->phpTag."echo App::trans$expression; ?>";
+        return $this->phpTag."echo Helpers::trans$expression; ?>";
     }
 
     protected function compileChoice($expression)
     {
-        return $this->phpTag."echo App::trans_choice$expression; ?>";
+        return $this->phpTag."echo Helpers::trans_choice$expression; ?>";
     }
 
     protected function compileElse()

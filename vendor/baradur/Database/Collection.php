@@ -45,6 +45,11 @@ Class Collection extends arrayObject
     }
 
 
+    public function toArray()
+    {
+        return (array)$this;
+    }
+
     /**
      * Builds pagination links in View
      * 
@@ -384,14 +389,15 @@ Class Collection extends arrayObject
      */
     public function pull($index, $value=null)
     {
-        //echo "Remiving: ".$index;
+        //printf("Removing: $index\n");
         if (!is_integer($index))
         {
             $ind = -1;
             $count = 0;
             foreach ($this as $record)
             {
-                if ($record->$index==$value)
+                //print_r($record);
+                if (isset($record->$index) && $record->$index==$value)
                 {
                     $ind = $count;
                     break;
@@ -410,23 +416,17 @@ Class Collection extends arrayObject
         return $res;
     }
 
-
-    
     /**
-     * Puts the collection in database 
+     * Determines if a given key exists in the collection
      * 
-     * @return Collection
+     * @return bool
      */
-    /* public function create()
+    public function has($key)
     {
-        $model = new self::$_parent;
-        foreach ($this as $record)
-        {
-            $model::insert( (array)$record );
-        }
-        return $this;
-        
-    } */
+        return isset($this->$key);
+    }
+    
+
 
     
 }

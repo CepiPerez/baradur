@@ -8,7 +8,7 @@ class Model
     protected static $_table;
     protected static $_primaryKey = 'id';
     protected static $_fillable = array();
-    protected static $_guarded = array();
+    protected static $_guarded = null;
     protected static $_factory;
     protected static $_connector;
     protected static $_query;
@@ -18,30 +18,30 @@ class Model
      * Sets database table used in model\
      * Default value is Model' name in lowercase and plural
      */
-    Protected $table = null;
+    protected $table = null;
 
     /**
      * Sets table primary key\
      * Default value is 'id'
      */
-    Protected $primaryKey = null;
+    protected $primaryKey = null;
 
     /**
      * Sets fillable columns\
      * Default is empty array
      */
-    Protected $fillable = array();
+    protected $fillable = array();
 
     /**
      * Sets guarded columns\
      * Default is empty array
      */
-    Protected $guarded = array();
+    protected $guarded = null;
 
     /**
      * Sets the Model's factory
      */
-    Protected $factory = null;
+    protected $factory = null;
 
 
     /**
@@ -59,7 +59,6 @@ class Model
     public function __construct($empty = false)
     {
         global $version;
-
 
         # Only for PHP => 5.3 
         if ($version=='NEW')
@@ -127,6 +126,9 @@ class Model
         unset($this->primaryKey);
         unset($this->fillable);
         unset($this->guarded);
+        unset($this->factory);
+
+        $routeKey = $this->getRouteKeyName();
 
         //echo "NEW MODEL: ".get_called_class()."<br>";
        
@@ -135,9 +137,14 @@ class Model
         if ($empty)
             self::$_query = null;
         else
-            self::$_query = new QueryBuilder(self::$_connector, self::$_table, self::$_primaryKey, self::$_parent, self::$_fillable, self::$_guarded);
+            self::$_query = new QueryBuilder(self::$_connector, self::$_table, self::$_primaryKey, self::$_parent, self::$_fillable, self::$_guarded, $routeKey);
 
         
+    }
+
+    public function getRouteKeyName()
+    {
+        return 'id';
     }
 
 
@@ -204,16 +211,13 @@ class Model
 
     public function __GET($name)
     {
-        
-        //$res = null;
         if (method_exists($this, $name))
         {
-            $array = new stdClass;
-            foreach ($this as $key => $val)
-                $array->$key = $val;
+            $array = new Collection($this->_parent);
+            $array->put($this);
                         
             $inst = self::getInstance();
-            $inst->getQuery()->_collection = array($array);
+            $inst->getQuery()->_collection = $array;
             $res = $inst->$name()->get();
             return $res;
             //dd($this);
@@ -602,10 +606,38 @@ class Model
      * @param array $record
      * @return string
      */
-    public static function update($record)
+    public function update($record)
     {
         //var_dump(self::getInstance()->getQuery());
+        if( isset($this) && $this instanceof self )
+        {
+            $class = get_class($this);
+            $primary = $this->getRouteKeyName();
+            return $class::where($primary, $this->$primary)->update($record);
+            //return self::getInstance()->getQuery()->update($record, $this);
+        }
+
+
         return self::getInstance()->getQuery()->update($record);
+    }
+
+
+    /**
+     * Deletes the current model from database\
+     * Returns error or empty string if ok
+     * 
+     * @return string
+     */
+    public function delete()
+    {
+        if( isset($this) && $this instanceof self )
+        {
+            $class = get_class($this);
+            $primary = $this->getRouteKeyName();
+            return $class::where($primary, $this->$primary)->delete();
+        }
+
+        //return self::getInstance()->getQuery()->update($record);
     }
 
     /**
@@ -664,17 +696,6 @@ class Model
         return self::getInstance()->getQuery()->truncate();
     }
 
-    /**
-     * DELETE the current record from database\
-     * Returns error if WHERE clause was not specified\
-     * Returns error or empty string if ok
-     * 
-     * @return string
-     */
-    public function delete()
-    {
-        return $this->getQuery()->delete();
-    }
 
     /**
      * DELETE the current records from database\
@@ -843,14 +864,7 @@ class Model
      */
     public function hasMany($class, $foreign=null, $primary=null)
     {        
-        /* if (count($this->getQuery()->_collection)==0)
-        {
-            $array = new stdClass;
-            foreach ($this as $key => $val)
-                $array->$key = $val;
-
-            $this->getQuery()->_collection->put($array);
-        } */
+        //$this->checkQuery();
 
         return $this->getQuery()->processRelationship($class, $foreign, $primary, 'hasMany');
     }
@@ -866,13 +880,7 @@ class Model
      */
     public function belongsTo($class, $foreign=null, $primary=null)
     {
-        /* $array = new stdClass;
-        foreach ($this as $key => $val)
-            $array->$key = $val;
-        
-        if ($this->getQuery()->_collection==null)
-        $this->getQuery()->_collection = array($array); */
-        
+        //$this->checkQuery();
 
         return $this->getQuery()->processRelationship($class, $foreign, $primary, 'belongsTo');
     }
@@ -888,12 +896,7 @@ class Model
      */
     public function hasOne($class, $foreign=null, $primary=null)
     {
-        /* $array = new stdClass;
-        foreach ($this as $key => $val)
-            $array->$key = $val;
-        
-        if ($this->getQuery()->_collection==null)
-        $this->getQuery()->_collection = array($array); */
+        //$this->checkQuery();
 
         return $this->getQuery()->processRelationship($class, $foreign, $primary, 'hasOne');
     }
@@ -912,6 +915,8 @@ class Model
      */
     public function hasManyThrough($class, $classthrough, $foreignthrough, $foreign, $primary='id', $primarythrough='id')
     {
+        //$this->checkQuery();
+        
         return $this->getQuery()->processRelationshipThrough($class, $classthrough, $foreignthrough, $foreign, $primary, $primarythrough, 'hasManyThrough');
     }
     
@@ -929,8 +934,62 @@ class Model
      */
     public function hasOneThrough($class, $classthrough, $foreignthrough=null, $foreign=null, $primary=null, $primarythrough=null)
     {
+        //$this->checkQuery();
+
         return $this->getQuery()->processRelationshipThrough($class, $classthrough, $foreignthrough, $foreign, $primary, $primarythrough, 'hasOneThrough');
     }
+
+    /**
+     * Makes a relationship\
+     * Check Laravel documentation
+     * 
+     * @param string $class - Model class (or table name)
+     * @param string $foreign - Foreign key
+     * @param string $primary - Primary key
+     * @return QueryBuilder
+     */
+    public function belongsToMany($class, $foreign=null, $primary=null)
+    {
+        //$this->checkQuery();
+
+        
+        return $this->getQuery()->belongsToMany($class, $foreign, $primary);
+    }
+
+    public function morphTo()
+    {
+        $query = self::getInstance()->getQuery(); 
+        $primary = $query->_connector->execSQL("SHOW KEYS FROM $query->_table WHERE Key_name = 'PRIMARY'")
+                ->pluck('Column_name')->toArray();
+        return $primary;
+    }
+
+    public function morphOne($class, $method)
+    {
+        return $this->getQuery()->processMorphRelationship($class, $method, 'morphOne');
+    }
+
+    public function morphMany($class, $method)
+    {
+        return $this->getQuery()->processMorphRelationship($class, $method, 'morphMany');
+    }
+
+    public function checkQuery()
+    {
+        if (!$this->getQuery())
+        {
+            $col = new Collection(get_class($this));
+            $col->put($this);
+            $classname = get_class($this);
+            //$class = new $classname;
+            $this->setQuery($classname::select('*'));
+        }
+        
+        if (count($this->getQuery()->_collection)==0)
+            $this->getQuery()->_collection->put($this);
+            
+    }
+
     
     /**
      * Set a factory to seed the model

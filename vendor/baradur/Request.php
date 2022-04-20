@@ -3,6 +3,7 @@
 Class Request
 {
     public $_get = array();
+    public $_post = array();
 
     public function validate($arguments)
     {
@@ -16,7 +17,6 @@ Class Request
     
             foreach ($validations as $validation)
             {
-                //echo "Validating: ".$key." : ".$validation."<br>";
 
                 list($arg, $values) = explode(':', $validation);
 
@@ -27,17 +27,17 @@ Class Request
 
                 else if ($arg=='required') 
                 {
-                    if ( !isset($this->$key) || strlen($this->$key)==0 )
+                    if ( !isset($this->_post[$key]) || strlen($this->_post[$key])==0 )
                     {
                         $pass = false;
-                        $errors[$key] = $key.' cannot be empty';
+                        $errors[$key] = 'The field '.$key.' is required';
                     }
                 }
 
                 else if ($arg=='max') 
                 {
-                    if ( isset($this->$key) && is_string($this->$key) && strlen($this->$key)<=$values) continue;
-                    elseif ( isset($this->$key) && $this->$key<=$values) continue;
+                    if ( isset($this->_post[$key]) && is_string($this->_post[$key]) && strlen($this->_post[$key])<=$values) continue;
+                    elseif ( isset($this->_post[$key]) && $this->_post[$key]<=$values) continue;
                     else
                     {
                         $pass = false;
@@ -50,14 +50,14 @@ Class Request
                     list($table, $column, $ignore) = explode(',', $values);
                     if (!$column) $column = $key;
 
-                    $value = $this->$key;
+                    $value = $this->_post[$key];
 
                     $val = DB::table($table)->where($column, $value)->first();
                     
                     if ($val && $val->$column!=$ignore)
                     {
                         $pass = false;
-                        $errors[$key] = $key.' already exists';
+                        $errors[$key] = 'The '.$key.' has already been taken';
                     }
                 }
 
@@ -82,7 +82,7 @@ Class Request
     public function all()
     {
         $array = array();
-        foreach ($this as $key => $val)
+        foreach ($this->_post as $key => $val)
             $array[$key] = $val;
             
         return $array;
@@ -91,6 +91,20 @@ Class Request
     public function query()
     {
         return $this->_get;
+    }
+
+    public function input($key)
+    {
+        return isset($this->_post[$key]) ? $this->_post[$key] : null;
+    }
+
+    public function __get($key)
+    {
+        $res = isset($this->_post[$key]) ? $this->_post[$key] : null;
+        if (!isset($res))
+            $res = isset($this->_get[$key]) ? $this->_get[$key] : null;
+
+        return $res;
     }
 
 }

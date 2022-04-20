@@ -8,6 +8,8 @@ Class QueryBuilder
     public $_foreign;
     public $_fillable;
     public $_guarded;
+    public $_routeKey;
+    
     public $_fillableOff = false;
 
     public $_factory = null;
@@ -36,19 +38,16 @@ Class QueryBuilder
 
     public $_relationVars = null;
 
-    public function __construct($connector, $table, $primary, $parent, $fillable, $guarded)
-    {
-        //global $database;
-        
+    public function __construct($connector, $table, $primary, $parent, $fillable, $guarded, $routeKey='id')
+    {        
         $this->_connector = $connector;
         $this->_table = $table;
         $this->_primary = $primary;
         $this->_parent = $parent;
         $this->_fillable = $fillable;
         $this->_guarded = $guarded;
+        $this->_routeKey = $routeKey;
         $this->_collection = new Collection($parent);
-
-        //echo "PARENT:";var_dump($this->_parent);
 
     }
 
@@ -736,14 +735,34 @@ Class QueryBuilder
             foreach ($key as $k => $v)
             {
                 array_push($this->_keys, $k);
-                if (is_string($v)) $v = "'".$v."'";
+                if (is_string($v))
+                {
+                    
+                    if (method_exists($this->_parent, 'set'.ucfirst($k).'Attribute'))
+                    {
+                        $cl = $this->_parent;
+                        $fn = 'get'.ucfirst($k).'Attribute';
+                        $v = $cl::$fn($v);
+                    }
+                    $v = "'".$v."'";
+                }
                 array_push($this->_values, $v? $v : "NULL");
             }
         }
         else
         {
             array_push($this->_keys, $key);
-            if (is_string($val)) $val = "'".$val."'";
+            if (is_string($val)) 
+            {
+                if (method_exists($this->_parent, 'set'.ucfirst($key).'Attribute'))
+                {
+                    $cl = $this->_parent;
+                    $fn = 'set'.ucfirst($key).'Attribute';
+                    $val = $cl::$fn($val);
+                }
+
+                $val = "'".$val."'";
+            }
             array_push($this->_values, $val? $val : "NULL");
         }
 
@@ -874,6 +893,8 @@ Class QueryBuilder
         {
             if (in_array($key, $this->_fillable) || $this->_fillableOff)
                 $this->set($key, $val, false);
+            else if (isset($this->_guarded) && !in_array($key, $this->_guarded))
+                $this->set($key, $val, false);
             else
                 unset($record[$key]);
         }
@@ -952,11 +973,28 @@ Class QueryBuilder
      * @param array $record
      * @return string
      */
-    public function update($record)
+    public function update($record, $attributes=null)
     {
+        if (isset($attributes))
+        {
+            $key = $this->_primary;
+            if (isset($attributes->$key))
+                $this->where($key, $attributes->$key, false);
+            else throw new Exception("Error updating existent model");
+        }
 
         foreach ($record as $key => $val)
-            $this->set($key, $val, false);
+        {
+            if (in_array($key, $this->_fillable) || $this->_fillableOff)
+                $this->set($key, $val, false);
+            else if (isset($this->_guarded) && !in_array($key, $this->_guarded))
+                $this->set($key, $val, false);
+            else
+                unset($record[$key]);
+        }
+
+        /* foreach ($record as $key => $val)
+            $this->set($key, $val, false); */
 
         if ($this->_where == '')
             return 'WHERE not assigned. Use updateAll() if you want to update all records';
@@ -1028,6 +1066,8 @@ Class QueryBuilder
         foreach ($values as $key => $val)
         {
             if (in_array($key, $this->_fillable) || $this->_fillableOff)
+                $this->set($key, $val, false);
+            else if (isset($this->_guarded) && !in_array($key, $this->_guarded))
                 $this->set($key, $val, false);
             else
                 unset($values[$key]);
@@ -1312,6 +1352,13 @@ Class QueryBuilder
         $item = new $this->_parent;
         foreach ($data as $key => $val)
         {
+            if (method_exists($this->_parent, 'get'.ucfirst($key).'Attribute'))
+            {
+                $cl = $this->_parent;
+                $fn = 'get'.ucfirst($key).'Attribute';
+                $val = $cl::$fn($val);
+            }
+
             $item->$key = $val;
         }
         $item->setQuery($this);
@@ -1322,14 +1369,20 @@ Class QueryBuilder
     private function insertData($data)
     {
         $col = new Collection($this->_parent); //get_class($this->_parent));
+        $class = $this->_parent; //get_class($this->_parent);
 
         foreach ($data as $arr)
         {
-            $class = $this->_parent; //get_class($this->_parent);
-
             $item = new $class(true);
             foreach ($arr as $key => $val)
             {
+                if (method_exists($this->_parent, 'get'.ucfirst($key).'Attribute'))
+                {
+                    $cl = $this->_parent;
+                    $fn = 'get'.ucfirst($key).'Attribute';
+                    $val = $cl::$fn($val);
+                }
+
                 $item->$key = $val;
             }
     
@@ -1542,6 +1595,53 @@ Class QueryBuilder
         return $matches;
     }
 
+    public function processMorphRelationship($class, $method, $type)
+    {
+        //echo "<br>Morph relationship:".$class."::".$method."::".$type."<br>";
+        $c = new $class; 
+        $res = $c->$method();
+
+        if (count($res)==0)
+        {
+            $res[] = $method.'_id';
+            $res[] = $method.'_type';
+        }
+        elseif (count($res)==1)
+        {
+            $res[] = $method.'_type';
+        }
+
+        $wherein = $this->_collection->pluck($this->_primary)->toarray();
+        $result = $c::whereIn($res[0], implode(',', $wherein))->where($res[1], $this->_parent);
+
+        if ($type == 'morphOne') $result->limit(1);
+
+        $result->_relationVars = array(
+            'foreign' => $res[0],
+            'primary' => $this->_primary,
+            'relationship' => $type);
+
+        return $result;
+
+    }
+
+
+    public function belongsToMany($class, $foreign, $primary)
+    {
+        $array = array($this->_parent, $class);
+        sort($array);                 
+        $classthrough = Helpers::getTableNameFromClass(implode('', $array), false);
+        $foreignthrough = Helpers::getTableNameFromClass($this->_parent, false).'_id';
+        $primarythrough = Helpers::getTableNameFromClass($class, false).'_id';
+
+        if (!$foreign) $foreign = 'id';
+        if (!$primary) $primary = $this->_primary;
+
+        return $this->processRelationshipThrough($class, $classthrough, $foreignthrough, 
+                    $foreign, $primary, $primarythrough, 'belongsToMany');
+
+    }
+
 
     public function processRelationship($class, $foreign, $primary, $relationship)
     {
@@ -1555,14 +1655,14 @@ Class QueryBuilder
         }
 
         $res = null;
-        if (class_exists($class))
-        {
-            //call_user_func_array(array($class, 'initialize'), array($class));
-            $res = call_user_func_array(array($class, 'select'), array($columns));
-        }
-        else
-            $res = DB::table(Helpers::getTableNameFromClass($class, false))->select($columns);
 
+        if (class_exists($class))
+            $res = call_user_func_array(array($class, 'select'), array($columns));
+        else
+        {
+            $res = DB::table(Helpers::getTableNameFromClass($class, false))->select($columns);
+            $res->setConnector($this->_connector);
+        }
         
         if ($relationship=='belongsTo')
         {
@@ -1586,8 +1686,6 @@ Class QueryBuilder
         if ($this->varsOnly)
             return $res;
 
-        $res->setConnector($this->_connector);
-
         //$res = $res //->setConnector($this->_connector)
         //        ->setPrimary($foreign)->setForeign($primary)->setRelationship($relationship);
         
@@ -1595,7 +1693,6 @@ Class QueryBuilder
         //$newArray = array();
 
         $wherein = $this->recusiveSearch($this->_collection, $primary, null, $wherein);
-
         //echo "WHEREIN: ".implode(',',$wherein)."<br><br>";
         $res = $res->whereIn($foreign, implode(',',$wherein));
         //var_dump($res->toSql()); echo "<br><br>";
@@ -1614,10 +1711,6 @@ Class QueryBuilder
             $columns = explode(',', $columns);
         }
 
-        /* $primarytable = getTableNameFromClass($class);
-        if (class_exists($class))
-            $primarytable = call_user_func(array($class, 'getTable'), array()); */
-
         $secondarytable = Helpers::getTableNameFromClass($classthrough, false);
         if (class_exists($classthrough))
             $secondarytable = call_user_func(array($classthrough, 'getTable'), array());
@@ -1626,9 +1719,11 @@ Class QueryBuilder
         if (class_exists($class))
             $res = call_user_func_array(array($class, 'select'), array($columns));
         else
+        {
             $res = DB::table(Helpers::getTableNameFromClass($class, false))->select($columns);
+            $res->setConnector($this->_connector);
+        }
 
-        $res->setConnector($this->_connector);
 
         $res = $res->join($secondarytable, $primarythrough, '=', $foreign);
 
@@ -1639,21 +1734,19 @@ Class QueryBuilder
             'primary' => $primary,
             'relationship' => $relationship);
 
-        #var_dump($res->_relationVars); echo "<br>";
 
         if ($this->varsOnly)
             return $res;
-
+    
+        #var_dump($res->_relationVars); echo "<br>";
         
         $wherein = array();
-        //$newArray = array();
-        
-        //$key = $this->_rparent!='DB'? $primarythrough : $primary;
-        //$keythrough = $this->_rparent!='DB'? $foreign : $foreignthrough;
-
         $wherein = $this->recusiveSearch($this->_collection, $primary, null, $wherein);
 
-        //echo "WHEREIN: ".implode(',',$wherein)."<br><br>";
+        if ($relationship=='belongsToMany' && count($wherein)==1)
+            $res->_relationVars['current'] = $wherein[0];
+
+        //echo "WHEREIN: ".implode(',',$wherein)." :: ".$this->_parent."<br><br>";
         return $res->whereIn($foreignthrough, implode(',',$wherein));
         //echo $res->toSql() ."<br>";
         //return $res;
@@ -1720,38 +1813,12 @@ Class QueryBuilder
         $processed = array();
         foreach ($this->_eagerLoad as $extra)
         {
-            //echo "EXTRA: "; var_dump($extra); echo "<br>";
-            /* if (strpos($extra['relation'], '.')>0)
+        
+            if (!in_array($extra['relation'], $processed))
             {
-                $extras = explode('.', $extra['relation']);
-                $controller = null;
-                $step = 0;
-                while ($step < count($extras))
-                {
-                    if (!in_array($extras[$step], $processed))
-                    {
-                        array_push($processed, $extras[$step]);
-
-                        if ($step==0) $controller = null;
-                        else 
-                        {
-                            $controller = substr($extra['relation'], 0, strpos($extra['relation'], '.'.$extras[$step]));
-                        }
-
-                        $this->addWith($extras[$step], $controller, isset($extra['constraints'])? $extra['constraints']:null);
-                    }
-                    ++$step;
-                }
-            } 
-            else
-            { */
-                
-                if (!in_array($extra['relation'], $processed))
-                {
-                    array_push($processed, $extra['relation']);
-                    $this->addWith($extra['relation'], null, isset($extra['constraints'])? $extra['constraints']:null);
-                }
-            //}
+                $processed[] = $extra['relation'];
+                $this->addWith($extra['relation'], null, isset($extra['constraints'])? $extra['constraints']:null);
+            }
         }
 
     }
@@ -1828,11 +1895,11 @@ Class QueryBuilder
 
     private function addWith($relation, $parent=null, $extrawhere)
     {
-        //echo "ADDING WITH: ".$relation."<br>";
-        //echo "TABLE: ".$this->_parent->getTable()."<br>";
+        #echo "ADDING WITH: ".$relation."<br>";
+        #echo "TABLE: ".$this->_parent->getTable()."<br>";
 
         #echo "function: ".$function."<br>";
-        //echo "parent: ".$this->_parent."<br>";
+        #echo "parent: ".$this->_parent."<br>";
         #echo "extrawhere: "; var_dump($extrawhere); echo "<br>";
         #echo "extraquery: "; var_dump($this->_extraquery); echo "<br>";
         
@@ -1886,106 +1953,30 @@ Class QueryBuilder
         $foreign = $extra->_relationVars['foreign'];
         $primary = $extra->_relationVars['primary'];
         $foreignthrough = $extra->_relationVars['foreignthrough'];
-        $primarythrough = $extra->_relationVars['primarythrough'];
+        #$primarythrough = $extra->_relationVars['primarythrough'];
 
-        /* if (strpos($relationship, 'Through')>0)
+
+        if (strpos($relationship, 'Through')>0 || $relationship=='belongsToMany')
         {
             $foreign = $foreignthrough;
-            $primary = $primarythrough;
-        } */
-
-        //if ($columns && !in_array($foreign, $columns)) $columns[]=$foreign;
-        //if ($columns) $extra->select($columns);
-
-        if (strpos($relationship, 'Through')>0)
-        {
-            //$classthrough = $extra->_relationVars['classthrough'];
-            //$primary = $primarythrough;
-            $foreign = $foreignthrough;
-            //if (!$parent)
-            //    $extra->addSelect($classthrough.'.'.$primarythrough);
         }
+
+        //if ($relationship=='hasOne' || $relationship=='belongsTo' || $relationship=='morphOne')
+        //    $extra->limit(1);
+
                 
-        
-        /* if (isset($this->_eagerLoad))
-        {
-            foreach ($this->_eagerLoad as $rel)
-            {
-                //echo "EXTRAQUERY:::::";var_dump($rel['constraints']);echo"<br>";
-                list($rel_parent, $rel_son) = explode('.', $rel['relation']);
-
-                if (isset($rel['constraints']))
-                {
-                    $exw = $rel['constraints'];
-                    if (isset($rel_son) && $rel_parent == $relation)
-                    {
-                        $newparent = new $this->_parent;
-                        $newparent->getQuery()->varsOnly = true;
-                        $son = $newparent->$rel_son();
-                        $where = ' EXISTS (SELECT 1 FROM `' . $son->_table . '` '
-                        . $exw->_where . ' AND `' . $son->_relationVars['classthrough'] . '`.`' .
-                        $son->_relationVars['primarythrough'] .'` = `'.
-                        $son->_table . '`.`' . $son->_relationVars['foreign'] .'`'
-                        .')';
-                        $extra->whereRaw($where);
-                        $extra->_wherevals = array_merge($extra->_wherevals, $this->_wherevals);
-                    }
-                }
-            }
-        } */
-        
-
-        #echo "table: ".$extra->_table.":: main: ".$this->_table."<br>";
-        #echo "<br>primary: ".$primary."<br>";
-        #echo "foreign: ".$foreign."<br>";
-        #echo "relationship: ".$relationship."<br><br>";
-
-        //var_dump($extra->_relationVars);
-
-        //$newArray = array();
-
-        //$extra->_wherevals = $this->_wherevals;
-        //var_dump($extra);
         $extra = $extra->get();
-        //$extra = (array)$extra;
         //dd($extra);
 
         foreach ($this->_collection as $current)
         {
-            //echo "CURF: ".$current->$primary."::: ";var_dump($extra[$current->$foreign]);echo"<br>";
-
-            if ($relationship=='hasMany' || $relationship=='hasManyThrough')
+            if ($relationship=='hasMany' || $relationship=='hasManyThrough' || $relationship=='morphMany' || $relationship=='belongsToMany')
                 $current->$relation = $extra->where($foreign, $current->$primary);
             
-            elseif ($relationship=='hasOne' || $relationship=='belongsTo')
+            elseif ($relationship=='hasOne' || $relationship=='belongsTo' || $relationship=='morphOne')
                 $current->$relation = $extra->where($foreign, $current->$primary)->first();
         }
         
-
-        /* foreach ($extra as $ex)
-        {
-            if (strpos($relationship, 'Through')>0 && !$parent)
-            {
-                $newArray[$ex->$foreignthrough][] = $ex;
-            }
-            else
-                $newArray[$ex->$foreign][] = $ex;
-
-        }
-        
-        if (strpos($relationship, 'Through')>0)
-        {
-            $this->recusiveInsert($this->_collection, $function, $newArray, 
-                ($parent? $primarythrough : $primary), 
-                $parent, str_replace('Through', '', $relationship));
-        }
-        else
-        {
-            $this->recusiveInsert($this->_collection, $function, $newArray, 
-                $primary, $parent, $relationship);
-        } */
-        
-
     }
 
     public function _has($relation, $constraints=null, $comparator=null, $value=null)
@@ -1995,7 +1986,6 @@ Class QueryBuilder
         
         $newparent = new $this->_parent;
         
-        $parent_relation = null;
         if (strpos($relation, '.')>0)
         {
             $data = explode('.', $relation);
@@ -2005,8 +1995,6 @@ Class QueryBuilder
         
         $newparent->getQuery()->varsOnly = true;
         $data = $newparent->$relation();
-        //var_dump($data->_relationVars); echo "<br>";
-
 
         $childtable = $data->_table;
         $foreign = $data->_relationVars['foreign'];
@@ -2027,26 +2015,6 @@ Class QueryBuilder
 
         if (isset($constraints))
             $this->_wherevals = $constraints->_wherevals;
-
-        # withWhereHas()
-        /* elseif (isset($this->_eagerLoad))
-        {
-            foreach ($this->_eagerLoad as $relation)
-            {
-                if (isset($relation['constraints']))
-                {
-                    $exw = $relation['constraints'];
-
-                    echo "EX::::".$relation."::".$parent_relation."<br>";
-                    if ($exw->_relation == $relation)
-                        $filter .= str_replace('WHERE ', ' AND ', $exw->_where);
-                    elseif ($exw->_relation == $parent_relation)
-                        $filter .= str_replace('WHERE ', ' AND ', $exw->_where);
-
-                }
-            }
-
-        } */
 
 
         if (!$comparator)
@@ -2071,15 +2039,12 @@ Class QueryBuilder
 
         //$this->_extraquery = $extraquery;
 
-
-
         if ($this->_where == '')
             $this->_where = 'WHERE ' . $where;
         else
             $this->_where .= ' AND ' . $where;
 
         //echo "<br>".$this->toSql()."<br>";
-        
         return $this;
     }
 
@@ -2190,8 +2155,66 @@ Class QueryBuilder
 
     }
     
+    public function attach($roles)
+    {
+        if (is_array($roles))
+        {
+            foreach ($roles as $role)
+                $this->attach($role);
+        }
+        else
+        {
+            $record = array(
+                $this->_relationVars['foreignthrough'] => $this->_relationVars['current'],
+                $this->_relationVars['primarythrough'] => $roles
+            );
+
+            DB::table($this->_relationVars['classthrough'])
+                ->insertOrIgnore($record);
+
+        }
+    }
 
 
+    public function dettach($roles)
+    {
+        if (is_array($roles))
+        {
+            foreach ($roles as $role)
+                $this->dettach($role);
+        }
+        else
+        {
+            DB::table($this->_relationVars['classthrough'])
+                ->where($this->_relationVars['foreignthrough'], $this->_relationVars['current'])
+                    ->where($this->_relationVars['primarythrough'], $roles)
+                        ->delete();
+        }
+    }
+
+    public function sync($roles, $remove = true)
+    {
+        if ($remove)
+            DB::table($this->_relationVars['classthrough'])
+                ->where($this->_relationVars['foreignthrough'], $this->_relationVars['current'])
+                    ->delete();
+
+        if (is_array($roles))
+        {
+            foreach ($roles as $role)
+                $this->sync($role, false);
+        }
+        else
+        {
+            $record = array(
+                $this->_relationVars['foreignthrough'] => $this->_relationVars['current'],
+                $this->_relationVars['primarythrough'] => $roles
+            );
+
+            DB::table($this->_relationVars['classthrough'])
+                ->insertOrIgnore($record);
+        }
+    }
 
 
 

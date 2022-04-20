@@ -78,6 +78,7 @@ function migrate()
 {
     global $database;
     $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+    Schema::checkMainTable();
     $query = 'select * from migrations';
     $applied = (array)$database->execSQL($query)->pluck('migration');
 
@@ -94,7 +95,7 @@ function migrate()
             if (!in_array($name, $applied))
             {
                 $startTime = microtime(true);
-                printf("Migrating: ".$name."\n");
+                printf("\e[38;5;214mMigrating:\e[m " .$name."\n");
     
                 if (!class_exists($converted))
                     include ($file);
@@ -106,7 +107,7 @@ function migrate()
 
                 $endTime = microtime(true);
                 $time =($endTime-$startTime)*1000;
-                printf("Migrated: ".$name." (". round($time, 2) ."ms)\n");
+                printf("\e[38;5;40mMigrated: \e[m ".$name." (". round($time, 2) ."ms)\n");
 
                 ++$count;
             }
@@ -129,9 +130,10 @@ function rollback($rollback, $output = true)
 
             if ($name == $rollback)
             {
+                $startTime = microtime(true);
                 $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
 
-                if ($output) printf("Rolling back: ".$short."\n");
+                if ($output) printf("\e[38;5;214mRolling back:\e[m ".$short."\n");
     
                 include ($file);
                 Schema::init($name);
@@ -140,6 +142,9 @@ function rollback($rollback, $output = true)
 
                 DB::table('migrations')->where('migration', $name)->delete();
 
+                $endTime = microtime(true);
+                $time =($endTime-$startTime)*1000;
+                printf("\e[38;5;40mRolled back: \e[m ".$short." (". round($time, 2) ."ms)\n");
             }
         }
     }
@@ -151,7 +156,7 @@ function seed()
     $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
     $seeder = new DatabaseSeeder;
     $seeder->run();
-    printf("Database seeding completed successfully\n");
+    printf("\e[38;5;40mDatabase seeding completed successfully\e[m\n");
 }
 
 function makeController($controller, $resource)
@@ -181,7 +186,8 @@ function makeController($controller, $resource)
         
     $class .= "\n}";
     file_put_contents('app/controllers/'.$controller.'.php', $class);
-    printf("Controller created successfully.\n");
+    printf("\e[38;5;40mController created successfully \e[m\n");
+
 }
 
 function makeModel($model)
@@ -189,7 +195,8 @@ function makeModel($model)
     $class = "<?php\n\nclass ".$model." extends Model\n{\n\n\n}";
     file_put_contents('app/models/'.$model.'.php', $class);
     
-    printf("Model created successfully.\n");
+    printf("\e[38;5;40mModel created successfully \e[m\n");
+
 }
 
 function makePolicy($policy)
@@ -197,12 +204,12 @@ function makePolicy($policy)
     $class = "<?php\n\nclass ".$policy."\n{\n\n\n}";
     file_put_contents('app/policies/'.$policy.'.php', $class);
     
-    printf("Policy created successfully.\n");
+    printf("\e[38;5;40mPolicy created successfully \e[m\n");
 }
 
 function makeMigration($command)
 {
-    require('app/configvider.php');
+    require('app/config.php');
 
     list($table, $create) = TableGuesser::guess($command);
     $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $command);
@@ -227,7 +234,8 @@ function makeMigration($command)
 
     file_put_contents('database/migrations/'.$timestamp.'_'.$command.'.php', $class);
 
-    printf("Migration created successfully\n");
+    printf("\e[38;5;40mMigration created successfully \e[m\n");
+
 }
 
 function resetAll()
@@ -242,7 +250,7 @@ function resetAll()
         rollback($rollback, false);
     }
 
-    printf("Dropped all tables successfully\n");
+    printf("\e[38;5;40mDropped all tables successfully\e[m\n");
 }
 
 
@@ -371,7 +379,8 @@ else if ($action == 'make:seeder' && count($argv)>0)
 
     file_put_contents('database/seeders/'.$seeder.'.php', $class);
 
-    printf("Seeder created successfully\n");
+    printf("\e[38;5;40mSeeder created successfully \e[m\n");
+
 }
 
 else if ($action == 'make:factory' && count($argv)>0)
@@ -401,7 +410,8 @@ else if ($action == 'make:factory' && count($argv)>0)
 
     file_put_contents('database/factories/'.$factory.'.php', $class);
 
-    printf("Factory created successfully\n");
+    printf("\e[38;5;40mFactory created successfully \e[m\n");
+
 }
 
 else if ($action == 'make:middleware' && count($argv)>0)
@@ -417,7 +427,28 @@ else if ($action == 'make:middleware' && count($argv)>0)
 
     file_put_contents('app/middleware/'.$middleware.'.php', $class);
 
-    printf("Middleware created successfully\n");
+    printf("\e[38;5;40mMiddleware created successfully \e[m\n");
+
+}
+
+else if ($action == 'make:request' && count($argv)>0)
+{
+    $request = $argv[0];
+
+    if (!file_exists('app/requests'))
+        mkdir('app/requests');
+
+    if (file_exists('app/requests/'.$request.'.php'))
+        die ("Error: request ".$request." already exists\n");
+
+    $class = "<?php\n\nclass ".$request." extends FormRequest\n".
+        "{\n\tpublic function authorize()\n\t{\n\t\treturn true;\n\t}\n\n".
+        "\n\tpublic function roles()\n\t{\n\t\treturn array(\n\t\t\t//\n\t\t);\n\t}\n\n}";
+
+    file_put_contents('app/requests/'.$request.'.php', $class);
+
+    printf("\e[38;5;40mRequest created successfully \e[m\n");
+
 }
 
 else if ($action == 'db:seed')
@@ -451,5 +482,45 @@ else if ($action == 'migrate:fresh')
 else if ($action == 'migrate:reset')
 {
     resetAll();
+}
+
+else if ($action == 'route:list')
+{
+    include(_DIR_.'/app/config.php');
+    include(_DIR_.'/routes/routes.php');
+    printf("\n");
+
+    foreach (Route::routeList() as $route)
+    {
+        $line = $route->method.($route->method=='GET'? '|HEAD':'');
+        $line = str_replace('GET|HEAD', "GET|HEAD  ", $line);
+        $line = str_replace('POST',     "POST      ", $line);
+        $line = str_replace('DELETE',   "DELETE    ", $line);
+        $line = str_replace('PUT',      "PUT       ", $line);
+
+        $line = str_replace('GET', "\e[38;5;63mGET\e[m", $line);
+        $line = str_replace('|HEAD', "\e[38;5;243m|HEAD\e[m", $line);
+        $line = str_replace('POST', "\e[38;5;214mPOST\e[m", $line);
+        $line = str_replace('PUT', "\e[38;5;129mPUT\e[m", $line);
+        $line = str_replace('DELETE', "\e[38;5;160mDELETE\e[m", $line);
+
+        printf("  "); echo sprintf("%' -11s", $line);
+
+        $line = str_replace('{', "\e[38;5;214m{", $route->url);
+        $line = str_replace('}', "}\e[m", $line);
+
+        printf(" /". $line .' ');
+
+        $len = strlen($route->url);        
+        $space = 90-$len;
+        if (isset($route->name)) $space += 23;
+
+        $line = ' '. (isset($route->name)? "\e[38;5;60m$route->name\e[38;5;243m › ":''). $route->controller;
+        $line .= isset($route->func) ? '@'.$route->func : '';
+
+        printf("\e[38;5;243m%'.".$space."s\e[m", $line);
+        printf("\n");
+    }
+    printf("\n");
 }
 

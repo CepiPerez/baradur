@@ -4,7 +4,7 @@ function asset($val) { return View::getAsset($val); }
 function route($val) { return Route::getRoute(func_get_args()); }
 function session($val) { return App::getSession($val); }
 function request() { return Helpers::getRequest(); }
-function __($translation, $placeholder=null) { return App::trans($translation, $placeholder); }
+function __($translation, $placeholder=null) { return Helpers::trans($translation, $placeholder); }
 
 $errors = new MessageBag();
 

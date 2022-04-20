@@ -2,6 +2,7 @@
 
 $table = new stdClass;
 
+
 Class Migration
 {
     
@@ -11,10 +12,12 @@ Class Migration
         
     }
 
-
+    private static function checkMainTable()
+    {
+        Schema::checkMainTable();
+    }
 
 }
-
 
 Class Column {
 
@@ -28,6 +31,59 @@ Class Column {
     {
         $this->nullable = true;
         return $this;
+    }
+
+}
+
+Class Foreign {
+
+    public function references($id)
+    {
+        $this->references = $id;
+        return $this;
+    }
+
+    public function on($table)
+    {
+        $this->on = $table;
+        return $this;
+    }
+
+    public function onDelete($action)
+    {
+        $this->onDelete = $action;
+        return $this;
+    }
+
+    public function onUpdate($action)
+    {
+        $this->onUpdate = $action;
+        return $this;
+    }
+
+    public function cascadeOnUpdate()
+    {
+        return $this->onUpdate('cascade');
+    }
+
+    public function restrictOnUpdate()
+    {
+        return $this->onUpdate('restrict');
+    }
+
+    public function cascadeOnDelete()
+    {
+        return $this->onDelete('cascade');
+    }
+
+    public function restrictOnDelete()
+    {
+        return $this->onDelete('restrict');
+    }
+
+    public function nullOnDelete()
+    {
+        return $this->onDelete('set null');
     }
 
 }
@@ -53,90 +109,82 @@ class Table extends ArrayObject
         if ($default) $col->default = $default;
         if ($update) $col->update = $update;
         if ($primary) $col->primary = $primary;
+
+        $this[] = $col;
         return $col;
 
     }
 
+    public function foreign($name)
+    {
+        $foreign = new Foreign;
+        $foreign->name = $name;
+        $foreign->type = 'foreign';
+        $this[] = $foreign;
+        return $foreign;
+    }
+
+    public function primary($value)
+    {
+        return $this->newColumn(func_get_args(), 'primary');
+    }
+
+
     public function bigIncrements($name)
     {
-        $col = $this->newColumn($name, 'bigint', true, null, null, null, null, null, true);
-        $this[] = $col;
-        return $col;
+        return $this->newColumn($name, 'bigint', true, null, null, null, null, null, true);
     }
 
     public function string($name, $length=100)
     {
-        $col = $this->newColumn($name, 'varchar', false, $length);
-        $this[] = $col;
-        return $col;
+        return $this->newColumn($name, 'varchar', false, $length);
     }
 
     public function char($name, $length=100)
     {
-        $col = $this->newColumn($name, 'char', false, $length);
-        $this[] = $col;
-        return $col;
+        return $this->newColumn($name, 'char', false, $length);
     }
 
     public function text($name)
     {
-        $col = $this->newColumn($name, 'text');
-        $this[] = $col;
-        return $col;
+        return $this->newColumn($name, 'text');
     }
 
     public function integer($name)
     {
-        $col = $this->newColumn($name, 'int', false);
-        $this[] = $col;
-        return $col;
+        return $this->newColumn($name, 'int', false);
     }
 
     public function bigInteger($name)
     {
-        $col = $this->newColumn($name, 'bigint', false);
-        $this[] = $col;
-        return $col;
+        return $this->newColumn($name, 'bigint', false);
     }
 
     public function decimal($name, $precision, $scale)
     {
-        $col = $this->newColumn($name, 'decimal', false, null, $precision, $scale);
-        $this[] = $col;
-        return $col;
+        return $this->newColumn($name, 'decimal', false, null, $precision, $scale);
     }
 
     public function double($name, $precision, $scale)
     {
-        $col = $this->newColumn($name, 'double', false, null, $precision, $scale);
-        $this[] = $col;
-        return $col;
+        return $this->newColumn($name, 'double', false, null, $precision, $scale);
     }
 
     public function float($name, $precision, $scale)
     {
-        $col = $this->newColumn($name, 'float', false, null, $precision, $scale);
-        $this[] = $col;
-        return $col;
-
+        return $this->newColumn($name, 'float', false, null, $precision, $scale);
     }
 
     public function timestamps()
     {
         $col = $this->newColumn('created_at', 'timestamp', false, null, null, null, 'CURRENT_TIMESTAMP', null);
-        $this[] = $col;
-
         $col2 = $this->newColumn('modified_at', 'timestamp', false, null, null, null, 'CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP');
-        $this[] = $col2;
-
         return array($col, $col2);
     }
 
     public function dropColumn($name)
     {
-        $col = $this->newColumn($name, 'DROP');
-        $this[] = $col;
-        return $col;
+        return $this->newColumn($name, 'DROP');
     }
 
     /* public function unique($name)
@@ -154,121 +202,3 @@ class Table extends ArrayObject
 
 }
 
-class Schema
-{
-    static $__classname;
-
-    static $drop = false;
-
-    static $unique = null;
-    static $primary = null;
-
-    public static function init($classname)
-    {
-        self::$__classname = $classname;
-    }
-
-    private static function checkMainTable()
-    {
-        $query = 'CREATE TABLE if not exists migrations (migration text, applied timestamp)';
-        DB::table('migrations')->query($query);
-    }
-
-
-    private static function addColumn($column)
-    {
-        if ($column->type == 'DROP')
-        {
-            self::$drop = true;
-            return '`'.$column->name.'`';
-        }
-        else
-        {
-            self::$drop = false;
-        }
-
-        $col = '`'.$column->name.'` '.$column->type;
-        if (isset($column->length)) $col .= ' ('.$column->length.')';
-        else if (isset($column->precision)) $col .= ' ('.$column->precision.','.$column->scale.')';
-
-        if (isset($column->increments)) $col .= ' AUTO_INCREMENT';
-        if (!isset($column->nullable)) $col .= ' NOT NULL';
-
-        if (isset($column->default)) $col .= ' DEFAULT '.$column->default;
-        if (isset($column->update)) $col .= ' ON UPDATE '.$column->update;
-
-        if (isset($column->primary)) self::$primary = $column->name;
-        if (isset($column->unique)) self::$unique = $column->name;
-
-        return $col;
-    }
-
-
-    public static function create()
-    {
-        self::processTable('CREATE', func_get_args());        
-    }
-
-    public static function table()
-    {
-        self::processTable('ALTER', func_get_args());        
-    }
-
-    public static function dropIfExists($table)
-    {
-        self::checkMainTable();
-        $query = 'DROP TABLE `'.$table.'`';
-        DB::table($table)->query($query);
-    }
-
-    
-    private static function processTable($action, $values)
-    {
-        self::checkMainTable();
-
-        $table = array_shift($values);
-
-        $columns = array();
-
-        foreach ($values as $column)
-        {
-            if (is_array($column))
-            {
-                foreach ($column as $col)
-                    $columns[] = self::addColumn($col);
-            }
-            else
-            {
-                $columns[] = self::addColumn($column);
-            }
-        }
-
-        $query = null;
-        if ($action == 'CREATE')
-        {
-            $query = 'CREATE TABLE `'.$table.'` ('. implode(', ', $columns);
-            if (self::$primary) $query .= ', PRIMARY KEY ('. self::$primary . ')';
-            if (self::$unique) $query .= ', UNIQUE ('. self::$unique . ')';
-            $query .= ')';
-        }
-        elseif ($action == 'ALTER')
-        {
-            $query = 'ALTER TABLE `'.$table.'` ';
-            if (self::$drop)
-            {
-                $query .= 'DROP '. implode(', DROP ', $columns);
-            }
-            else
-            {
-                $query .= 'ADD '. implode(', ADD ', $columns);
-            }
-
-        }
-
-        //printf($query.PHP_EOL);
-        DB::table($table)->query($query);
-        
-    }
-
-
-}

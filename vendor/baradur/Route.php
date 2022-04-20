@@ -31,6 +31,9 @@ Class RouteGroup
 {
     public $controller = null;
     public $middleware = null;
+    public $prefix = null;
+
+
     /**
      * Assign controller to certain routes
      * 
@@ -56,6 +59,18 @@ Class RouteGroup
     }
 
     /**
+     * Assign prefix to certain routes
+     * 
+     * @param string $prefix
+     * @return RouteGroup
+     */
+    public function prefix($prefix)
+    {
+        $this->prefix = $prefix;
+        return $this;
+    }
+
+    /**
      * Adds all given routes
      * Callback should be Controller@function
      * 
@@ -65,15 +80,70 @@ Class RouteGroup
     public function group()
     {
         $res = Route::getInstance();
+        $this->added = array();
+
         foreach (func_get_args() as $r)
         {
-            if ($this->controller) $r->controller = $this->controller;
-            if ($this->middleware) $r->middleware = $this->middleware;
-            //$res->{$r->method}[] = $r;
-            $res->_collection->put($r);
+            if (isset($r->method))
+            {
+                if ($this->controller) $r->controller = $this->controller;
+                if ($this->middleware) $r->middleware = $this->middleware;            
+                if ($this->prefix) $r->url = $this->prefix . '/' . $r->url;
 
+                if (!$res->_collection->where('method', $r->method)->where('url', $r->url)->first())
+                    $res->_collection->put($r);
+
+                $this->added[] = $r;
+            }
+            else
+            {
+                foreach ($r->added as $rs)
+                {
+                    if ($this->controller) $rs->controller = $this->controller;
+                    if ($this->middleware) $rs->middleware = $this->middleware;            
+                    if ($this->prefix) $rs->url = $this->prefix . '/' . (isset($rs->url)? $rs->url : '');
+
+                    if (!$res->_collection->where('method', $rs->method)->where('url', $rs->url)->first())
+                        $res->_collection->put($rs);
+
+                    $this->added[] = $rs;
+
+                }
+            }
         }
+
+        return $this;
+
     } 
+
+
+    public function except($except)
+    {
+        $res = Route::$_strings;
+        
+        //var_dump($res);
+        foreach ($except as $ex)
+        {
+            $name = null;
+            if ($ex == 'index') $name = $res['index'] ? $res['index'] : 'index';
+            elseif ($ex == 'create') $name = $res['create'] ? $res['create'] : 'create';
+            elseif ($ex == 'store') $name = $res['store'] ? $res['store'] : 'store';
+            elseif ($ex == 'show') $name = $res['show'] ? $res['show'] : 'show';
+            elseif ($ex == 'edit') $name = $res['edit'] ? $res['edit'] : 'edit';
+            elseif ($ex == 'update') $name = $res['update'] ? $res['update'] : 'update';
+            elseif ($ex == 'destroy') $name = $res['destroy'] ? $res['destroy'] : 'destroy';
+
+            
+            foreach ($this->added as $route)
+            {
+                if (substr($route->name, - (strlen($name)+1) ) == '.'.$name)
+                {
+                    Route::getInstance()->_collection->pull('name', $route->name);
+                }
+            }
+        }
+
+    }
 }
 
 
@@ -110,7 +180,7 @@ class Route
     {
         $res = self::getInstance();
         //return array_merge($res->GET, $res->POST, $res->PUT, $res->DELETE);
-        return $res->_collection;
+        return (array)$res->_collection;
     }
     
     /**
@@ -223,6 +293,20 @@ class Route
     }
 
     /**
+     * Assign prefix to routes\
+     * It can be used to group routes using group()
+     * 
+     * @param string $prefix
+     * @return RouteGroup
+     */
+    public static function prefix($prefix)
+    {
+        $res = new RouteGroup;
+        $res->prefix = $prefix;
+        return $res;
+    }
+
+    /**
      * Creates a controller's resources\
      * Example: resources('products', 'ProductsController')
      * 
@@ -231,26 +315,27 @@ class Route
      */
     public static function resource($url, $controller)
     {
-        $name = self::$_strings['index'] ? self::$_strings['index'] : 'index';
-        self::addRoute('GET', $url, $controller, $name)->name($url.'.'.$name);
 
-        $name = self::$_strings['create'] ? self::$_strings['create'] : 'create';
-        self::addRoute('GET', $url.'/create', $controller, $name)->name($url.'.'.$name);
+        $arr = new RouteGroup;
 
-        $name = self::$_strings['store'] ? self::$_strings['store'] : 'store';
-        self::addRoute('POST', $url, $controller, $name)->name($url.'.'.$name);
-
-        $name = self::$_strings['show'] ? self::$_strings['show'] : 'show';
-        self::addRoute('GET', $url.'/{id}', $controller, $name)->name($url.'.'.$name);
-
-        $name = self::$_strings['edit'] ? self::$_strings['edit'] : 'edit';
-        self::addRoute('GET', $url.'/{id}/edit', $controller, $name)->name($url.'.'.$name);
-
-        $name = self::$_strings['update'] ? self::$_strings['update'] : 'update';
-        self::addRoute('PUT', $url.'/{id}', $controller, $name)->name($url.'.'.$name);
-
-        $name = self::$_strings['destroy'] ? self::$_strings['destroy'] : 'destroy';
-        self::addRoute('DELETE', $url.'/{id}', $controller, $name)->name($url.'.'.$name);
+        $index = self::$_strings['index'] ? self::$_strings['index'] : 'index';
+        $create = self::$_strings['create'] ? self::$_strings['create'] : 'create';
+        $store = self::$_strings['store'] ? self::$_strings['store'] : 'store';
+        $show = self::$_strings['show'] ? self::$_strings['show'] : 'show';
+        $edit = self::$_strings['edit'] ? self::$_strings['edit'] : 'edit';
+        $update = self::$_strings['update'] ? self::$_strings['update'] : 'update';
+        $destroy = self::$_strings['destroy'] ? self::$_strings['destroy'] : 'destroy';
+        
+        $arr->group(
+            self::addRoute('GET', $url, $controller, $index)->name($url.'.'.$index),
+            self::addRoute('GET', $url.'/'.$create, $controller, $create)->name($url.'.'.$create),
+            self::addRoute('POST', $url, $controller, $store)->name($url.'.'.$store),
+            self::addRoute('GET', $url.'/{id}', $controller, $show)->name($url.'.'.$show),
+            self::addRoute('GET', $url.'/{id}/'.$edit, $controller, $edit)->name($url.'.'.$edit),
+            self::addRoute('PUT', $url.'/{id}', $controller, $update)->name($url.'.'.$update),
+            self::addRoute('DELETE', $url.'/{id}', $controller, $destroy)->name($url.'.'.$destroy)
+        );
+        return $arr;
     }
 
 
@@ -263,20 +348,40 @@ class Route
      */
     public static function apiResource($url, $controller)
     {
+        /* $arr = array();
+
         $name = self::$_strings['index'] ? self::$_strings['index'] : 'index';
-        self::addRoute('GET', $url, $controller, $name);
+        $arr[] = self::addRoute('GET', $url, $controller, $name);
 
         $name = self::$_strings['show'] ? self::$_strings['show'] : 'show';
-        self::addRoute('GET', $url.'/{id}', $controller, $name);
+        $arr[] = self::addRoute('GET', $url.'/{id}', $controller, $name);
 
         $name = self::$_strings['store'] ? self::$_strings['store'] : 'store';
-        self::addRoute('POST', $url, $controller, $name);
+        $arr[] = self::addRoute('POST', $url, $controller, $name);
 
         $name = self::$_strings['update'] ? self::$_strings['update'] : 'update';
-        self::addRoute('PUT', $url.'/{id}', $controller, $name);
+        $arr[] = self::addRoute('PUT', $url.'/{id}', $controller, $name);
 
         $name = self::$_strings['destroy'] ? self::$_strings['destroy'] : 'destroy';
-        self::addRoute('DELETE', $url.'/{id}', $controller, $name);
+        $arr[] = self::addRoute('DELETE', $url.'/{id}', $controller, $name);
+
+        return $arr; */
+        $arr = new RouteGroup;
+
+        $index = self::$_strings['index'] ? self::$_strings['index'] : 'index';
+        $show = self::$_strings['show'] ? self::$_strings['show'] : 'show';
+        $store = self::$_strings['store'] ? self::$_strings['store'] : 'store';
+        $update = self::$_strings['update'] ? self::$_strings['update'] : 'update';
+        $destroy = self::$_strings['destroy'] ? self::$_strings['destroy'] : 'destroy';
+        
+        $arr->group(
+            self::addRoute('GET', $url, $controller, $index)->name($url.'.'.$index),
+            self::addRoute('GET', $url.'/{id}', $controller, $show)->name($url.'.'.$show),
+            self::addRoute('POST', $url, $controller, $store)->name($url.'.'.$store),
+            self::addRoute('PUT', $url.'/{id}', $controller, $update)->name($url.'.'.$update),
+            self::addRoute('DELETE', $url.'/{id}', $controller, $destroy)->name($url.'.'.$destroy)
+        );
+        return $arr;
     }
 
 
@@ -308,6 +413,7 @@ class Route
             }
             else
             {
+                //echo "Returning route: " . $url."<br>";
                 $arr = new RouteItem;
                 $arr->method = $method;
                 $arr->url = $url=='/'?'':$url;
@@ -317,6 +423,11 @@ class Route
                 return $arr;
             }
         }
+        elseif (is_array($destination) && count($destination)==2)
+        {
+            return self::addRoute($method, $url, $destination[0], $destination[1]);
+        }
+        
         # Este paso genera una ruta con closures
         # Solamente valido para PHP => 5.3
         else
@@ -501,8 +612,17 @@ class Route
     {
         foreach ($args as $value)
         {
-            $route = preg_replace('/\{[^}]*\}/', $value, $route, 1);
-            if (strpos($route, "{")==false) break;
+            if (is_object($value))
+            {
+                
+                $val = call_user_func_array(array($value, 'getRouteKeyName'), array());
+                return preg_replace('/\{[^}]*\}/', $value->$val, $route, 1);
+            }
+            else
+            {
+                $route = preg_replace('/\{[^}]*\}/', $value, $route, 1);
+                if (strpos($route, "{")==false) break;
+            }
         }
         return $route;
     }
@@ -545,6 +665,14 @@ class Route
     }
 
 
+    private function getParamArray( $item ){
+        return array(
+            'param' => $item->getName(), 
+            'class' => ($item->getClass()!=null)? $item->getClass()->getName() : null
+        );
+    }
+
+
     /**
      * Starts the Application\
      * Verifies if the current url is in routes list\
@@ -575,6 +703,8 @@ class Route
        
         # Put GET values into Request
         $request = new Request;
+        $request->method = $_SERVER['REQUEST_METHOD'];
+
         if (isset($_GET))
         {
             foreach ($_GET as $key => $val)
@@ -582,20 +712,19 @@ class Route
                 if ($key!='_method' && $key!='csrf')
                 {
                     $request->_get[$key] = $val;
-                    $request->$key = $val;
+                    //$request->$key = $val;
                 }
                 //$request->$key = filter_input(INPUT_POST, $key, FILTER_SANITIZE_SPECIAL_CHARS);
             }
         }
 
         # Put POST values into Request
-        //$request = new Request;
         if (isset($_POST))
         {
             foreach ($_POST as $key => $val)
             {
                 if ($key!='_method' && $key!='csrf')
-                    $request->$key = $val;
+                    $request->_post[$key] = $val;
                 //$request->$key = filter_input(INPUT_POST, $key, FILTER_SANITIZE_SPECIAL_CHARS);
             }
         }
@@ -606,7 +735,7 @@ class Route
             parse_str(file_get_contents("php://input"), $data);
             foreach ($data as $key => $val)
             {
-                $request->$key = $val;
+                $request->_post[$key] = $val;
                 //$request->$key = filter_input(INPUT_POST, $key, FILTER_SANITIZE_SPECIAL_CHARS);
             }
         }
@@ -645,7 +774,30 @@ class Route
                 # Verifies tokens if controller's $tokenVerification is true
                 if (method_exists($controller, 'check'))
                     $controller->check($ruta);
-    
+
+
+                $ReflectionMethod = new \ReflectionMethod($controller, $funcion);
+                $params = $ReflectionMethod->getParameters();
+                $paramNames = array_map(array(self::getInstance(), 'getParamArray'), $params);
+                
+                for ($i=0; $i<count($paramNames); $i++)
+                {
+                    if ($paramNames[$i]['class']!=null && is_subclass_of($paramNames[$i]['class'], 'FormRequest'))
+                    {
+                        $ncon = new $paramNames[$i]['class']($request);
+                        if (!$ncon->authorize()) abort(403);
+                        $request->validate($ncon->roles());
+                        $parametros[$i] = $ncon;
+                    }
+                    else if ($paramNames[$i]['class']!=null && $paramNames[$i]['class']!='Request')
+                    {
+                        $model = $paramNames[$i]['class'];
+                        $key = call_user_func_array(array($model, 'getRouteKeyName'), array());
+                        $val = $parametros[$i];
+                        $parametros[$i] = $model::where($key, $val)->first();
+                    }
+                }
+                
                 # Final callback
                 call_user_func_array(array($controller, $funcion), $parametros);
     
