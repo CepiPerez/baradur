@@ -34,7 +34,7 @@ class Model
 
     /**
      * Sets guarded columns\
-     * Default is empty array
+     * Default is null
      */
     protected $guarded = null;
 
@@ -90,7 +90,7 @@ class Model
         else if (!isset(self::$_table))
         {
             self::$_table = self::$_parent;
-            self::$_table = Helpers::getTableNameFromClass(self::$_table);
+            self::$_table = Helpers::camelCaseToSnakeCase(self::$_table);
         }
 
         if ($this->primaryKey)
@@ -137,14 +137,15 @@ class Model
         if ($empty)
             self::$_query = null;
         else
-            self::$_query = new QueryBuilder(self::$_connector, self::$_table, self::$_primaryKey, self::$_parent, self::$_fillable, self::$_guarded, $routeKey);
+            self::$_query = new QueryBuilder(self::$_connector, self::$_table, self::$_primaryKey, 
+                        self::$_parent, self::$_fillable, self::$_guarded, $routeKey);
 
         
     }
 
     public function getRouteKeyName()
     {
-        return 'id';
+        return self::$_primaryKey;
     }
 
 
@@ -170,7 +171,7 @@ class Model
         }
         else
         {
-            self::$_table = Helpers::getTableNameFromClass(self::$_parent);
+            self::$_table = Helpers::camelCaseToSnakeCase(self::$_parent);
         }
 
         return new self::$_parent();
@@ -203,12 +204,12 @@ class Model
         return self::$_table;
     }
 
-    public static function initialize($val)
+    /* public static function initialize($val)
     {
         eval( "self::\$_parent = \$val;" );
-    }
+    } */
 
-
+   
     public function __GET($name)
     {
         if (method_exists($this, $name))
@@ -249,6 +250,30 @@ class Model
     }
 
 
+     /**
+     * Declare model observer
+     * 
+     */
+    public static function observer($class)
+    {
+        global $version, $observers;
+        $model = $version=='NEW'? get_called_class() : self::$_parent;
+        if (!isset($observers[$model]))
+            $observers[$model] = $class;
+    }
+
+    private function checkObserver($function, $model)
+    {
+        global $observers;
+        $class = get_class($this);
+        if (isset($observers[$class]))
+        {
+            $observer = new $observers[$class];
+            if (method_exists($observer, $function))
+                $observer->$function($model);
+        }
+    }
+
 
     /**
      * Returns the query in string format
@@ -258,7 +283,6 @@ class Model
     {
         return self::getInstance()->getQuery()->toSql();
     }
-
 
     /**
      * Specifies the SELECT clause\
@@ -552,10 +576,9 @@ class Model
     /**
      * Saves the current record in database\
      * Uses INSERT for new record\
-     * Uses UPDATE for retrieved record\
-     * Returns error or empty string if ok
+     * Uses UPDATE for retrieved record
      * 
-     * @return string
+     * @return bool
      */
     public function save()
     {
@@ -564,11 +587,10 @@ class Model
     }
 
     /**
-     * INSERT a record or an array of records in database\
-     * Returns error or empty string if ok
+     * INSERT a record or an array of records in database
      * 
      * @param array $record
-     * @return string
+     * @return bool
      */
     public static function insert($records)
     {
@@ -588,11 +610,10 @@ class Model
     }
 
     /**
-     * INSERT IGNORE a record or an array of records in database\
-     * Returns error or empty string if ok
+     * INSERT IGNORE a record or an array of records in database
      * 
      * @param array $record
-     * @return string
+     * @return bool
      */
     public static function insertOrIgnore($record)
     {
@@ -600,20 +621,26 @@ class Model
     }
 
     /**
-     * Updates a record or an array of reccords in database\
-     * Returns error or empty string if ok
+     * Updates a record or an array of reccords in database
      * 
      * @param array $record
-     * @return string
+     * @return bool
      */
     public function update($record)
     {
         //var_dump(self::getInstance()->getQuery());
         if( isset($this) && $this instanceof self )
         {
+            $this->checkObserver('updating', $this);
+
             $class = get_class($this);
             $primary = $this->getRouteKeyName();
-            return $class::where($primary, $this->$primary)->update($record);
+            $newmodel = call_user_func_array(array($class, 'where'), array($primary, $this->$primary));
+            $res = $newmodel->update($record);
+
+            if ($res) $this->checkObserver('updated', $this);
+
+            return $res;
             //return self::getInstance()->getQuery()->update($record, $this);
         }
 
@@ -623,30 +650,35 @@ class Model
 
 
     /**
-     * Deletes the current model from database\
-     * Returns error or empty string if ok
+     * Deletes the current model from database
      * 
-     * @return string
+     * @return bool
      */
     public function delete()
     {
         if( isset($this) && $this instanceof self )
         {
+            $this->checkObserver('deleting', $this);
+
             $class = get_class($this);
             $primary = $this->getRouteKeyName();
-            return $class::where($primary, $this->$primary)->delete();
+            $newmodel = call_user_func_array(array($class, 'where'), array($primary, $this->$primary));
+            $res =  $newmodel->delete();
+
+            if ($res) $this->checkObserver('deleted', $this);
+
+            return $res;
         }
 
         //return self::getInstance()->getQuery()->update($record);
     }
 
     /**
-     * Create or update a record matching the attributes, and fill it with values\
-     * Returns error or empty string if ok
+     * Create or update a record matching the attributes, and fill it with values
      * 
      * @param  array  $attributes
      * @param  array  $values
-     * @return string
+     * @return bool
      */
     public static function updateOrInsert($attributes, $values)
     {
@@ -669,11 +701,10 @@ class Model
     /**
      * Uses REPLACE clause\
      * Updates a record using PRIMARY KEY OR UNIQUE\
-     * If the record doesn't exists then creates a new one\
-     * Returns error or empty string if ok
+     * If the record doesn't exists then creates a new one
      * 
      * @param array $record
-     * @return string
+     * @return bool
      */
     public static function insertReplace($record)
     {
@@ -687,9 +718,9 @@ class Model
 
 
     /**
-     * Return all records from current query
+     * Truncates the current table
      * 
-     * @return Collection
+     * @return bool
      */
     public static function truncate()
     {
@@ -981,8 +1012,8 @@ class Model
             $col = new Collection(get_class($this));
             $col->put($this);
             $classname = get_class($this);
-            //$class = new $classname;
-            $this->setQuery($classname::select('*'));
+            $newmodel = call_user_func_array(array($classname, 'select'), array('*'));
+            $this->setQuery($newmodel);
         }
         
         if (count($this->getQuery()->_collection)==0)

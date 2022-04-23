@@ -84,14 +84,24 @@ Class RouteGroup
 
         foreach (func_get_args() as $r)
         {
-            if (isset($r->method))
+            //echo "Revisando ruta: "; var_dump($r); echo ":".$this->prefix."<br>";
+            if (is_array($r))
+            {
+                foreach ($r as $route)
+                {
+                    if ($this->controller) $route->controller = $this->controller;
+                    if ($this->middleware) $route->middleware = $this->middleware;
+                    if ($this->prefix) $route->url = $this->prefix . '/' . $route->url;
+                    if ($this->prefix && isset($route->name)) $route->name = $this->prefix . '.' . $route->name;
+                }
+
+            }
+            else if (isset($r->method))
             {
                 if ($this->controller) $r->controller = $this->controller;
-                if ($this->middleware) $r->middleware = $this->middleware;            
+                if ($this->middleware) $r->middleware = $this->middleware;
                 if ($this->prefix) $r->url = $this->prefix . '/' . $r->url;
-
-                if (!$res->_collection->where('method', $r->method)->where('url', $r->url)->first())
-                    $res->_collection->put($r);
+                if ($this->prefix && isset($r->name)) $r->name = $this->prefix . '.' . $r->name;
 
                 $this->added[] = $r;
             }
@@ -99,12 +109,13 @@ Class RouteGroup
             {
                 foreach ($r->added as $rs)
                 {
-                    if ($this->controller) $rs->controller = $this->controller;
-                    if ($this->middleware) $rs->middleware = $this->middleware;            
-                    if ($this->prefix) $rs->url = $this->prefix . '/' . (isset($rs->url)? $rs->url : '');
+                    if ($this->controller) $r->controller = $this->controller;
+                    if ($this->middleware) $r->middleware = $this->middleware;
+                    if ($this->prefix) $r->url = $this->prefix . '/' . $r->url;
+                    if ($this->prefix && isset($r->name)) $r->name = $this->prefix . '.' . $rs->name;
 
-                    if (!$res->_collection->where('method', $rs->method)->where('url', $rs->url)->first())
-                        $res->_collection->put($rs);
+                    //if (!$res->_collection->where('method', $rs->method)->where('url', $rs->url)->first())
+                    //    $res->_collection->put($rs);
 
                     $this->added[] = $rs;
 
@@ -118,32 +129,41 @@ Class RouteGroup
 
 
     public function except($except)
-    {
-        $res = Route::$_strings;
-        
-        //var_dump($res);
+    {        
         foreach ($except as $ex)
         {
-            $name = null;
-            if ($ex == 'index') $name = $res['index'] ? $res['index'] : 'index';
-            elseif ($ex == 'create') $name = $res['create'] ? $res['create'] : 'create';
-            elseif ($ex == 'store') $name = $res['store'] ? $res['store'] : 'store';
-            elseif ($ex == 'show') $name = $res['show'] ? $res['show'] : 'show';
-            elseif ($ex == 'edit') $name = $res['edit'] ? $res['edit'] : 'edit';
-            elseif ($ex == 'update') $name = $res['update'] ? $res['update'] : 'update';
-            elseif ($ex == 'destroy') $name = $res['destroy'] ? $res['destroy'] : 'destroy';
-
-            
+            $name = Route::getVerbName($ex);
             foreach ($this->added as $route)
             {
                 if (substr($route->name, - (strlen($name)+1) ) == '.'.$name)
-                {
                     Route::getInstance()->_collection->pull('name', $route->name);
-                }
+            }
+        }
+    }
+
+    public function only($only)
+    {
+        $excluded = array();
+
+        foreach ($only as $ex)
+        {
+            $name = Route::getVerbName($ex);
+            foreach ($this->added as $route)
+            {
+                if (substr($route->name, - (strlen($name)+1) ) == '.'.$name)
+                    $excluded[] = $route->name;
             }
         }
 
+        foreach ($this->added as $route)
+        {
+            if (!in_array($route->name, $excluded))
+                Route::getInstance()->_collection->pull('name', $route->name);
+        }
+
     }
+
+
 }
 
 
@@ -176,11 +196,17 @@ class Route
     }
 
 
+    public static function getVerbName($verb)
+    {
+        $res = Route::$_strings;
+        return isset($res[$verb]) ? $res[$verb] : $verb;
+    }
+
     public static function routeList()
     {
         $res = self::getInstance();
         //return array_merge($res->GET, $res->POST, $res->PUT, $res->DELETE);
-        return (array)$res->_collection;
+        return $res->_collection;
     }
     
     /**
@@ -201,7 +227,6 @@ class Route
         {
             if ($res->controller) $r->controller = $res->controller;
             if ($res->middleware) $r->middleware = $res->middleware;
-            //$res->{$r->method}[] = $r;
             $res->_collection->put($r);
 
         }
@@ -315,25 +340,16 @@ class Route
      */
     public static function resource($url, $controller)
     {
-
         $arr = new RouteGroup;
 
-        $index = self::$_strings['index'] ? self::$_strings['index'] : 'index';
-        $create = self::$_strings['create'] ? self::$_strings['create'] : 'create';
-        $store = self::$_strings['store'] ? self::$_strings['store'] : 'store';
-        $show = self::$_strings['show'] ? self::$_strings['show'] : 'show';
-        $edit = self::$_strings['edit'] ? self::$_strings['edit'] : 'edit';
-        $update = self::$_strings['update'] ? self::$_strings['update'] : 'update';
-        $destroy = self::$_strings['destroy'] ? self::$_strings['destroy'] : 'destroy';
-        
         $arr->group(
-            self::addRoute('GET', $url, $controller, $index)->name($url.'.'.$index),
-            self::addRoute('GET', $url.'/'.$create, $controller, $create)->name($url.'.'.$create),
-            self::addRoute('POST', $url, $controller, $store)->name($url.'.'.$store),
-            self::addRoute('GET', $url.'/{id}', $controller, $show)->name($url.'.'.$show),
-            self::addRoute('GET', $url.'/{id}/'.$edit, $controller, $edit)->name($url.'.'.$edit),
-            self::addRoute('PUT', $url.'/{id}', $controller, $update)->name($url.'.'.$update),
-            self::addRoute('DELETE', $url.'/{id}', $controller, $destroy)->name($url.'.'.$destroy)
+            self::addRoute('GET', $url, $controller, Route::getVerbName('index'))->name($url.'.'.Route::getVerbName('index')),
+            self::addRoute('GET', $url.'/'.Route::getVerbName('create'), $controller, Route::getVerbName('create'))->name($url.'.'.Route::getVerbName('create')),
+            self::addRoute('POST', $url, $controller, Route::getVerbName('store'))->name($url.'.'.Route::getVerbName('store')),
+            self::addRoute('GET', $url.'/{item}', $controller, Route::getVerbName('show'))->name($url.'.'.Route::getVerbName('show')),
+            self::addRoute('GET', $url.'/{item}/'.Route::getVerbName('edit'), $controller, Route::getVerbName('edit'))->name($url.'.'.Route::getVerbName('edit')),
+            self::addRoute('PUT', $url.'/{item}', $controller, Route::getVerbName('update'))->name($url.'.'.Route::getVerbName('update')),
+            self::addRoute('DELETE', $url.'/{item}', $controller, Route::getVerbName('destroy'))->name($url.'.'.Route::getVerbName('destroy'))
         );
         return $arr;
     }
@@ -348,39 +364,14 @@ class Route
      */
     public static function apiResource($url, $controller)
     {
-        /* $arr = array();
+        $arr = array();
 
-        $name = self::$_strings['index'] ? self::$_strings['index'] : 'index';
-        $arr[] = self::addRoute('GET', $url, $controller, $name);
+        $arr[] = self::addRoute('GET', $url, $controller, Route::getVerbName('index'))->name($url.'.'.Route::getVerbName('index'));
+        $arr[] = self::addRoute('GET', $url.'/{item}', $controller, Route::getVerbName('show'))->name($url.'.'.Route::getVerbName('show'));
+        $arr[] = self::addRoute('POST', $url, $controller, Route::getVerbName('store'))->name($url.'.'.Route::getVerbName('store'));
+        $arr[] = self::addRoute('PUT', $url.'/{item}', $controller, Route::getVerbName('update'))->name($url.'.'.Route::getVerbName('update'));
+        $arr[] = self::addRoute('DELETE', $url.'/{item}', $controller, Route::getVerbName('destroy'))->name($url.'.'.Route::getVerbName('destroy'));
 
-        $name = self::$_strings['show'] ? self::$_strings['show'] : 'show';
-        $arr[] = self::addRoute('GET', $url.'/{id}', $controller, $name);
-
-        $name = self::$_strings['store'] ? self::$_strings['store'] : 'store';
-        $arr[] = self::addRoute('POST', $url, $controller, $name);
-
-        $name = self::$_strings['update'] ? self::$_strings['update'] : 'update';
-        $arr[] = self::addRoute('PUT', $url.'/{id}', $controller, $name);
-
-        $name = self::$_strings['destroy'] ? self::$_strings['destroy'] : 'destroy';
-        $arr[] = self::addRoute('DELETE', $url.'/{id}', $controller, $name);
-
-        return $arr; */
-        $arr = new RouteGroup;
-
-        $index = self::$_strings['index'] ? self::$_strings['index'] : 'index';
-        $show = self::$_strings['show'] ? self::$_strings['show'] : 'show';
-        $store = self::$_strings['store'] ? self::$_strings['store'] : 'store';
-        $update = self::$_strings['update'] ? self::$_strings['update'] : 'update';
-        $destroy = self::$_strings['destroy'] ? self::$_strings['destroy'] : 'destroy';
-        
-        $arr->group(
-            self::addRoute('GET', $url, $controller, $index)->name($url.'.'.$index),
-            self::addRoute('GET', $url.'/{id}', $controller, $show)->name($url.'.'.$show),
-            self::addRoute('POST', $url, $controller, $store)->name($url.'.'.$store),
-            self::addRoute('PUT', $url.'/{id}', $controller, $update)->name($url.'.'.$update),
-            self::addRoute('DELETE', $url.'/{id}', $controller, $destroy)->name($url.'.'.$destroy)
-        );
         return $arr;
     }
 
@@ -457,11 +448,7 @@ class Route
         $arr->func = $func;
         
         $res = self::getInstance();
-        /* if ($method=='GET') $res->GET[] = $arr;
-        else if ($method=='POST') $res->POST[] = $arr;
-        else if ($method=='PUT') $res->PUT[] = $arr;
-        else if ($method=='DELETE') $res->DELETE[] = $arr; */
-        
+
         $res->_collection->put($arr);
 
         return $arr;
@@ -704,6 +691,8 @@ class Route
         # Put GET values into Request
         $request = new Request;
         $request->method = $_SERVER['REQUEST_METHOD'];
+        $request->_route = $ruta;
+        $request->_uri = env('HOME').$_SERVER['REQUEST_URI'];
 
         if (isset($_GET))
         {
@@ -780,6 +769,7 @@ class Route
                 $params = $ReflectionMethod->getParameters();
                 $paramNames = array_map(array(self::getInstance(), 'getParamArray'), $params);
                 
+                //var_dump($paramNames);
                 for ($i=0; $i<count($paramNames); $i++)
                 {
                     if ($paramNames[$i]['class']!=null && is_subclass_of($paramNames[$i]['class'], 'FormRequest'))
@@ -791,10 +781,11 @@ class Route
                     }
                     else if ($paramNames[$i]['class']!=null && $paramNames[$i]['class']!='Request')
                     {
-                        $model = $paramNames[$i]['class'];
-                        $key = call_user_func_array(array($model, 'getRouteKeyName'), array());
+                        $model = new $paramNames[$i]['class'];
+                        $key = $model->getRouteKeyName();
                         $val = $parametros[$i];
-                        $parametros[$i] = $model::where($key, $val)->first();
+                        //$newparam = call_user_func_array(array($model, 'select'), array('*'));
+                        $parametros[$i] = $model->where($key, $val)->first();
                     }
                 }
                 
@@ -831,8 +822,6 @@ class Route
 
         # Show the results
         $app->showFinalResult();
-
-
 
     }
 

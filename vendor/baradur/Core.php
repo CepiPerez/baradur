@@ -8,6 +8,7 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 # Global variables
 $routes = array();
 $middlewares = array();
+$observers = array();
 $version = '';
 
 ini_set('display_errors', true);
@@ -48,7 +49,8 @@ if (!isset($_SESSION['key']))
 $app = new App();
 
 # Startup services
-include(_DIR_.'/../../app/config.php');
+$config = new Config;
+$config->boot();
 
 # Routes
 include(_DIR_.'/../../routes/routes.php');
@@ -179,7 +181,7 @@ function custom_autoloader($class)
 
 
 # MySQL Conector
-$database = new Connector(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+$database = new Connector(env('DB_HOST'), env('DB_USER'), env('DB_PASSWORD'), env('DB_NAME'), env('DB_PORT'));
 
 
 # Error handling
@@ -187,7 +189,7 @@ $database = new Connector(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
 
 
 # Autologin
-if (isset($_COOKIE[APP_NAME.'_token']) && !Auth::user())
+if (isset($_COOKIE[env('APP_NAME').'_token']) && !Auth::user())
 {
-    Auth::autoLogin($_COOKIE[APP_NAME.'_token']);
+    Auth::autoLogin($_COOKIE[env('APP_NAME').'_token']);
 }

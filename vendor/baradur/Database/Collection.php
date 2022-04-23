@@ -389,7 +389,7 @@ Class Collection extends arrayObject
      */
     public function pull($index, $value=null)
     {
-        //printf("Removing: $index\n");
+        //echo("Removing: $index > $value<br>");
         if (!is_integer($index))
         {
             $ind = -1;
@@ -407,13 +407,19 @@ Class Collection extends arrayObject
             if ($ind==-1) return null;
             $index = $ind;
         }
-
+        
         if ($index > $this->count()-1)
             return null;
-
+        
         $res = $this[$index];
-        $this->offsetUnset($index);
+        $this->offsetUnset2($index);
         return $res;
+
+    }
+
+    function offsetUnset2($offset){
+        $this->offsetUnset($offset);
+        $this->exchangeArray(array_values($this->getArrayCopy()));
     }
 
     /**

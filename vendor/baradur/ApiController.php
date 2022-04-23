@@ -34,8 +34,8 @@ class ApiController
         $result = true;
         if ($this->tokenVerification)
         {
-            $result = self::checkToken($ruta);
-            self::removeOldTokens();
+            $result = $this->checkToken($ruta);
+            $this->removeOldTokens();
         }
         return $result;
 
@@ -44,7 +44,7 @@ class ApiController
 
     # Esta funcion verifica el token recibido para evitar ataques.
     # Si el token caduca devuelve sesión expirada
-    function checkToken($ruta)
+    private function checkToken($ruta)
     {
         global $database;
 
@@ -71,7 +71,7 @@ class ApiController
                 exit();
             }
 
-            $date1 = strtotime(API_TOKENS, strtotime($res['timestamp']));
+            $date1 = strtotime(env('API_TOKENS'), strtotime($res['timestamp']));
             $date2 = strtotime(date('Y-m-d H:i:s'));
             if ($date1 < $date2)
             {
@@ -89,12 +89,12 @@ class ApiController
     # Esta funcion elimina los tokens que 
     # caducaron segun el tiempo de duracion establecido
     # en API_TOKENS en el archivo .env
-    function removeOldTokens()
+    private function removeOldTokens()
     {
         global $database;
 
         $timestamp = new DateTime();
-        $timestamp->modify(str_replace('+', '-', API_TOKENS));
+        $timestamp->modify(str_replace('+', '-', env('API_TOKENS')));
         $database->query('DELETE FROM api_tokens WHERE `timestamp` < "' . 
                         $timestamp->format('Y-m-d H:i:s') . '"');
     }

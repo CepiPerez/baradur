@@ -12,7 +12,7 @@ Class View
 	# _ASSETS is defined in Globals.php
 	public static function getAsset($asset)
 	{
-		return HOME.'/'._ASSETS.'/'.$asset;
+		return env('HOME').'/'.env('_ASSETS').'/'.$asset;
 	}
 
 	# Sets pagination
@@ -52,13 +52,15 @@ Class View
 	{
 		global $app;
 
+		$file = str_replace('.', '/', $file);
+
 		if (!file_exists(_DIR_.'/../../resources/views/'.$file.'.blade.php'))
 			abort(404);
 
 		self::checkFolders();
 
 		$arguments = array(
-			'app_name' => APP_NAME
+			'app_name' => env('APP_NAME')
 		);
 
 		if (isset($_SESSION['old'])) {

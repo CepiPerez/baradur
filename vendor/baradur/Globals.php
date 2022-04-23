@@ -1,6 +1,10 @@
 <?php
 
-$base = '/'. str_replace('/', '', APP_FOLDER);
+function env($val, $default=null) { 
+    return constant($val)? constant($val) : ($default? $default : null);
+}
+
+$base = '/'. str_replace('/', '', env('APP_FOLDER'));
 
 $home = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off' ? 'https' : 'http') .
         "://" . $_SERVER['SERVER_NAME'] . $base;

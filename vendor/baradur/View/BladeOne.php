@@ -52,9 +52,17 @@ class BladeOne
         'Statements',
         'Comments',
         'Echos',
+        'SelfClosingComponents',
+        'Components'
     );
 
     public $phpTag='<?php ';
+    public $phpTagEcho = '<?php' . ' echo ';
+
+    protected $componentStack = array();
+    protected $componentData = array();
+    protected $slots = array();
+    protected $slotStack = array();
 
 
     public function __construct($templatePath, $compiledPath)
@@ -115,7 +123,7 @@ class BladeOne
             $this->fileName = $fileName;
         }
         $compiled = $this->getCompiledFile();
-        $template=$this->getTemplateFile();
+        $template = $this->getTemplateFile();
         if ($this->isExpired() || $forced) {
             // compile the original file
             $contents = $this->compileString($this->getFile($template));
@@ -229,8 +237,254 @@ class BladeOne
         return "<input type='hidden' name='csrf' value='".$csrf."'/>";
     }
 
+
+    private function parseAttributeBag($attributeString)
+    {
+        $pattern = "/
+            (?:^|\s+)
+            \{\{\s*(\\\$attributes(?:[^}]+?(?<!\s))?)\s*\}\}
+        /x";
+
+        return preg_replace($pattern, ' :attributes="$1"', $attributeString);
+    }
+
+    private function parseBindAttributes($attributeString)
+    {
+        $pattern = "/
+            (?:^|\s+)
+            :(?!:)
+            ([\w\-:.@]+)
+            =
+        /xm";
+
+        return preg_replace($pattern, ' bind:$1=', $attributeString);
+    }
+
+    private function getAttributesFromAttributeString($attributeString)
+    {
+        $attributeString = $this->parseAttributeBag($attributeString);
+
+        $attributeString = $this->parseBindAttributes($attributeString);
+
+        return $attributeString;
+    }
+
+    private function getArrayAttributesFromAttributeString($attributeString)
+    {
+        $attributeString = $this->getAttributesFromAttributeString($attributeString);
+        
+        preg_match_all("/(?P<keys>\w+)=(?P<values>\"[^\"]*+\")/", $attributeString, $m);
+    
+        $values = array();
+        foreach ($m["values"] as $val)
+            $values[] = str_replace("'", '', str_replace('"', '', $val));
+
+        return array_combine($m["keys"], $values);
+
+    }
+
+    protected $component_slots = array();
+
+    function callbackCompileComponents($match)
+    {
+        
+        preg_match('/<\s*x-([^ ]*)/x', $match[0], $matches);
+        $component = $matches[1];
+
+        $attributes = $this->getArrayAttributesFromAttributeString(trim($match[1]));        
+        
+        $this->compileSlots($match[0]);
+
+        $content = isset($match[2])? $match[2] : null;
+
+        foreach ($this->component_slots as $slot)
+        {
+            $content = str_replace($slot[1], '', $content);
+        }
+
+        return $this->createComponent($component, $attributes, $content);
+        
+
+    }
+
+    protected function createComponent($component, $attributes, $content)
+    {
+        //echo "COMPONENT: ".$component.":: ATTR: ".dd($attributes);
+
+        //dd($this->component_slots);
+
+        $c = ucfirst($component).'Component';
+        $instance = null;
+        $reflect = null;
+
+        if (class_exists($c))
+        {
+            $ReflectionMethod = new \ReflectionMethod($c, '__construct');
+            $params = $ReflectionMethod->getParameters();
+
+            //var_dump($params);
+            $params_to_send = array();
+            foreach ($params as $param)
+            {
+                if (isset($attributes) && isset($attributes[$param->name]))
+                    $params_to_send[] = "<?php echo (".$attributes[$param->name]."); ?>";
+                unset($attributes[$param->name]);
+            }
+            $reflect  = new ReflectionClass($c);
+            $instance = $reflect->newInstanceArgs($params_to_send);
+            $instance->slot = $content;
+
+        }
+        else
+        {
+            $reflect  = new ReflectionClass('Component');
+            $instance = $reflect->newInstance();
+            $instance->setComponent($component);
+        }
+        
+
+        global $app, $temp_params;
+
+        $temp_params = array();
+        if (class_exists($c))
+        {
+            $instance->attributes = $attributes;
+
+            foreach ($instance as $key => $val)
+                $temp_params[$key] = $val;
+
+            if (count($attributes)>0)
+                $temp_params['__instance'] = $instance;
+
+        }
+        else
+        {
+            $temp_params = $attributes;
+        }
+
+        foreach ($this->component_slots as $slot)
+        {
+            foreach ($slot[0] as $key => $val)
+                $temp_params[$key] = $val;
+        }
+
+        $this->component_slots = array();
+
+        /* $props = $reflect->getProperties(ReflectionProperty::IS_PUBLIC);
+        foreach ($props as $prop)
+        {
+            echo "PROP: ".$prop->name."::".$instance->{$prop->name}."<br>";
+            $temp_params[$prop->name] = $instance->{$prop->name};
+        } */
+
+
+       // dd($reflect->getMethods(ReflectionMethod::IS_PUBLIC));
+        //dd($temp_params);
+
+        $back_action = $app->action;
+        $result = $instance->render()->result;
+        $app->action = $back_action;
+        $temp_params = null;
+        //dd($instance);
+        return $result;
+
+    }
+
+    function compileIndividualComponent($match, $value)
+    {
+        #echo "Compiling $match<br>";
+        $pattern = '/<x-'.$match.' (.*?)>([\s\S]*)<\/x-'.$match.'[\ ]*>/';
+
+        return preg_replace_callback($pattern, 
+            array($this, 'callbackCompileComponents'),
+            $value);
+    }
+
+    function callbackCompileSlots($match)
+    {
+        $attributes = $this->getArrayAttributesFromAttributeString(trim($match[1]));
+        $this->component_slots[] = array(array($attributes['name'] => $match[2]), $match[0]);
+        return null;
+    }
+
+    function compileSlots($value)
+    {
+        $pattern = '/<x-slot (.*?)>([\s\S]*)<\/x-slot[\ ]*>/';
+        return preg_replace_callback($pattern, array($this, 'callbackCompileSlots'), $value);
+    }
+
+
+    protected function compileComponents($value)
+    {
+        preg_match_all('/<\s*x-[^ ]*/x', $value, $matches);
+
+        //dd($matches);
+        if (count($matches)>0) {
+            foreach ($matches[0] as $match) {
+                $match = str_replace('<x-', '', $match);
+                if ($match != 'slot')
+                {
+                    $value = $this->compileIndividualComponent($match, $value);
+                }
+            }
+        }
+        
+        return $value;
+    }
+
+    function callbackCompileSelfClosingComponents($match) {
+        //echo "REPLACING: ";dd($match);echo "<br>";
+        //var_dump($match['attributes']);
+
+
+        return null;
+    }
+
+    public function compileSelfClosingComponents($value)
+    {
+        $pattern = "/
+            <
+                \s*
+                x[-\:]([\w\-\:\.]*)
+                \s*
+                (?<attributes>
+                    (?:
+                        \s+
+                        (?:
+                            (?:
+                                \{\{\s*\\\$attributes(?:[^}]+?)?\s*\}\}
+                            )
+                            |
+                            (?:
+                                [\w\-:.@]+
+                                (
+                                    =
+                                    (?:
+                                        \\\"[^\\\"]*\\\"
+                                        |
+                                        \'[^\']*\'
+                                        |
+                                        [^\'\\\"=<>]+
+                                    )
+                                )?
+                            )
+                        )
+                    )*
+                    \s*
+                )
+            \/>
+        /x";
+
+        return preg_replace_callback($pattern, 
+            array($this, 'callbackCompileComponents'),
+            $value);
+
+    }
+
+
     
     function callbackCompileStatements($match) {
+        
         //echo "REPLACING: ";var_dump($match);echo "<br>";
         if ($this->contains($match[1], '@')) {
             $match[0] = isset($match[3]) ? $match[1].$match[3] : $match[1];
@@ -270,27 +524,91 @@ class BladeOne
         return preg_replace_callback($pattern, array($this, "callbackCompileRawEchos"), $value);
     }
 
+    function replaceFromInstanceVars($item)
+    {
+        $val = $item[1];
+        return $this->variables['__instance']->$val;
+    }
+
+    function callComponentAttribute($command)
+    {
+        //echo "calling: ".$command."<br>";
+        $command = trim($command);
+        if ($command == '$attributes')
+        {
+            return $this->variables['__instance']->attributes();
+        }
+        elseif (substr($command, 0, 11) == '$attributes')
+        {
+            $temp = str_replace('$attributes->', '', $command);
+
+            $command = substr($temp, 0, strpos($temp, '('));
+            $params = substr($temp, strpos($temp, '(')+1, -1);
+            $params = str_replace('array(', '', $params);
+            $params = str_replace(')', '', $params);
+            $params = str_replace('[', '', $params);
+            $params = str_replace(']', '', $params);
+            $params = preg_replace_callback('/\$([\w-]+)/', array($this, "replaceFromInstanceVars"), $params);
+
+            return $this->variables['__instance']->$command($params);
+        }
+        else
+        {
+            return $this->variables['__instance']->$command;
+        }
+
+    }
+
+
     function callbackCompileRegularEchos($matches) {
-        
-        $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];
-        
+        //echo "REPLACING: ";var_dump($matches);echo "<br>";
+
+        $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];        
         $wrapped = sprintf($this->echoFormat, $this->compileEchoDefaults($matches[2]));
-        
+
+
+        if ($matches[1])
+        {
+            return substr($matches[0], 1);
+        }
+        else
+        {
+
+            if (substr($matches[2], 0, 11)=='$attributes' && isset($this->variables['__instance']))
+                return $this->callComponentAttribute($matches[2]);
+    
+            if (isset($matches[2]))
+            {
+                $strval = $this->variables[str_replace('$', '', $matches[2])];
+                if (isset($strval))
+                    return $strval;
+            }
+
+            if (isset($this->variables['__instance']))
+            {
+                $call = str_replace('()', '', str_replace('$', '', $matches[2]));
+                return $this->variables['__instance']->$call();
+            }
+        }
+
         /* $wrapped = str_replace('asset(', 'View::getAsset(', $wrapped);
         $wrapped = str_replace('route(', 'Route::getRoute(', $wrapped);
         $wrapped = str_replace('session(', 'App::getSession(', $wrapped); */
 
-        return $matches[1] ? substr($matches[0], 1) : $this->phpTag.'echo '.$wrapped.'; ?>'.$whitespace;
+        return $this->phpTag.'echo '.$wrapped.'; ?>'.$whitespace;
     }
+
 
     protected function compileRegularEchos($value)
     {
+        //echo "REPLACING: ";var_dump($value);echo "<br>";
         $pattern = sprintf('/(@)?%s\s*(.+?)\s*%s(\r?\n)?/s', $this->contentTags[0], $this->contentTags[1]);
 
         return preg_replace_callback($pattern, array($this, "callbackCompileRegularEchos"), $value);
     }
 
-    function callbackCompileEscapedEchos($matches) {
+    function callbackCompileEscapedEchos($matches)
+    {
         $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];
 
         return $matches[1] ? $matches[0] : $this->phpTag.'echo ('.$this->compileEchoDefaults($matches[2]).'); ?>'.$whitespace;
@@ -301,10 +619,11 @@ class BladeOne
         $pattern = sprintf('/(@)?%s\s*(.+?)\s*%s(\r?\n)?/s', $this->escapedTags[0], $this->escapedTags[1]);
 
         return preg_replace_callback($pattern, array($this, "callbackCompileEscapedEchos"), $value);
-    }
+    }    
 
     public function compileEchoDefaults($value)
     {
+        
         return preg_replace('/^(?=\$)(.+?)(?:\s+or\s+)(.+?)$/s', 'isset($1) ? $1 : $2', $value);
     }
 
@@ -344,6 +663,93 @@ class BladeOne
 
         return "\t" . implode("\n\t", $result); */
     }
+
+
+
+
+    public function startComponent($name, $data = array())
+    {
+        if (\ob_start()) {
+            $this->componentStack[] = $name;
+
+            $this->componentData[$this->currentComponent()] = $data;
+
+            $this->slots[$this->currentComponent()] = array();
+        }
+    }
+
+
+    protected function currentComponent()
+    {
+        return \count($this->componentStack) - 1;
+    }
+
+
+    public function renderComponent()
+    {
+        //echo "<hr>render<br>";
+        $name = \array_pop($this->componentStack);
+        //return $this->runChild($name, $this->componentData());
+        $cd = $this->componentData();
+        $clean = array_keys($cd);
+        $r = $this->runChild($name, $cd);
+        // we clean variables defined inside the component (so they are garbaged when the component is used)
+        foreach ($clean as $key) {
+            unset($this->variables[$key]);
+        }
+        return $r;
+    }
+
+
+    protected function componentData()
+    {
+        $cs = count($this->componentStack);
+        //echo "<hr>";
+        //echo "<br>data:<br>";
+        //var_dump($this->componentData);
+        //echo "<br>datac:<br>";
+        //var_dump(count($this->componentStack));
+        return array_merge(
+            $this->componentData[$cs],
+            ['slot' => trim(ob_get_clean())],
+            $this->slots[$cs]
+        );
+    }
+
+    public function slot($name, $content = null)
+    {
+        if (\count(\func_get_args()) === 2) {
+            $this->slots[$this->currentComponent()][$name] = $content;
+        } elseif (\ob_start()) {
+            $this->slots[$this->currentComponent()][$name] = '';
+
+            $this->slotStack[$this->currentComponent()][] = $name;
+        }
+    }
+
+    public function endSlot()
+    {
+        static::last($this->componentStack);
+
+        $currentSlot = \array_pop(
+            $this->slotStack[$this->currentComponent()]
+        );
+
+        $this->slots[$this->currentComponent()][$currentSlot] = \trim(\ob_get_clean());
+    }
+
+    protected function compileComponent($expression)
+    {
+        return $this->phpTag . " \$this->startComponent$expression; ?>";
+    }
+
+    protected function compileEndComponent()
+    {
+        return $this->phpTagEcho . '$this->renderComponent(); ?>';
+    }
+
+
+
 
     protected function compileShow()
     {
@@ -784,6 +1190,28 @@ class BladeOne
     {
         return $this->phpTag."while{$expression}: ?>";
     }
+
+    protected function compileProps($expression)
+    {
+        //var_dump($this->variables);
+
+        $expression = ltrim($expression, '(');
+        $expression = rtrim($expression, ')');
+        $expression = str_replace('array(', '', $expression);
+        $expression = rtrim($expression, ')');
+        $expression = str_replace("'", '', str_replace('"', '', $expression));
+
+        //$array = array();
+        foreach (explode(',', $expression) as $exp)
+        {
+            if (!isset($this->variables[trim(explode('=>', $exp)[0])]))
+                $this->variables[trim(explode('=>', $exp)[0])] = trim(explode('=>', $exp)[1]);
+        }
+
+        //var_dump($this->variables);
+
+    }
+
 
 
     protected function stripParentheses($expression)

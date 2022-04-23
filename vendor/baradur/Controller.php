@@ -13,22 +13,42 @@ class Controller
     # Checks the token if $tokenVerification is true
     public function check($ruta)
     {
-        $result = true;
         if ($this->tokenVerification)
         {
             //echo "Checking token<br>";
-            self::removeOldTokens();
-            $result = self::checkToken($ruta);
+            $this->checkToken($ruta);
+            $this->removeOldTokens();
         }
 
     }
 
+    public function authorize($function, $param=null)
+    {
+        if (isset(Gate::$policies[$function]))
+            list($cont, $func) = explode('@', Gate::$policies[$function]);
+        else
+        {
+            /* if (!isset($param))
+            {
+                $cont = str_replace('Controller', 'Policy', get_class($this));
+            } */
+            return;
+        }
+        
+        
+        if (isset($param)) $params = array(Auth::user(), $param);
+        else $params = array(Auth::user());
 
-    function checkToken($ruta)
+        if (!call_user_func_array(array($cont, $func), $params))
+            abort(403);
+    }
+
+
+    private function checkToken($ruta)
     {
         if ($ruta->method=='POST' || $ruta->method=='PUT' || $ruta->method=='DELETE')
         {
-            $date1 = strtotime(HTTP_TOKENS, strtotime($_SESSION['tokens'][$_POST['csrf']]['timestamp']));
+            $date1 = strtotime(env('HTTP_TOKENS'), strtotime($_SESSION['tokens'][$_POST['csrf']]['timestamp']));
             $date2 = strtotime(date('Y-m-d H:i:s'));
             if (!isset($_SESSION['tokens'][$_POST['csrf']]))
             {
@@ -44,7 +64,7 @@ class Controller
             {
                 # Access granted
                 $counter = $_SESSION['tokens'][$_POST['csrf']]['counter'];
-                if ($counter < HTTP_TOKENS_MAX_USE)
+                if ($counter < env('HTTP_TOKENS_MAX_USE'))
                 {
                     $_SESSION['tokens'][$_POST['csrf']]['counter'] = $counter+1;
                 }
@@ -58,18 +78,18 @@ class Controller
     }
 
     # Remove old tokens based on .env settings
-    function removeOldTokens()
+    private function removeOldTokens()
     {
         if (isset($_SESSION['tokens']))
         {
             foreach ($_SESSION['tokens'] as $key => $token)
             {
-                $date1 = strtotime(HTTP_TOKENS, strtotime($token['timestamp']));
+                $date1 = strtotime(env('HTTP_TOKENS'), strtotime($token['timestamp']));
                 $date2 = strtotime(date('Y-m-d H:i:s'));
                 if ($date1 < $date2)
                     unset($_SESSION['tokens'][$key]);
                 
-                if ($token['counter'] >= HTTP_TOKENS_MAX_USE)
+                if ($token['counter'] >= env('HTTP_TOKENS_MAX_USE'))
                     unset($_SESSION['tokens'][$key]);
             }
         }

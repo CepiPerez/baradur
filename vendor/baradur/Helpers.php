@@ -4,14 +4,21 @@ Class Helpers
 {
     private static $_request;
 
-    public static function getTableNameFromClass($class, $plural=true)
+    public static function camelCaseToSnakeCase($name, $plural=true)
     {
-        $converted = preg_replace('/([A-Z])/', '_$1', $class);
+        $converted = preg_replace('/([A-Z])/', '_$1', $name);
         $converted = ltrim(strtolower($converted), '_');
         if ($plural)
             return self::getPlural($converted);
         else
             return $converted;
+    }
+
+    public static function camelCaseToKebabCase($name)
+    {
+        $converted = preg_replace('/([A-Z])/', '-$1', $name);
+        $converted = ltrim(strtolower($converted), '-');
+        return $converted;
     }
 
     public static function getPlural($string, $fromCli=false)

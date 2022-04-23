@@ -114,6 +114,25 @@ Class QueryBuilder
 
         return $res;
     }
+
+    private function checkObserver($function, $model)
+    {
+        global $observers;
+        $class = $this->_parent;
+        if (isset($observers[$class]))
+        {
+            $observer = new $observers[$class];
+            if (method_exists($observer, $function))
+            {
+                if (is_array($model))
+                    $model = $this->insertUnique($model); 
+
+                $observer->$function($model);
+            }
+        }
+    }
+
+
     
     /**
      * Returns the full query in a string
@@ -740,9 +759,11 @@ Class QueryBuilder
                     
                     if (method_exists($this->_parent, 'set'.ucfirst($k).'Attribute'))
                     {
-                        $cl = $this->_parent;
+                        //$cl = $this->_parent;
                         $fn = 'get'.ucfirst($k).'Attribute';
-                        $v = $cl::$fn($v);
+                        //$v = call_user_func_array(array($cl, $fn), array($v));
+                        $newmodel = new $this->_parent;
+                        $v = $newmodel->$fn($v);
                     }
                     $v = "'".$v."'";
                 }
@@ -756,9 +777,12 @@ Class QueryBuilder
             {
                 if (method_exists($this->_parent, 'set'.ucfirst($key).'Attribute'))
                 {
-                    $cl = $this->_parent;
+                    //$cl = $this->_parent;
                     $fn = 'set'.ucfirst($key).'Attribute';
-                    $val = $cl::$fn($val);
+                    //$val = call_user_func_array(array($cl, $fn), array($v));
+                    //$val = $cl::$fn($val);
+                    $newmodel = new $this->_parent;
+                    $val = $newmodel->$fn($val);
                 }
 
                 $val = "'".$val."'";
@@ -791,11 +815,10 @@ Class QueryBuilder
     }
 
     /**
-     * INSERT a record or an array of records in database\
-     * Returns error or empty string if ok
+     * INSERT a record or an array of records in database
      * 
      * @param array $record
-     * @return string
+     * @return bool
      */
     public function insert($record)
     {
@@ -831,16 +854,15 @@ Class QueryBuilder
     
         $this->clear();
         
-        return $this->_connector->error;
+        return $query; //$this->_connector->error;
     }
 
 
     /**
-     * INSERT IGNORE a record or an array of records in database\
-     * Returns error or empty string if ok
+     * INSERT IGNORE a record or an array of records in database
      * 
      * @param array $record
-     * @return string
+     * @return bool
      */
     public function insertOrIgnore($record)
     {
@@ -875,7 +897,7 @@ Class QueryBuilder
     
         $this->clear();
         
-        return $this->_connector->error;
+        return $query; //$this->_connector->error;
     }
 
 
@@ -899,11 +921,16 @@ Class QueryBuilder
                 unset($record[$key]);
         }
 
+        $this->checkObserver('creating', $record);
+
         if(count($this->_values) == 0)
             return null;
 
-        if ($this->_insert(array()) == '')
+        if ($this->_insert(array()))
+        {
+            $this->checkObserver('created', $record);
             return $this->insertUnique($record);
+        }
         else
             return null;
 
@@ -917,7 +944,7 @@ Class QueryBuilder
      * @param array $record
      * @return Model
      */
-    public function __create($record = null)
+    /* public function __create($record = null)
     {
 
         foreach ($record as $key => $val)
@@ -926,12 +953,12 @@ Class QueryBuilder
         if(count($this->_values) == 0)
             return null;
 
-        if ($this->_insert(array()) == '')
+        if ($this->_insert(array()))
             return $this->insertUnique($record);
         else
             return null;
 
-    }
+    } */
 
     /**
      * Updates a record in database\
@@ -967,11 +994,10 @@ Class QueryBuilder
     } */
 
     /**
-     * Updates a record in database\
-     * Returns error or empty string if ok
+     * Updates a record in database
      * 
      * @param array $record
-     * @return string
+     * @return bool
      */
     public function update($record, $attributes=null)
     {
@@ -1011,16 +1037,15 @@ Class QueryBuilder
         $sql = 'UPDATE `' . $this->_table . '` SET ' . implode(', ', $valores) . ' ' . $this->_where;
 
         //echo $sql."::";var_dump($this->_wherevals);echo "<br>";
-        $this->_connector->execSQL($sql, $this->_wherevals);
+        $query = $this->_connector->execSQL($sql, $this->_wherevals);
 
         $this->clear();
         
-        return $this->_connector->error;
+        return $query; //$this->_connector->error;
     }
 
     /**
-     * Create or update a record matching the attributes, and fill it with values\
-     * Returns error or empty string if ok
+     * Create or update a record matching the attributes, and fill it with values
      * 
      * @param  array  $attributes
      * @param  array  $values
@@ -1087,7 +1112,7 @@ Class QueryBuilder
 
         if ($res)
         {
-            if ($this->update($values) == '')
+            if ($this->update($values))
             {
                 foreach($values as $key => $val)
                     $res->$key = $val;
@@ -1109,11 +1134,10 @@ Class QueryBuilder
     /**
      * Uses REPLACE clause\
      * Updates a record using PRIMARY KEY OR UNIQUE\
-     * If the record doesn't exists then creates a new one\
-     * Returns error or empty string if ok
+     * If the record doesn't exists then creates a new one
      * 
      * @param array $record
-     * @return string
+     * @return bool
      */
     public function insertReplace($record)
     {
@@ -1155,17 +1179,16 @@ Class QueryBuilder
 
         $this->clear();
         
-        return $this->_connector->error;
+        return $query; //$this->_connector->error;
     }
 
 
 
     /**
-     * UDPATE the current records in database\
-     * Returns error or empty string if ok
+     * UDPATE the current records in database
      * 
      * @param array $values
-     * @return string
+     * @return bool
      */
     public function updateAll($values)
     {
@@ -1186,15 +1209,14 @@ Class QueryBuilder
 
         $this->clear();
         
-        return $this->_connector->error;
+        return $query; //$this->_connector->error;
     }
 
     /**
      * DELETE the current records from database\
-     * Returns error if WHERE clause was not specified\
-     * Returns error or empty string if ok
+     * Returns error if WHERE clause was not specified
      * 
-     * @return string
+     * @return bool
      */
     public function delete()
     {
@@ -1209,16 +1231,15 @@ Class QueryBuilder
 
         $this->clear();
         
-        return $this->_connector->error;
+        return $query; //$this->_connector->error;
     }
 
 
 
     /**
      * Truncates the current table
-     * Returns error or empty string if ok
      * 
-     * @return string
+     * @return bool
      */
     public function truncate()
     {
@@ -1228,7 +1249,7 @@ Class QueryBuilder
 
         $this->clear();
         
-        return $this->_connector->error;
+        return $query; //$this->_connector->error;
     }
 
 
@@ -1354,9 +1375,12 @@ Class QueryBuilder
         {
             if (method_exists($this->_parent, 'get'.ucfirst($key).'Attribute'))
             {
-                $cl = $this->_parent;
+                //$cl = $this->_parent;
                 $fn = 'get'.ucfirst($key).'Attribute';
-                $val = $cl::$fn($val);
+                //$val = call_user_func_array(array($cl, $fn), array($val));
+                //$val = $cl::$fn($val);
+                $newmodel = new $this->_parent;
+                $val = $newmodel->$fn($val);
             }
 
             $item->$key = $val;
@@ -1378,9 +1402,13 @@ Class QueryBuilder
             {
                 if (method_exists($this->_parent, 'get'.ucfirst($key).'Attribute'))
                 {
-                    $cl = $this->_parent;
+                    //$cl = $this->_parent;
                     $fn = 'get'.ucfirst($key).'Attribute';
-                    $val = $cl::$fn($val);
+                    //$val = new $cl;
+                    //$val = $val->$fn($val);
+                    //$val = $cl::$fn($val);
+                    $newmodel = new $this->_parent;
+                    $val = $newmodel->$fn($val);
                 }
 
                 $item->$key = $val;
@@ -1612,7 +1640,8 @@ Class QueryBuilder
         }
 
         $wherein = $this->_collection->pluck($this->_primary)->toarray();
-        $result = $c::whereIn($res[0], implode(',', $wherein))->where($res[1], $this->_parent);
+        $newmodel = call_user_func_array(array($c, 'whereIn'), array($res[0], implode(',', $wherein)));
+        $result = $newmodel->where($res[1], $this->_parent);
 
         if ($type == 'morphOne') $result->limit(1);
 
@@ -1630,9 +1659,9 @@ Class QueryBuilder
     {
         $array = array($this->_parent, $class);
         sort($array);                 
-        $classthrough = Helpers::getTableNameFromClass(implode('', $array), false);
-        $foreignthrough = Helpers::getTableNameFromClass($this->_parent, false).'_id';
-        $primarythrough = Helpers::getTableNameFromClass($class, false).'_id';
+        $classthrough = Helpers::camelCaseToSnakeCase(implode('', $array), false);
+        $foreignthrough = Helpers::camelCaseToSnakeCase($this->_parent, false).'_id';
+        $primarythrough = Helpers::camelCaseToSnakeCase($class, false).'_id';
 
         if (!$foreign) $foreign = 'id';
         if (!$primary) $primary = $this->_primary;
@@ -1660,19 +1689,19 @@ Class QueryBuilder
             $res = call_user_func_array(array($class, 'select'), array($columns));
         else
         {
-            $res = DB::table(Helpers::getTableNameFromClass($class, false))->select($columns);
+            $res = DB::table(Helpers::camelCaseToSnakeCase($class, false))->select($columns);
             $res->setConnector($this->_connector);
         }
         
         if ($relationship=='belongsTo')
         {
             if (!$foreign) $foreign = 'id';
-            if (!$primary) $primary = Helpers::getTableNameFromClass($res->_parent, false).'_id';
+            if (!$primary) $primary = Helpers::camelCaseToSnakeCase($res->_parent, false).'_id';
         }
         else if ($relationship=='hasOne' || $relationship=='hasMany')
         {
             if (!$foreign) $foreign = ($this->_original?$this->_original :
-                                        Helpers::getTableNameFromClass($this->_parent, false)).'_id';
+                                        Helpers::camelCaseToSnakeCase($this->_parent, false)).'_id';
             if (!$primary) $primary = $this->_primary;
         }
 
@@ -1711,7 +1740,7 @@ Class QueryBuilder
             $columns = explode(',', $columns);
         }
 
-        $secondarytable = Helpers::getTableNameFromClass($classthrough, false);
+        $secondarytable = Helpers::camelCaseToSnakeCase($classthrough, false);
         if (class_exists($classthrough))
             $secondarytable = call_user_func(array($classthrough, 'getTable'), array());
 
@@ -1720,7 +1749,7 @@ Class QueryBuilder
             $res = call_user_func_array(array($class, 'select'), array($columns));
         else
         {
-            $res = DB::table(Helpers::getTableNameFromClass($class, false))->select($columns);
+            $res = DB::table(Helpers::camelCaseToSnakeCase($class, false))->select($columns);
             $res->setConnector($this->_connector);
         }
 
@@ -2103,10 +2132,10 @@ Class QueryBuilder
      * @param string|int $value
      * @return QueryBuilder
      */
-    public function withWherehas($relation, $filters=null)
+    /* public function withWherehas($relation, $filters=null)
     {
         return $this->_withWhereHas($relation, $filters);
-    }
+    } */
 
 
     /**
@@ -2117,12 +2146,13 @@ Class QueryBuilder
     public function factory()
     {
         $class = $this->_parent;
-        $factory = $class::newFactory();
+        $factory = call_user_func_array(array($class, 'newFactory'), array());
+        //$factory = $class::newFactory();
 
         if (!$factory)
         {
-            if (APP_DEBUG==true) throw new Exception('Error looking for '.$fname);
-            else return $null;
+            if (env('APP_DEBUG')==true) throw new Exception('Error looking for '.$class);
+            else return null;
         }
 
         return $factory;
@@ -2141,7 +2171,7 @@ Class QueryBuilder
         {
             if ($persist)
             {
-                $col[] = $this->create($item);
+                $col[] = $this->insert($item);
             }
             else
             {

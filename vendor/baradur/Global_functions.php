@@ -21,7 +21,7 @@ function loadView($template, $params=array())
 	return View::loadTemplate($template, $params);
 }
 
-
+$temp_params = null;
 /**
  * Returns the template\
  * Example: view('products', compact())
@@ -30,10 +30,12 @@ function loadView($template, $params=array())
  * @param string $params Parameters to send to template 
  * @return App
  */
-function view($template, $params=array())
+function view($template, $params=null)
 {
-	global $app;
+	global $app, $temp_params;
 	$app->action = 'show';
+	if (!isset($params) && isset($temp_params)) $params = $temp_params;
+	//var_dump($params);
 	$app->result = View::loadTemplate($template, $params);
 	return $app;
 }

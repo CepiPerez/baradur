@@ -4,6 +4,8 @@ Class Request
 {
     public $_get = array();
     public $_post = array();
+    public $_route = null;
+    public $_url = null;
 
     public function validate($arguments)
     {
@@ -77,6 +79,27 @@ Class Request
         }
 
         return $pass;
+    }
+
+    public function path()
+    {
+        return $this->_route->url;
+    }
+
+    public function url()
+    {
+        return rtrim(preg_replace('/\?.*/', '', $this->_uri), '/');
+    }
+
+    public function fullUrl()
+    {
+        return $this->_uri;
+    }
+
+
+    public function routeIs($name)
+    {
+        return $this->_route->name == $name;
     }
 
     public function all()

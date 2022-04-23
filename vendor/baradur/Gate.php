@@ -5,7 +5,7 @@
 
 Class Gate {
 
-    private static $policies;
+    public static $policies;
 
     public static function define($function, $callback)
     {
@@ -13,25 +13,34 @@ Class Gate {
             self::$policies[$function] = $callback;
     }
 
-    public static function allows($function, $param)
+    public static function allows($function, $param=null)
     {
         list($cont, $func) = explode('@', self::$policies[$function]);
-        //return $cont::$func($param);
-        return call_user_func_array(array($cont, $func), array($param));
+
+        if (isset($param)) $params = array(Auth::user(), $param);
+        else $params = array(Auth::user());
+
+        return call_user_func_array(array($cont, $func), $params);
     }
 
-    public static function denies($function, $param)
+    public static function denies($function, $param=null)
     {
         list($cont, $func) = explode('@', self::$policies[$function]);
-        //return !$cont::$func($param);
-        return !call_user_func_array(array($cont, $func), array($param));
+
+        if (isset($param)) $params = array(Auth::user(), $param);
+        else $params = array(Auth::user());
+
+        return !call_user_func_array(array($cont, $func), $param);
     }
 
-    public static function authorize($function, $param)
+    public static function authorize($function, $param=null)
     {
         list($cont, $func) = explode('@', self::$policies[$function]);
-        //if (!$cont::$func($param))
-        if (!call_user_func_array(array($cont, $func), array($param)))
+
+        if (isset($param)) $params = array(Auth::user(), $param);
+        else $params = array(Auth::user());
+
+        if (!call_user_func_array(array($cont, $func), $params))
             abort(403);
     }
 

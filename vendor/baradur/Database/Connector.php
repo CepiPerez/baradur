@@ -29,7 +29,7 @@ Class Connector
         }
         catch (Exception $e) 
         {
-            if (APP_DEBUG==true) throw new Exception($e->getMessage());
+            if (env('APP_DEBUG')==true) throw new Exception($e->getMessage());
 
             return false;
         }
@@ -59,9 +59,9 @@ Class Connector
         }
         catch (Exception $e) 
         {
-            if (APP_DEBUG==true) throw new Exception($e->getMessage());
+            if (env('APP_DEBUG')==true) throw new Exception($e->getMessage());
 
-            return null;
+            return false;
         }
     }
     
@@ -104,6 +104,8 @@ Class Connector
             }
             return $collection;
         }
+
+        return $query;
 
             
         /* echo "SQL NUEVO:".$sql."<br>";
