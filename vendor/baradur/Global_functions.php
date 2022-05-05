@@ -5,6 +5,9 @@ function route($val) { return Route::getRoute(func_get_args()); }
 function session($val) { return App::getSession($val); }
 function request() { return Helpers::getRequest(); }
 function __($translation, $placeholder=null) { return Helpers::trans($translation, $placeholder); }
+function public_path($path=null) { return env('APP_URL').'/'.env('PUBLIC_FOLDER').'/'.$path; }
+function storage_path($path=null) { return env('APP_URL').'/storage/'.$path; }
+
 
 $errors = new MessageBag();
 
@@ -35,7 +38,6 @@ function view($template, $params=null)
 	global $app, $temp_params;
 	$app->action = 'show';
 	if (!isset($params) && isset($temp_params)) $params = $temp_params;
-	//var_dump($params);
 	$app->result = View::loadTemplate($template, $params);
 	return $app;
 }
@@ -65,7 +67,7 @@ function abort($error)
 function error($error, $message)
 {
 	$breadcrumb = array(__('login.home') => '', 'Error' => '#');
-	echo View::loadTemplate('common/error', compact('error', 'message', 'breadcrumb'));
+	echo View::loadTemplate('layouts/error', compact('error', 'message', 'breadcrumb'));
 	exit();
 }
 
@@ -124,7 +126,7 @@ function redirect($url=null)
 
 	global $app;
 	$app->action = 'redirect';
-	if ($url) $app->result = HOME .'/'. ltrim($url, '/');
+	if ($url) $app->result = $url;
 	return $app;
 }
 
@@ -140,7 +142,7 @@ function redirect($url=null)
  * @param string $filename
  * @return App
  */
-function response($data, $code, $type='json', $filename=null)
+function response($data, $code, $type='application/json', $filename=null, $inline=false, $headers=null)
 {
 	global $app;
 
@@ -148,7 +150,9 @@ function response($data, $code, $type='json', $filename=null)
 	$app->type = $type;
 	$app->code = $code;
 	$app->filename = $filename;
+	$app->inline = $inline;
 	$app->result = $data;
+	$app->headers = $headers;
 
 	return $app;
 }

@@ -6,6 +6,7 @@ Class Request
     public $_post = array();
     public $_route = null;
     public $_url = null;
+    public $_files = array();
 
     public function validate($arguments)
     {
@@ -107,6 +108,10 @@ Class Request
         $array = array();
         foreach ($this->_post as $key => $val)
             $array[$key] = $val;
+
+        foreach ($this->_files as $key => $val)
+            $array[$key] = $val;
+
             
         return $array;
     }
@@ -116,18 +121,44 @@ Class Request
         return $this->_get;
     }
 
+    public function file($name)
+    {
+        return $this->_files[$name];
+    }
+
     public function input($key)
     {
         return isset($this->_post[$key]) ? $this->_post[$key] : null;
     }
 
+    public function serialize()
+    {
+        return serialize((array)$this);
+    }
+
     public function __get($key)
     {
         $res = isset($this->_post[$key]) ? $this->_post[$key] : null;
+
         if (!isset($res))
             $res = isset($this->_get[$key]) ? $this->_get[$key] : null;
 
+        if (!isset($res))
+            $res = isset($this->_files[$key]) ? $this->_files[$key] : null;
+
         return $res;
     }
+
+    public function addFile($name, $data)
+    {
+        $newfile = new StorageFile($data);
+        $this->_files[$name] = $newfile;
+    }
+
+    public function hasFile($name)
+    {
+        return isset($this->_files[$name]);
+    }
+
 
 }

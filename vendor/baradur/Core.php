@@ -52,8 +52,22 @@ $app = new App();
 $config = new Config;
 $config->boot();
 
+# Initializing App cache
+$cache = Cache::store('file');
+
+# Initializing Storage
+Storage::$path = _DIR_.'/../../storage/app/public/';
+
 # Routes
-include(_DIR_.'/../../routes/routes.php');
+if ($cache->has('baradur_routes') && env('APP_DEBUG')==0)
+{
+    Route::setRouteList($cache->get('baradur_routes'));
+}
+else
+{
+    include(_DIR_.'/../../routes/routes.php');
+    $cache->put('baradur_routes', Route::routeList(), 172800);
+}
 
 # Autoload function
 function custom_autoloader($class) 
@@ -189,7 +203,7 @@ $database = new Connector(env('DB_HOST'), env('DB_USER'), env('DB_PASSWORD'), en
 
 
 # Autologin
-if (isset($_COOKIE[env('APP_NAME').'_token']) && !Auth::user())
+if (isset($_COOKIE[env('APP_NAME').'_token']) && !Auth::user() && Route::has('login'))
 {
     Auth::autoLogin($_COOKIE[env('APP_NAME').'_token']);
 }

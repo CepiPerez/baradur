@@ -1,0 +1,56 @@
+mi-buscador {
+    position: relative;
+    display: inherit;
+  }
+  mi-buscador a:hover {
+    text-decoration: none;
+  }
+  mi-buscador a.disabled {
+    text-decoration: none;
+    pointer-events: none;
+    cursor: default;
+    color: #aaa;
+  }
+  mi-buscador a {
+    color: #777;
+  }
+  .dark mi-buscador a {
+    color: #888;
+  }
+  mi-buscador .fa-search:hover {
+    color: #009fcf;
+  }
+  mi-buscador .fa-times-circle:hover {
+    color: #ff4561;
+  }
+  mi-buscador {
+    width: 100%;
+  }
+  mi-buscador .fa-search {
+    position:absolute;
+    top: 1px;
+    right: 6px;
+    width: 32px;
+    height: 100%;
+    cursor: pointer;
+    text-align: center;
+    padding-top: 9px;
+  }
+  mi-buscador .fa-times-circle {
+    position:absolute;
+    top: 1px;
+    right: 46px;
+    width: 32px;
+    height: 100%;
+    cursor: pointer;
+    text-align: center;
+    padding-top: 9px;
+  }
+  mi-buscador .separator {
+    position:absolute;
+    top: 5px;
+    right: 40px;
+    cursor: none;
+    color: #aaa;
+    pointer-events: none;
+  }

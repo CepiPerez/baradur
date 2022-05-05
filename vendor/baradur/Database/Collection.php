@@ -23,8 +23,9 @@ Class Collection extends arrayObject
     }
 
 
-    private function arrayToObject($array)
+    public function arrayToObject($array)
     {
+
         $obj = new self::$_parent;
 
         if (count($array)==0)
@@ -44,10 +45,24 @@ Class Collection extends arrayObject
         return $obj;
     }
 
-
+    /**
+     * Returns collection as array
+     * 
+     * @return array
+     */
     public function toArray()
     {
         return (array)$this;
+    }
+
+    public function toArrayObject()
+    {
+        $arr = array();
+        foreach ($this as $obj)
+        {
+            $arr[] = $obj;
+        }
+        return $arr;
     }
 
     /**
@@ -55,12 +70,13 @@ Class Collection extends arrayObject
      * 
      * @return string
      */
-    public function links()
+    public function links($bootstrap = false)
     {
         if (!isset($this->pagination)) return null;
 
         View::setPagination($this->pagination);
-        return View::loadTemplate('common/pagination');
+        if ($bootstrap) return View::loadTemplate('common/pagination');
+        return View::loadTemplate('layouts/pagination');
     }
 
     /**
@@ -267,6 +283,17 @@ Class Collection extends arrayObject
         return $this;
     }
 
+
+    /**
+     * Checks if value exists in collection
+     * 
+     * @return bool
+     */
+    public function contains($value)
+    {
+        return in_array($value, (array)$this);
+    }
+
     /**
      * Filters the collection by a given key/value pair
      * 
@@ -326,7 +353,7 @@ Class Collection extends arrayObject
         $res = new Collection(self::$_parent);
         foreach ($this as $record)
         {
-            if (strpos($record->$key, $value)!=false)
+            if (isset($record->$key) && $record->$key==$value)
                 $res[] = $record;
         }
         return $res;
@@ -430,6 +457,20 @@ Class Collection extends arrayObject
     public function has($key)
     {
         return isset($this->$key);
+    }
+
+    /**
+     * Returns an element by its key/value pair
+     * 
+     * @return bool
+     */
+    public function find($key, $value)
+    {
+        foreach ($this as $record)
+        {
+            if (isset($record->$key) && $record->$key==$value)
+                return $record;
+        }
     }
     
 

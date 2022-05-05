@@ -71,46 +71,81 @@ array_shift($argv);
 $action = count($argv)>0? array_shift($argv) : null;
 $database = null;
 
+function env($val, $default=null) { return constant($val)? constant($val) : $default; }
 function upper($text) { return strtoupper(str_replace('_', '', $text[0])); }
+function public_path($path) { return str_replace('//', '/', _DIR_.'/'.env('PUBLIC_FOLDER').'/'.$path); }
+function storage_path($path) { return str_replace('//', '/', _DIR_.'/storage/'.$path); }
 
+function getRelativePath($file1, $file2)
+{
+    $arr1 = explode('/', $file1);
+    $arr2 = explode('/', $file2);
+
+    $common = '';
+    $i = 0;
+    for ($i=0; $i < count($arr1); ++$i)
+    {
+        if ($arr1[$i] == $arr2[$i])
+            $common .= $arr1[$i] .'/';
+        else
+            break;
+    }
+    $dif = count($arr1)-$i-1;
+    $back = str_repeat('../', $dif);
+
+    return array($back, str_replace($common, '', $file1), str_replace($common, '', $file2));
+
+}
 
 function migrate()
 {
-    global $database;
-    $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+   global $database;
+    $database = new Connector(env('DB_LOCAL_HOST'), env('DB_USER'), 
+                        env('DB_PASSWORD'), env('DB_NAME'), env('DB_PORT'));
     Schema::checkMainTable();
     $query = 'select * from migrations';
     $applied = (array)$database->execSQL($query)->pluck('migration');
 
     $count = 0;
+
+    $files = array();
     $it = new RecursiveDirectoryIterator(_DIR_.'/database/migrations');
     foreach(new RecursiveIteratorIterator($it) as $file)
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
         {
             $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
-            $short =  substr($name, 16);
-            $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
+            if (is_file($file))
+                $files[] = basename($file);
+        }
+    }
+    sort($files);
 
-            if (!in_array($name, $applied))
-            {
-                $startTime = microtime(true);
-                printf("\e[38;5;214mMigrating:\e[m " .$name."\n");
     
-                if (!class_exists($converted))
-                    include ($file);
-                Schema::init($name);
-                $class = new $converted;
-                $class->up();
+    foreach($files as $file)
+    {
+        $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+        $short =  substr($name, 18);
+        $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
 
-                DB::table('migrations')->insert(array('migration' => $name));
+        if (!in_array($name, $applied))
+        {
+            $startTime = microtime(true);
+            printf("\e[38;5;214mMigrating:\e[m " .$name."\n");
 
-                $endTime = microtime(true);
-                $time =($endTime-$startTime)*1000;
-                printf("\e[38;5;40mMigrated: \e[m ".$name." (". round($time, 2) ."ms)\n");
+            if (!class_exists($converted))
+                include (_DIR_.'/database/migrations/'.$file);
+            Schema::init($name);
+            $class = new $converted;
+            $class->up();
 
-                ++$count;
-            }
+            DB::table('migrations')->insert(array('migration' => $name));
+
+            $endTime = microtime(true);
+            $time =($endTime-$startTime)*1000;
+            printf("\e[38;5;40mMigrated: \e[m ".$name." (". round($time, 2) ."ms)\n");
+
+            ++$count;
         }
     }
 
@@ -126,7 +161,7 @@ function rollback($rollback, $output = true)
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
         {
             $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
-            $short =  substr($name, 16);
+            $short =  substr($name, 18);
 
             if ($name == $rollback)
             {
@@ -153,31 +188,45 @@ function rollback($rollback, $output = true)
 function seed()
 {
     global $database;
-    $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+    $database = new Connector(env('DB_LOCAL_HOST'), env('DB_USER'), 
+                        env('DB_PASSWORD'), env('DB_NAME'), env('DB_PORT'));
     $seeder = new DatabaseSeeder;
     $seeder->run();
     printf("\e[38;5;40mDatabase seeding completed successfully\e[m\n");
 }
 
-function makeController($controller, $resource)
+function makeController($controller, $resource, $api=false)
 {
-    require('app/config.php');
+    $config = new Config;
+    $config->boot();
 
-    $class = "<?php\n\nclass ".$controller."Controller extends Controller\n".
-    "{\n\t".'//protected $tokenVerification = false;'. "\n\n";
+    $class = '';
+
+    if ($api==false)
+        $class = "<?php\n\nclass ".$controller."Controller extends Controller\n";
+    else
+        $class = "<?php\n\nclass ".$controller."Controller extends ApiController\n";
+
+    $class .= "{\n\t".'//protected $tokenVerification = false;'. "\n\n";
     
     if ($resource)
     {
         $name = Route::$_strings['index'] ? Route::$_strings['index'] : 'index';
         $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
-        $name = Route::$_strings['create'] ? Route::$_strings['create'] : 'create';
-        $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
+        if ($api==false)
+        {
+            $name = Route::$_strings['create'] ? Route::$_strings['create'] : 'create';
+            $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
+        }
         $name = Route::$_strings['store'] ? Route::$_strings['store'] : 'store';
         $class .= "\tpublic function ".$name."(".'$request'.")\n\t{\n\t\t//\n\t}\n\n";
         $name = Route::$_strings['show'] ? Route::$_strings['show'] : 'show';
         $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
-        $name = Route::$_strings['edit'] ? Route::$_strings['edit'] : 'edit';
-        $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
+        if ($api==false)
+        {
+            $name = Route::$_strings['edit'] ? Route::$_strings['edit'] : 'edit';
+            $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
+        }
         $name = Route::$_strings['update'] ? Route::$_strings['update'] : 'update';
         $class .= "\tpublic function ".$name."(".'$request, $id'.")\n\t{\n\t\t//\n\t}\n\n";
         $name = Route::$_strings['destroy'] ? Route::$_strings['destroy'] : 'destroy';
@@ -209,7 +258,8 @@ function makePolicy($policy)
 
 function makeMigration($command)
 {
-    require('app/config.php');
+    $config = new Config;
+    $config->boot();
 
     list($table, $create) = TableGuesser::guess($command);
     $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $command);
@@ -230,7 +280,7 @@ function makeMigration($command)
         "Schema::table('".$table."',\n\t\t\t".'$table->dropColumn('."'')\n\t\t);\n\n\t}\n\n}";
     }
 
-    $timestamp = date("Y_m_d_Hm");
+    $timestamp = date("Y_m_d_His");
 
     file_put_contents('database/migrations/'.$timestamp.'_'.$command.'.php', $class);
 
@@ -241,7 +291,8 @@ function makeMigration($command)
 function resetAll()
 {
     global $database;
-    $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+    $database = new Connector(env('DB_LOCAL_HOST'), env('DB_USER'), 
+                        env('DB_PASSWORD'), env('DB_NAME'), env('DB_PORT'));
     $query = 'select * from migrations';
     $applied = (array)$database->execSQL($query)->pluck('migration');
 
@@ -254,19 +305,40 @@ function resetAll()
 }
 
 
+function sortRoutesByUri($a, $b) { return strcmp($a->url, $b->url); }
+
+function sortRoutesByMethod($a, $b) { return strcmp($a->method, $b->method); }
+
+function sortRoutesByName($a, $b) 
+{
+    if (!isset($a->name)) $a->name = '';
+    if (!isset($b->name)) $b->name = '';
+    return strcmp($a->name, $b->name);
+}
+
+function sortRoutesByMiddleware($a, $b) 
+{
+    if (!isset($a->middleware)) $a->middleware = '';
+    if (!isset($b->middleware)) $b->middleware = '';
+    if (is_array($a->middleware)) $a->middleware = implode(', ', $a->middleware);
+    if (is_array($b->middleware)) $b->middleware = implode(', ', $b->middleware);
+    return strcmp($a->middleware, $b->middleware);
+}
+
 if ($action == 'make:migration' && count($argv)>0)
 {
     makeMigration($argv[0]);
 }
 
-else if ($action == 'migrate')
+elseif ($action == 'migrate')
 {
     migrate();
 }
 
-else if ($action == 'migrate:rollback')
+elseif ($action == 'migrate:rollback')
 {
-    $database = new Connector(DB_LOCAL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+    $database = new Connector(env('DB_LOCAL_HOST'), env('DB_USER'), 
+                        env('DB_PASSWORD'), env('DB_NAME'), env('DB_PORT'));
     $query = 'select * from migrations';
     $applied = (array)$database->execSQL($query)->pluck('migration')->last();
 
@@ -286,6 +358,7 @@ elseif ($action == 'make:controller' && count($argv)>0)
     $controller = null;
     $model = null;
     $resource = false;
+    $api = false;
 
     foreach ($argv as $arg)
     {
@@ -295,6 +368,12 @@ elseif ($action == 'make:controller' && count($argv)>0)
         elseif ($arg=='--resource')
             $resource = true;
 
+        elseif ($arg=='--api')
+        {
+            $api = true;
+            $resource = true;
+        }
+
         elseif (strrpos($arg, '-')==false)
             $controller = $arg;
     }
@@ -302,7 +381,7 @@ elseif ($action == 'make:controller' && count($argv)>0)
     if (file_exists('app/controllers/'.$controller.'.php'))
         die ("Error: controller ".$controller." already exists\n");
 
-    makeController($controller, $resource);
+    makeController($controller, $resource, $api);
 
     if (isset($model) && !file_exists('app/models/'.ucfirst($model).'.php'))
     {
@@ -310,7 +389,7 @@ elseif ($action == 'make:controller' && count($argv)>0)
     }
 }
 
-elseif ($action == 'make:polcy' && count($argv)>0)
+elseif ($action == 'make:policy' && count($argv)>0)
 {
     $policy = $argv[0];
     
@@ -332,14 +411,14 @@ elseif ($action == 'make:model' && count($argv)>0)
         if ($arg=='--controller') $controller = true;
         elseif ($arg=='--migration') $migration = true;
         elseif ($arg=='--resource') $resource = true;
-        else if (substr($arg, 0, 1)=='-' && strlen($arg)>1)
+        elseif (substr($arg, 0, 1)=='-' && strlen($arg)>1)
         {
             foreach (str_split(str_replace('_', '', $arg)) as $a)
             {
                 if ($a == 'm') $migration = true;
-                else if ($a == 'r') $resource = true;
-                else if ($a == 'c') $controller = true;
-                else if ($a == 'a') { $controller=true; $resource=true; $migration=true; }
+                elseif ($a == 'r') $resource = true;
+                elseif ($a == 'c') $controller = true;
+                elseif ($a == 'a') { $controller=true; $resource=true; $migration=true; }
             }
         }
         else $model = ucfirst($arg);
@@ -350,7 +429,8 @@ elseif ($action == 'make:model' && count($argv)>0)
         
     makeModel(ucfirst($model));
 
-    require('app/config.php');
+    $config = new Config;
+    $config->boot();
 
     if (!file_exists('app/controllers/'.$model.'Controller.php') && $controller)
     {
@@ -366,7 +446,7 @@ elseif ($action == 'make:model' && count($argv)>0)
     }
 }
 
-else if ($action == 'make:seeder' && count($argv)>0)
+elseif ($action == 'make:seeder' && count($argv)>0)
 {
     $seeder = $argv[0];
 
@@ -383,7 +463,7 @@ else if ($action == 'make:seeder' && count($argv)>0)
 
 }
 
-else if ($action == 'make:factory' && count($argv)>0)
+elseif ($action == 'make:factory' && count($argv)>0)
 {
     $factory = null;
     $model = null;
@@ -414,7 +494,7 @@ else if ($action == 'make:factory' && count($argv)>0)
 
 }
 
-else if ($action == 'make:middleware' && count($argv)>0)
+elseif ($action == 'make:middleware' && count($argv)>0)
 {
     $middleware = $argv[0];
 
@@ -431,7 +511,7 @@ else if ($action == 'make:middleware' && count($argv)>0)
 
 }
 
-else if ($action == 'make:request' && count($argv)>0)
+elseif ($action == 'make:request' && count($argv)>0)
 {
     $request = $argv[0];
 
@@ -451,12 +531,76 @@ else if ($action == 'make:request' && count($argv)>0)
 
 }
 
-else if ($action == 'db:seed')
+elseif ($action == 'make:component' && count($argv)>0)
+{
+    $component = $argv[0];
+    $kebab = Helpers::camelCaseToKebabCase($component, false);
+
+    if (!file_exists('app/view'))
+        mkdir('app/view');
+    if (!file_exists('app/view/components'))
+        mkdir('app/view/components');
+
+    if (file_exists('app/view/components/'.$component.'Component.php'))
+        die ("Error: request ".$component." already exists\n");
+
+    $class = "<?php\n\nclass ".$component." extends Component\n".
+            "{\n\tpublic function __construct()\n\t{\n\t\t//\n\t}".
+            "\n\n\tpublic function render()\n\t{\n\t\t".
+            "return view('components.".$kebab."');\n\t}\n}";
+
+    file_put_contents('app/view/components/'.$component.'Component.php', $class);
+
+    if (!file_exists('resources/views/components'))
+        mkdir('resources/views/components');
+
+    #if (file_exists('resources/views/components/'.$component.'.blade.php'))
+    #    die ("Error: request ".$component." already exists\n");
+
+    $class = "<div>\n\t<!-- Well begun is half done. - Aristotle -->\n</div>";
+    file_put_contents('resources/views/components/'.$kebab.'.blade.php', $class);
+
+    printf("\e[38;5;40mComponent created successfully \e[m\n");
+
+}
+
+elseif ($action == 'make:observer' && count($argv)>1)
+{
+    $observer = $argv[0];
+    $model = null;
+
+    foreach ($argv as $arg)
+    {
+        if (strpos($arg, '-model=')==1)
+            $model = str_replace('--model=', '', $arg);
+
+        elseif (strrpos($arg, '-')==false)
+            $observer = $arg;
+    }
+
+    if (!file_exists('app/observers'))
+        mkdir('app/observers');
+
+    if (file_exists('app/observers/'.$observer.'.php'))
+        die ("Error: request ".$observer." already exists\n");
+
+    $class = "<?php\n\nclass ".$observer."\n".
+            "{\n\tpublic function created(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
+            "\tpublic function updated(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
+            "\tpublic function deleted(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n}";
+
+    file_put_contents('app/observers/'.$observer.'.php', $class);
+
+    printf("\e[38;5;40mObserver created successfully \e[m\n");
+
+}
+
+elseif ($action == 'db:seed')
 {
     seed();
 }
 
-else if ($action == 'migrate:fresh')
+elseif ($action == 'migrate:fresh')
 {
     $seed = false;
 
@@ -479,19 +623,48 @@ else if ($action == 'migrate:fresh')
     }  
 }
 
-else if ($action == 'migrate:reset')
+elseif ($action == 'migrate:reset')
 {
     resetAll();
 }
 
-else if ($action == 'route:list')
+elseif ($action == 'route:list')
 {
-    include(_DIR_.'/app/config.php');
+    $showMiddleware = false;
+    $method = null;
+    $sort = null;
+
+    foreach ($argv as $arg)
+    {
+        if ($arg=='-v') $showMiddleware = true;
+        elseif (strpos($arg, '-method=')==1)
+            $method = strtoupper(str_replace('--method=', '', $arg));
+        elseif (strpos($arg, '-sort=')==1)
+        {
+            $sort_method = str_replace('--sort=', '', $arg);
+            //printf("Sorted by $sort_method\n");
+            if (in_array($sort_method, array('name', 'uri', 'method', 'middleware')))
+                $sort = $sort_method;
+        }
+    }
+
+
+    $config = new Config;
+    $config->boot();
     include(_DIR_.'/routes/routes.php');
     printf("\n");
 
-    foreach (Route::routeList() as $route)
+    $list = Route::routeList()->toArrayObject();
+
+    if (isset($method))
+        $list = $list->where('method', $method);
+
+    if (isset($sort))
+        usort($list, 'sortRoutesBy'.ucfirst($sort));
+
+    foreach ($list as $route)
     {
+        //print_r($route);
         $line = $route->method.($route->method=='GET'? '|HEAD':'');
         $line = str_replace('GET|HEAD', "GET|HEAD  ", $line);
         $line = str_replace('POST',     "POST      ", $line);
@@ -511,6 +684,9 @@ else if ($action == 'route:list')
 
         printf(" /". $line .' ');
 
+        if (isset($route->name) && $route->name == '') $route->name = null;
+        if (isset($route->middleware) && $route->middleware == '') $route->middleware = null;
+
         $len = strlen($route->url);        
         $space = 90-$len;
         if (isset($route->name)) $space += 23;
@@ -520,7 +696,65 @@ else if ($action == 'route:list')
 
         printf("\e[38;5;243m%'.".$space."s\e[m", $line);
         printf("\n");
+
+        if ($showMiddleware && isset($route->middleware))
+        {
+            if (is_array($route->middleware))
+            {
+                $line = implode(', ', $route->middleware);
+                printf("\e[38;5;243m             ⇂ ". $line ."\e[m\n");
+            }
+            else
+            {
+                printf("\e[38;5;243m             ⇂ ". $route->middleware ."\e[m\n");
+            }
+        }
+
     }
     printf("\n");
 }
 
+elseif ($action == 'route:clear')
+{
+    Cache::store('file')
+        ->setDirectory(_DIR_.'/resources/_system/cache')
+            ->forget('baradur_routes');
+    
+    printf("Route cache cleared!\n");
+}
+
+elseif ($action == 'view:clear')
+{
+    $files = glob(_DIR_.'/resources/_system/compiled/*');
+    foreach($files as $file)
+    {
+        if(is_file($file))
+            unlink($file);
+    }
+    printf("Compiled views cleared!!\n");
+}
+
+elseif ($action == 'cache:clear')
+{
+    Cache::store('file')
+        ->setDirectory(_DIR_.'/resources/_system/cache')
+            ->flush();
+    
+    printf("App cache cleared!\n");
+}
+
+elseif ($action == 'storage:link')
+{
+    $links = include(_DIR_.'/config/filesystem.php');
+    foreach ($links['links'] as $key => $val)
+    {
+        //list ($back, $key, $val) = getRelativePath($key, $val);
+        //chmod($val, 0777);
+        //symlink($val, $back.$key);
+        shell_exec("ln -sr $val $key");
+        printf("\e[38;5;40mThe [$key] link has been connected to [$val].\e[m\n");
+    }
+    printf("\e[38;5;40mThe links have been created.\e[m\n");
+    
+
+}

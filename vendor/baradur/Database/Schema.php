@@ -6,7 +6,7 @@ class Schema
 
     static $drop = false;
 
-    static $unique = null;
+    static $unique = array();
     static $primary = array();
 
     public static function init($classname)
@@ -44,7 +44,7 @@ class Schema
         if (isset($column->update)) $col .= ' ON UPDATE '.$column->update;
 
         if (isset($column->primary)) self::$primary[] = $column->name;
-        if (isset($column->unique)) self::$unique = $column->name;
+        if (isset($column->unique)) self::$unique[] = $column->name;
 
         return $col;
     }
@@ -77,6 +77,7 @@ class Schema
         $columns = array();
         $foreigns = array();
         $primary = array();
+        $unique = array();
 
         foreach ($values as $column)
         {
@@ -87,7 +88,9 @@ class Schema
                     if ($col->type == 'foreign')
                         $foreigns[] = $col;
                     elseif ($col->type == 'primary')
-                        $primary = array_merge($primary, $col->name);
+                        $primary[] = $col->name;
+                    elseif ($col->type == 'unique')
+                        $unique[] = $col->name;
                     else
                         $columns[] = self::addColumn($col);
                 }
@@ -97,7 +100,9 @@ class Schema
                 if ($column->type == 'foreign')
                     $foreigns[] = $column;
                 elseif ($column->type == 'primary')
-                    $primary = $column->name;
+                    $primary[] = array('value'=>$column->value, 'name'=>$column->name);
+                elseif ($column->type == 'unique')
+                    $unique[] = array('value'=>$column->value, 'name'=>$column->name);
                 else
                     $columns[] = self::addColumn($column);
             }
@@ -121,17 +126,45 @@ class Schema
 
         $primarytext = array();
         foreach ($primary as $f)
-            $primarytext[] =  '`'.$f.'`';
+        {
+
+            $text = '';
+            if (isset($f['name']))
+                $text .= ', CONSTRAINT '.$f['name'].' PRIMARY KEY ('. implode(', ',$f['value']) .')';
+            else if (!isset($f['name']) && is_array($f['value']))
+                $text .= ', CONSTRAINT '. implode('_', $f['value']) .' PRIMARY KEY ('. implode(', ',$f['value']) .')';
+            else
+                $text .= ', PRIMARY KEY ('. $f['value'] .')';
+            $primarytext[] =  $text;
+        }
         foreach (self::$primary as $f)
-            $primarytext[] =  '`'.$f.'`';
-        
+            $primarytext[] =  ', PRIMARY KEY ('.$f.')';
+
+        $uniquetext = array();
+        foreach ($unique as $f)
+        {
+            $text = '';
+            if (isset($f['name']))
+                $text .= ', CONSTRAINT '.$f['name'].' UNIQUE ('. implode(', ',$f['value']) .')';
+            else if (!isset($f['name']) && is_array($f['value']))
+                $text .= ', CONSTRAINT '. implode('_', $f['value']) .' UNIQUE ('. implode(', ',$f['value']) .')';
+            else
+                $text .= ', UNIQUE ('. $f['value'] .')';
+            $uniquetext[] =  $text;
+        }
+        foreach (self::$unique as $f)
+            $uniquetext[] =  ', UNIQUE ('. $f .')';
+
+        self::$primary = array();
+        self::$unique = array();
+                
         $query = null;
         if ($action == 'CREATE')
         {
             $query = 'CREATE TABLE `'.$table.'` ('. implode(', ', $columns);
             //if (self::$primary) $query .= ', PRIMARY KEY ('. self::$primary . ')';
-            if (self::$unique) $query .= ', UNIQUE ('. self::$unique . ')';
-            if ($primarytext!='') $query .= ', PRIMARY KEY ('. implode(', ', $primarytext) . ')';
+            if (count($primarytext)>0) $query .= implode('', $primarytext);
+            if (count($uniquetext)>0) $query .= implode('', $uniquetext);
             if ($foreigntext!='') $query .= $foreigntext;
             $query .= ')';
         }

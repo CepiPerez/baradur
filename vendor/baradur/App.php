@@ -8,11 +8,11 @@ Class App {
     public $type;
     public $filename;
     public $arguments;
-    public static $errors = array();
+    //public static $errors = array();
     public static $messages = array();
     public static $localization = null;
 
-    public static function allErrors() { return self::$errors; }
+    //public static function allErrors() { return self::$errors; }
 
     public static function start() { return Route::start(); }
 
@@ -38,7 +38,8 @@ Class App {
 
     public static function getError($error)
     {
-        return isset(self::$errors[$error])? self::$errors[$error] : null;
+        global $errors; 
+        return $errors->$error;
     }
 
     /* public function setError($name, $message)
@@ -56,10 +57,6 @@ Class App {
         self::$messages = $val;
     }
 
-    public static function setSessionErrors($val)
-    {
-        self::$errors = $val;
-    }
 
     public static function generateToken()
     {
@@ -76,27 +73,38 @@ Class App {
         $locale = $lang;
     }
 
+    public function render()
+    {
+        return serialize($this);
+    }
+
     public function showFinalResult()
     {
+
         if ($this->action == 'response')
         {
             //header_remove('Set-Cookie');
             header('HTTP/1.1 '.$this->code);
 
-            if ($this->type == 'json')
+            if ($this->type == 'application/json')
             {
                 header('Content-Type: application/json');
                 echo json_encode($this->result);
             }
-            else if ($this->type=='pdf:download' || $this->type=='pdf:inline')
+            else
             {
-                header('Content-type:application/pdf');
-                if ($this->type=='pdf:download')
-                    header('Content-disposition: attachment; filename="'.$this->filename.'"');
+                if (isset($this->headers))
+                {
+                    foreach ($this->headers as $header)
+                        header($header);
+                }
                 else
-                    header('Content-disposition: inline; filename="'.$this->filename.'"');
-                header('content-Transfer-Encoding:binary');
-                header('Accept-Ranges:bytes');
+                {
+                    header('Content-type:'.$this->type);
+                    header('Content-disposition: '. ($this->inline?'inline':'download') .'; filename="'.$this->filename.'"');
+                    header('content-Transfer-Encoding:binary');
+                    header('Accept-Ranges:bytes');
+                }
                 if (file_exists($this->result))
                     @readfile($this->result);
             }

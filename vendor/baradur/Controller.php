@@ -11,7 +11,7 @@ class Controller
     # -----------------------------------------------------------------
     # This function is called by Route automatically
     # Checks the token if $tokenVerification is true
-    public function check($ruta)
+    public function verify($ruta)
     {
         if ($this->tokenVerification)
         {
@@ -24,22 +24,31 @@ class Controller
 
     public function authorize($function, $param=null)
     {
+        if (!Auth::user())
+            abort(403);
+
+        $cont = null;
+        $func = null;
+
         if (isset(Gate::$policies[$function]))
             list($cont, $func) = explode('@', Gate::$policies[$function]);
         else
         {
-            /* if (!isset($param))
-            {
-                $cont = str_replace('Controller', 'Policy', get_class($this));
-            } */
-            return;
+            if (is_object($param))
+                $cont = get_class($param).'Policy';
+            else if (is_string($param))
+                $cont = $param.'Policy';
+            $func = $function;
         }
         
-        
-        if (isset($param)) $params = array(Auth::user(), $param);
-        else $params = array(Auth::user());
+        $c = new $cont;
+        $res = false;
+        if (isset($param))
+            $res = $c->$func(Auth::user(), $param);
+        else 
+            $res = $c->$func(Auth::user());
 
-        if (!call_user_func_array(array($cont, $func), $params))
+        if (!$res)
             abort(403);
     }
 

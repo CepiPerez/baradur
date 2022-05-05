@@ -5,20 +5,11 @@ Class PDF
 
     private static function generate($filename, $view)
     {
-        $folder = 'storage/';
+        $folder = _DIR_.'/../../storage/app/public/';
 
         file_put_contents($folder.$filename.'.html', $view);
-        $command = PDF_BIN.' '.$folder.$filename.'.html '.$folder.$filename.'.pdf';
+        $command = env('PDF_BIN').' '.$folder.$filename.'.html '.$folder.$filename.'.pdf';
         
-        /* $res = proc_open($command,
-        array(
-          array("pipe","r"),
-          array("pipe","w"),
-          array("pipe","w")
-        ),
-        $pipes);
-        sleep(3); */
-
         shell_exec($command);
 
         return $folder.$filename.'.pdf';

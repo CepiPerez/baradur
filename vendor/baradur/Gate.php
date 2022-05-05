@@ -15,32 +15,80 @@ Class Gate {
 
     public static function allows($function, $param=null)
     {
-        list($cont, $func) = explode('@', self::$policies[$function]);
+        if (!Auth::user()) return false;
 
-        if (isset($param)) $params = array(Auth::user(), $param);
-        else $params = array(Auth::user());
+        $cont = null;
+        $func = null;
+        if (isset(Gate::$policies[$function]))
+            list($cont, $func) = explode('@', Gate::$policies[$function]);
+        else
+        {
+            if (is_object($param))
+                $cont = get_class($param).'Policy';
+            else if (is_string($param))
+                $cont = $param.'Policy';
+            $func = $function;
+        }
 
-        return call_user_func_array(array($cont, $func), $params);
+        $controller = new $cont;
+        
+        if (isset($param))
+            return $controller->$func(Auth::user(), $param);
+        else 
+            return $controller->$func(Auth::user());
+
     }
 
     public static function denies($function, $param=null)
     {
-        list($cont, $func) = explode('@', self::$policies[$function]);
+        if (!Auth::user()) return false;
 
-        if (isset($param)) $params = array(Auth::user(), $param);
-        else $params = array(Auth::user());
+        $cont = null;
+        $func = null;
+        if (isset(Gate::$policies[$function]))
+            list($cont, $func) = explode('@', Gate::$policies[$function]);
+        else
+        {
+            if (is_object($param))
+                $cont = get_class($param).'Policy';
+            else if (is_string($param))
+                $cont = $param.'Policy';
+            $func = $function;
+        }
 
-        return !call_user_func_array(array($cont, $func), $param);
+        $controller = new $cont;
+        
+        if (isset($param))
+            return !$controller->$func(Auth::user(), $param);
+        else 
+            return !$controller->$func(Auth::user());
     }
 
     public static function authorize($function, $param=null)
     {
-        list($cont, $func) = explode('@', self::$policies[$function]);
+        if (!Auth::user()) abort(403);
 
-        if (isset($param)) $params = array(Auth::user(), $param);
-        else $params = array(Auth::user());
+        $cont = null;
+        $func = null;
+        if (isset(Gate::$policies[$function]))
+            list($cont, $func) = explode('@', Gate::$policies[$function]);
+        else
+        {
+            if (is_object($param))
+                $cont = get_class($param).'Policy';
+            else if (is_string($param))
+                $cont = $param.'Policy';
+            $func = $function;
+        }
 
-        if (!call_user_func_array(array($cont, $func), $params))
+        $controller = new $cont;
+        if (isset($param))
+            $res = $controller->$func(Auth::user(), $param);
+        else 
+            $res = $controller->$func(Auth::user());
+
+
+        if (!$res)
             abort(403);
     }
 

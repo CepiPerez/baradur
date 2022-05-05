@@ -57,12 +57,14 @@ class BladeOne
     );
 
     public $phpTag='<?php ';
-    public $phpTagEcho = '<?php' . ' echo ';
+    public $phpTagEcho = '<?php echo ';
 
     protected $componentStack = array();
     protected $componentData = array();
     protected $slots = array();
     protected $slotStack = array();
+
+    protected $firstCaseInSwitch = true;
 
 
     public function __construct($templatePath, $compiledPath)
@@ -81,7 +83,7 @@ class BladeOne
     public function run($view,$variables=array())
     {
         $mode=0; // mode=0 automatic: not forced and not run fast.
-        if (defined('BLADEONE_MODE')) {
+        if (env('BLADEONE_MODE')) {
             $mode=BLADEONE_MODE;
         }
         $forced = $mode & 1; // mode=1 forced:it recompiles no matter if the compiled file exists or not.
@@ -90,6 +92,9 @@ class BladeOne
         if ($mode==3) {
             $this->showError("run","we can't force and run fast at the same time",true);
         }
+        #$forced = env('APP_DEBUG')==1? true : false;
+        #$runFast = env('APP_DEBUG')==1? false : true;
+
         return $this->runInternal($view,$variables,$forced,true,$runFast);
     }
 
@@ -279,7 +284,10 @@ class BladeOne
         foreach ($m["values"] as $val)
             $values[] = str_replace("'", '', str_replace('"', '', $val));
 
-        return array_combine($m["keys"], $values);
+        if (count($m)>0 && count($values)>0)
+            return array_combine($m["keys"], $values);
+        
+        return null;
 
     }
 
@@ -287,27 +295,28 @@ class BladeOne
 
     function callbackCompileComponents($match)
     {
-        
+        //dd($match[0]);
         preg_match('/<\s*x-([^ ]*)/x', $match[0], $matches);
         $component = $matches[1];
 
         $attributes = $this->getArrayAttributesFromAttributeString(trim($match[1]));        
         
         $this->compileSlots($match[0]);
-
+        
+        //dd($this->component_slots);
         $content = isset($match[2])? $match[2] : null;
 
         foreach ($this->component_slots as $slot)
         {
             $content = str_replace($slot[1], '', $content);
         }
-
-        return $this->createComponent($component, $attributes, $content);
+        //dd($content);
         
+        return $this->createComponent($component, $attributes, $content);
 
     }
 
-    protected function createComponent($component, $attributes, $content)
+    protected function createComponent($component, $attributes, $content=null)
     {
         //echo "COMPONENT: ".$component.":: ATTR: ".dd($attributes);
 
@@ -340,6 +349,7 @@ class BladeOne
             $reflect  = new ReflectionClass('Component');
             $instance = $reflect->newInstance();
             $instance->setComponent($component);
+            $instance->slot = $content;
         }
         
 
@@ -360,6 +370,9 @@ class BladeOne
         else
         {
             $temp_params = $attributes;
+
+            foreach ($instance as $key => $val)
+                $temp_params[$key] = $val;
         }
 
         foreach ($this->component_slots as $slot)
@@ -392,16 +405,18 @@ class BladeOne
 
     function compileIndividualComponent($match, $value)
     {
-        #echo "Compiling $match<br>";
-        $pattern = '/<x-'.$match.' (.*?)>([\s\S]*)<\/x-'.$match.'[\ ]*>/';
+        //echo "Compiling $match<br>";
+        $value = str_replace($match.'>', $match.' >', $value);
+        $pattern = '/<x-'.$match.' (.*?)>([\s\S]*?)<\/x-'.$match.'[\ ]*>/';
 
         return preg_replace_callback($pattern, 
             array($this, 'callbackCompileComponents'),
-            $value);
+            $value, 1);
     }
 
     function callbackCompileSlots($match)
     {
+        //dd($match[0]);
         $attributes = $this->getArrayAttributesFromAttributeString(trim($match[1]));
         $this->component_slots[] = array(array($attributes['name'] => $match[2]), $match[0]);
         return null;
@@ -409,14 +424,16 @@ class BladeOne
 
     function compileSlots($value)
     {
-        $pattern = '/<x-slot (.*?)>([\s\S]*)<\/x-slot[\ ]*>/';
+        //echo "Compiling slots in ";
+        //dd($value);
+        $pattern = '/<x-slot (.*?)>([\s\S]*?)<\/x-slot[\ ]*>/';
         return preg_replace_callback($pattern, array($this, 'callbackCompileSlots'), $value);
     }
 
 
     protected function compileComponents($value)
     {
-        preg_match_all('/<\s*x-[^ ]*/x', $value, $matches);
+        preg_match_all('/<\s*x-[^ |>]*/x', $value, $matches);
 
         //dd($matches);
         if (count($matches)>0) {
@@ -433,16 +450,19 @@ class BladeOne
     }
 
     function callbackCompileSelfClosingComponents($match) {
-        //echo "REPLACING: ";dd($match);echo "<br>";
-        //var_dump($match['attributes']);
+        
+        //dd($match[1]);
+        $component = $match[1];
 
+        $attributes = $this->getArrayAttributesFromAttributeString(trim($match[2]));        
+                
+        return $this->createComponent($component, $attributes);
 
-        return null;
     }
 
     public function compileSelfClosingComponents($value)
     {
-        $pattern = "/
+        /* $pattern = "/
             <
                 \s*
                 x[-\:]([\w\-\:\.]*)
@@ -473,10 +493,12 @@ class BladeOne
                     \s*
                 )
             \/>
-        /x";
+        /x"; */
+
+        $pattern = '/<\s*x-([^ ]*)([\s\S]([^>])*?)\/>/x';
 
         return preg_replace_callback($pattern, 
-            array($this, 'callbackCompileComponents'),
+            array($this, 'callbackCompileSelfClosingComponents'),
             $value);
 
     }
@@ -584,7 +606,7 @@ class BladeOne
                     return $strval;
             }
 
-            if (isset($this->variables['__instance']))
+            if (isset($this->variables['__instance']) && strpos($matches[2], '()')>0)
             {
                 $call = str_replace('()', '', str_replace('$', '', $matches[2]));
                 return $this->variables['__instance']->$call();
@@ -594,6 +616,9 @@ class BladeOne
         /* $wrapped = str_replace('asset(', 'View::getAsset(', $wrapped);
         $wrapped = str_replace('route(', 'Route::getRoute(', $wrapped);
         $wrapped = str_replace('session(', 'App::getSession(', $wrapped); */
+
+        
+
 
         return $this->phpTag.'echo '.$wrapped.'; ?>'.$whitespace;
     }
@@ -711,7 +736,7 @@ class BladeOne
         //var_dump(count($this->componentStack));
         return array_merge(
             $this->componentData[$cs],
-            ['slot' => trim(ob_get_clean())],
+            array('slot' => trim(ob_get_clean())),
             $this->slots[$cs]
         );
     }
@@ -729,7 +754,7 @@ class BladeOne
 
     public function endSlot()
     {
-        static::last($this->componentStack);
+        self::last($this->componentStack);
 
         $currentSlot = \array_pop(
             $this->slotStack[$this->currentComponent()]
@@ -787,6 +812,16 @@ class BladeOne
     }
 
     protected function compileEndunless()
+    {
+        return $this->phpTag.'endif; ?>';
+    }
+
+    protected function compileIsset($expression)
+    {
+        return $this->phpTag."if ( isset$expression ): ?>";
+    }
+
+    protected function compileEndisset()
     {
         return $this->phpTag.'endif; ?>';
     }
@@ -952,9 +987,8 @@ class BladeOne
     {
         $expression = $this->stripParentheses($expression);
 
-        return $replace = $this->phpTag.'echo $this->runChild('.$expression.'); ?>';
-        /* return $this->phpTag."echo \$__env->make($expression, array_except(get_defined_vars(), array('__data', '__path')))->render(); ?>";
-        */
+        /* return $replace = $this->phpTag.'echo $this->runChild('.$expression.'); ?>'; */
+        return $this->phpTagEcho . '$this->runChild(' . $expression . '); ?>';
     }
 
     protected function compileIncludeIf($expression)
@@ -980,6 +1014,65 @@ class BladeOne
     protected function compileEndpush()
     {
         return $this->phpTag.'$this->stopPush(); ?>';
+    }
+
+
+    protected function compileSwitch($expression)
+    {
+        $this->firstCaseInSwitch = true;
+
+        return "<?php switch{$expression}:";
+    }
+
+    protected function compileCase($expression)
+    {
+        if ($this->firstCaseInSwitch) {
+            $this->firstCaseInSwitch = false;
+
+            return "case {$expression}: ?>";
+        }
+
+        return "<?php case {$expression}: ?>";
+    }
+
+    protected function compileDefault()
+    {
+        return '<?php default: ?>';
+    }
+
+    protected function compileEndSwitch()
+    {
+        return '<?php endswitch; ?>';
+    }
+
+    protected function compileAuth($guard = null)
+    {
+        return "<?php if( Auth::check() ): ?>";
+    }
+
+    protected function compileElseAuth($guard = null)
+    {
+        return "<?php elseif( Auth::check() ): ?>";
+    }
+
+    protected function compileEndAuth()
+    {
+        return '<?php endif; ?>';
+    }    
+
+    protected function compileGuest($guard = null)
+    {
+        return "<?php if( !Auth::check() ): ?>";
+    }
+
+    protected function compileElseGuest($guard = null)
+    {
+        return "<?php elseif( !Auth::check() ): ?>";
+    }
+
+    protected function compileEndGuest()
+    {
+        return '<?php endif; ?>';
     }
 
  
@@ -1204,12 +1297,28 @@ class BladeOne
         //$array = array();
         foreach (explode(',', $expression) as $exp)
         {
-            if (!isset($this->variables[trim(explode('=>', $exp)[0])]))
-                $this->variables[trim(explode('=>', $exp)[0])] = trim(explode('=>', $exp)[1]);
+            $expr = explode('=>', $exp);
+            if (!isset($this->variables[trim($expr[0])]))
+                $this->variables[trim($expr[0])] = trim($expr[1]);
         }
 
         //var_dump($this->variables);
 
+    }
+
+    protected function compileDisabled($condition)
+    {
+        return "<?php if{$condition}: echo 'disabled'; endif; ?>";
+    }
+
+    protected function compileChecked($condition)
+    {
+        return "<?php if{$condition}: echo 'checked'; endif; ?>";
+    }
+
+    protected function compileSelected($condition)
+    {
+        return "<?php if{$condition}: echo 'selected'; endif; ?>";
     }
 
 

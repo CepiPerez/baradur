@@ -172,8 +172,9 @@ class Route
     private static $_instance;
     public static $_strings;
     protected $_current;
-    protected $_controller;
-    protected $_middleware;
+    protected $_controller = null;
+    protected $_middleware = null;
+    protected $_prefix = null;
     protected $_currentRoute;
 
 
@@ -205,9 +206,16 @@ class Route
     public static function routeList()
     {
         $res = self::getInstance();
-        //return array_merge($res->GET, $res->POST, $res->PUT, $res->DELETE);
         return $res->_collection;
     }
+
+    public static function setRouteList($routes)
+    {
+        $res = self::getInstance();
+        $res->_collection = $routes;
+    }
+    
+
     
     /**
      * Define resources localization
@@ -223,13 +231,46 @@ class Route
     public static function group()
     {
         $res = Route::getInstance();
-        foreach (func_get_args() as $r)
-        {
-            if ($res->controller) $r->controller = $res->controller;
-            if ($res->middleware) $r->middleware = $res->middleware;
-            $res->_collection->put($r);
 
+        $routes = func_get_args();
+
+        if (is_array($routes[0])) // && !is_object($routes[0][0]))
+        {
+            $attributes = array_shift($routes);
+            //dd($attributes);
+            foreach ($attributes as $key => $val)
+            {
+                if ($key == 'middleware') $res->_middleware = $val;
+                else if ($key == 'controller') $res->_controller = $val;
+                else if ($key == 'prefix') $res->_prefix = $val;
+            }
         }
+
+        foreach ($routes as $r)
+        {
+            //dd($r);
+            if (!is_array($r))
+            {
+                if (isset($res->_controller)) $r->controller = $res->_controller;
+                if (isset($res->_middleware)) $r->middleware = $res->_middleware;
+                if (isset($res->_prefix)) $r->url = $res->_prefix . '/' . $r->url;
+                if (isset($res->_prefix) && isset($r->name)) $r->name = $res->_prefix . '.' . $r->name;
+                //$res->_collection->put($r);
+            }
+            else
+            {
+                foreach ($r as $route)
+                {
+                    if (isset($res->_controller)) $route->controller = $res->_controller;
+                    if (isset($res->_middleware)) $route->middleware = $res->_middleware;
+                    if (isset($res->_prefix)) $route->url = $res->_prefix . '/' . $route->url;
+                    if (isset($res->_prefix) && isset($route->name)) $route->name = $res->_prefix . '.' . $route->name;
+                }
+            }
+        }
+        $res->_middleware = null;
+        $res->_controller = null;
+        $res->_prefix = null;
     } 
 
     /**
@@ -477,7 +518,7 @@ class Route
         if ($result->count()==1)
             return $result->first();
 
-        $records = self::getInstance()->_collection->where('method', $method)->whereContains('url', '{');
+        $records = self::getInstance()->_collection->where('method', $method);
 
         foreach ($records as $res)
         {
@@ -669,7 +710,6 @@ class Route
     public static function start()
     {
         global $app; //, $middlewares;
-
         
         # Convert GET/POST into PUT/DELETE if necessary
         if (isset($_GET['_method']) || isset($_POST['_method']))
@@ -693,6 +733,7 @@ class Route
         $request->method = $_SERVER['REQUEST_METHOD'];
         $request->_route = $ruta;
         $request->_uri = env('HOME').$_SERVER['REQUEST_URI'];
+        $request->_user = Auth::user();
 
         if (isset($_GET))
         {
@@ -728,6 +769,16 @@ class Route
                 //$request->$key = filter_input(INPUT_POST, $key, FILTER_SANITIZE_SPECIAL_CHARS);
             }
         }
+
+        if (isset($_FILES))
+        {
+            foreach ($_FILES as $key => $val)
+            {
+                $request->addFile($key, $val);
+            }
+        }
+
+
         Helpers::setRequest($request);
         
         self::setCurrentRoute($ruta);
@@ -736,9 +787,31 @@ class Route
         $continue = true;
         if (isset($ruta->middleware))
         {
-            $res = call_user_func_array(array($ruta->middleware, 'handle'), array($request));
+            global $middlewares;
+            
+            $res = true;
+            
+            if (is_array($ruta->middleware))
+            {
+                foreach ($ruta->middleware as $midd)
+                {
+                    $middleware = $middlewares[$midd];
+                    //echo "Using middleware: ".$middleware."<br>";
+                    $cont = new $middleware;
+                    $res = $cont->handle($request, $res);
+                    if (!is_bool($res) || $res==false)
+                        break;
+                }
+            }
+            else
+            {
+                $middleware = $middlewares[$ruta->middleware];
+                //echo "Using middleware: ".$middleware."<br>";
+                $cont = new $middleware;
+                $res = $cont->handle($request, $res);
+            }
 
-            if (isset($res))
+            if (!is_bool($res) || $res==false)
                 $continue = false;
         }
 
@@ -752,46 +825,55 @@ class Route
             {
                 $controlador = $ruta->controller;
                 $funcion = $ruta->func;
-                $controller = new $controlador();
+                $controller = new $controlador;
                 $parametros = isset($ruta->parametros)? $ruta->parametros : array();
                 $ruta->method = $_SERVER['REQUEST_METHOD'];
     
                 if ($ruta->method=='POST' || $ruta->method=='PUT')
                     array_unshift($parametros, $request);
     
-                # Calls controller check()
+                # Calls controller verify()
                 # Verifies tokens if controller's $tokenVerification is true
-                if (method_exists($controller, 'check'))
-                    $controller->check($ruta);
+                if (method_exists($controller, 'verify'))
+                    $controller->verify($ruta);
 
 
                 $ReflectionMethod = new \ReflectionMethod($controller, $funcion);
                 $params = $ReflectionMethod->getParameters();
                 $paramNames = array_map(array(self::getInstance(), 'getParamArray'), $params);
                 
-                //var_dump($paramNames);
+                # Binding parameters
+                $formRequest = null;
+                $record = null;
                 for ($i=0; $i<count($paramNames); $i++)
                 {
                     if ($paramNames[$i]['class']!=null && is_subclass_of($paramNames[$i]['class'], 'FormRequest'))
                     {
-                        $ncon = new $paramNames[$i]['class']($request);
-                        if (!$ncon->authorize()) abort(403);
-                        $request->validate($ncon->roles());
-                        $parametros[$i] = $ncon;
+                        $formRequest = new $paramNames[$i]['class']($request);
+                        #if (!$ncon->authorize()) abort(403);
+                        #$request->validate($ncon->roles());
+                        $parametros[$i] = $formRequest;
                     }
                     else if ($paramNames[$i]['class']!=null && $paramNames[$i]['class']!='Request')
                     {
                         $model = new $paramNames[$i]['class'];
                         $key = $model->getRouteKeyName();
                         $val = $parametros[$i];
-                        //$newparam = call_user_func_array(array($model, 'select'), array('*'));
-                        $parametros[$i] = $model->where($key, $val)->first();
+                        $record = $model->where($key, $val)->first();
+                        $parametros[$i] = $record;
                     }
                 }
-                
+                if (isset($formRequest) && isset($record))
+                {
+                        $formRequest->authorize($record);
+                        $request->validate($formRequest->roles());
+
+                }
+
+
                 # Final callback
-                call_user_func_array(array($controller, $funcion), $parametros);
-    
+                $res = call_user_func_array(array($controller, $funcion), $parametros);
+                //$res->showFinalResult();
             }
             
             # Route returns a view directly
@@ -808,7 +890,8 @@ class Route
                         ++$count;
                     }
                 }
-                view($controller);
+                $res = view($controller);
+                //$res->showFinalResult();
             }
             
             # Using Closures as callback is only available for PHP => 5.3
@@ -816,12 +899,13 @@ class Route
             {
                 #var_dump($ruta->controller);
                 echo call_user_func_array($ruta->controller, $ruta->parametros? $ruta->parametros : array());
+                exit();
             }
 
         }
 
         # Show the results
-        $app->showFinalResult();
+        $res->showFinalResult();
 
     }
 

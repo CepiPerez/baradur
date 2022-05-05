@@ -12,7 +12,7 @@ Class View
 	# _ASSETS is defined in Globals.php
 	public static function getAsset($asset)
 	{
-		return env('HOME').'/'.env('_ASSETS').'/'.$asset;
+		return env('HOME').'/'.$asset;
 	}
 
 	# Sets pagination
@@ -31,13 +31,18 @@ Class View
 	# IMPORTANT: resources/_system folder should have full access (777)
 	private static function checkFolders()
     {
-		$perror = false;
+		$mkdir_error = false;
 		if ( !file_exists(_DIR_.'/../../resources/_system/cache') )
 		{
-			if (!mkdir('/../../resources/_system/cache', 0777))
-			$perror = true;
+			if (!mkdir(_DIR_.'/../../resources/_system/cache', 0777))
+				$mkdir_error = true;
 		}
-		if ($perror) 
+		if ( !file_exists(_DIR_.'/../../resources/_system/compiled') )
+		{
+			if (!mkdir(_DIR_.'/../../resources/_system/compiled', 0777))
+				$mkdir_error = true;
+		}
+		if ($mkdir_error) 
 		{
 			echo "Error trying to create cache folders<br>".
 			"Plase, give 777 permission to <b>resources/_system</b><br>";
@@ -51,6 +56,10 @@ Class View
 	static function loadTemplate($file, $args=array())
 	{
 		global $app;
+
+		/* echo "VIEW PARAMS:";
+		dd($args);
+		echo "END VIEW PARAMS:"; */
 
 		$file = str_replace('.', '/', $file);
 
@@ -70,17 +79,20 @@ Class View
 			$arguments['old'] = $old;
 		}
 
+		
+		if (isset($args))
+		{
+			foreach ($args as $key => $val)
+			$arguments[$key] = $val;
+		}
+
 		if (isset($_SESSION['messages']))
 			App::setSessionMessages($_SESSION['messages']);
-
-		if (isset($_SESSION['errors']))
-			App::setSessionErrors($_SESSION['errors']);
-
-
-		foreach ($args as $key => $val)
-			$arguments[$key] = $val;
-
+			
 		global $errors;
+		if (isset($_SESSION['errors']))
+			$errors = new MessageBag($_SESSION['errors']);
+
 		if (isset($errors))
 			$arguments['errors'] = $errors;
 
@@ -89,7 +101,7 @@ Class View
 
 		#include "BladeOne2.php";
 		$views = _DIR_.'/../../resources/views';
-		$cache = _DIR_.'/../../resources/_system/cache';
+		$cache = _DIR_.'/../../resources/_system/compiled';
 		$blade = new BladeOne($views, $cache);
 		define("BLADEONE_MODE", 1); // (optional) 1=forced (test),2=run fast (production), 0=automatic, default value.
 

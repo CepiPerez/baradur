@@ -88,6 +88,15 @@ Class Foreign {
 
 }
 
+Class PrimaryKey {
+
+}
+
+Class UniqueKey {
+
+}
+
+
 class Table extends ArrayObject
 {
 
@@ -124,10 +133,30 @@ class Table extends ArrayObject
         return $foreign;
     }
 
-    public function primary($value)
+    public function primary($value, $name=null)
+    {
+        $primary = new PrimaryKey;
+        $primary->value = $value;
+        $primary->name = $name;
+        $primary->type = 'primary';
+        $this[] = $primary;
+        return $primary;
+    }
+
+    public function unique($value, $name=null)
+    {
+        $unique = new UniqueKey;
+        $unique->value = $value;
+        $unique->name = $name;
+        $unique->type = 'unique';
+        $this[] = $unique;
+        return $unique;
+    }
+
+    /* public function primary($value)
     {
         return $this->newColumn(func_get_args(), 'primary');
-    }
+    } */
 
 
     public function bigIncrements($name)

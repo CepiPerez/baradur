@@ -23,6 +23,11 @@ Class RedisDB
     }
 
 
+    public static function has($name)
+    {
+        return self::getInstance()->exists($name) > 0;
+    }
+
     public static function get($name)
     {
         $cached = self::getInstance()->lrange($name, 0, 1);
@@ -40,7 +45,7 @@ Class RedisDB
     }
 
 
-    public static function set($name, $data)
+    public static function put($name, $data)
     {
         if (get_class($data) == 'Collection')
         {
@@ -60,7 +65,7 @@ Class RedisDB
         self::getInstance()->lpush($name, json_encode($collection));
     }
 
-    public static function del($name)
+    public static function forget($name)
     {
         self::getInstance()->del($name);
     }

@@ -29,7 +29,7 @@ class ApiController
     }
 
 
-    public function check($ruta)
+    public function verify($ruta)
     {
         $result = true;
         if ($this->tokenVerification)

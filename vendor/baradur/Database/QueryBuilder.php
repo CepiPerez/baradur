@@ -803,14 +803,19 @@ Class QueryBuilder
      */
     public function save($values)
     {
-
+        
         if(!$values)
             return 'No se definieron datos';
 
         if ($this->_where == '')
             return $this->_insert($values);
         else
-            return $this->update($values);
+        {
+            $this->_fillableOff = true;
+            $res = $this->update($values);
+            $this->_fillableOff = false;
+            return $res;
+        }
 
     }
 
@@ -1001,6 +1006,7 @@ Class QueryBuilder
      */
     public function update($record, $attributes=null)
     {
+
         if (isset($attributes))
         {
             $key = $this->_primary;
@@ -1015,8 +1021,8 @@ Class QueryBuilder
                 $this->set($key, $val, false);
             else if (isset($this->_guarded) && !in_array($key, $this->_guarded))
                 $this->set($key, $val, false);
-            else
-                unset($record[$key]);
+            /* else
+                unset($record[$key]); */
         }
 
         /* foreach ($record as $key => $val)
@@ -1036,7 +1042,7 @@ Class QueryBuilder
 
         $sql = 'UPDATE `' . $this->_table . '` SET ' . implode(', ', $valores) . ' ' . $this->_where;
 
-        //echo $sql."::";var_dump($this->_wherevals);echo "<br>";
+        #echo $sql."::";var_dump($this->_wherevals);echo "<br>";
         $query = $this->_connector->execSQL($sql, $this->_wherevals);
 
         $this->clear();

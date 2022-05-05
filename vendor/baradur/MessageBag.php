@@ -4,16 +4,15 @@ Class MessageBag
 {
     public $errorBag = array();
 
-    public function __construct()
+    public function __construct($errors = null)
     {
-        if (isset($_SESSION['errors']))
+        if (isset($errors))
         {
-            foreach ($_SESSION['errors'] as $key => $val)
+            foreach ($errors as $key => $val)
             {
                 $this->errorBag[$key] = $val;
             }
         }
-        
     }
 
     public function any()
@@ -24,6 +23,11 @@ Class MessageBag
     public function all()
     {
         return $this->errorBag;
+    }
+
+    public function __get($name)
+    {
+        return isset($this->errorBag[$name])? $this->errorBag[$name] : null;
     }
 
 

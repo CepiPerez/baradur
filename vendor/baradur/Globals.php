@@ -1,17 +1,19 @@
 <?php
 
 function env($val, $default=null) { 
-    return constant($val)? constant($val) : ($default? $default : null);
+    return constant($val)? constant($val) : $default;
 }
 
-$base = '/'. str_replace('/', '', env('APP_FOLDER'));
+$base = '/'. rtrim(env('APP_FOLDER'), '/');
 
 $home = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off' ? 'https' : 'http') .
         "://" . $_SERVER['SERVER_NAME'] . $base;
 
 
-define('_ASSETS', 'assets');
+#define('_ASSETS', 'assets');
 define('HOME', rtrim($home, '/'));
+
+#define('HOME', env('APP_URL'));
 
 $locale = 'en';
 

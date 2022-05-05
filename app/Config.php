@@ -2,6 +2,15 @@
 
 Class Config extends ServiceProvider
 {
+
+    /* protected $observers = array(
+        'Product' => 'ProductObserver',
+    ); */
+
+
+    protected $routeMiddleware = array(
+        'auth' => 'Auth',
+    );
     
     public function boot()
     {

@@ -210,9 +210,16 @@ class Model
     } */
 
    
-    public function __GET($name)
+    public function __get($name)
     {
-        if (method_exists($this, $name))
+
+        if (method_exists($this, 'get'.ucfirst($name).'Attribute'))
+        {
+            $fn = 'get'.ucfirst($name).'Attribute';
+            return $this->$fn();
+        }
+
+        elseif (method_exists($this, $name))
         {
             $array = new Collection($this->_parent);
             $array->put($this);
@@ -220,6 +227,12 @@ class Model
             $inst = self::getInstance();
             $inst->getQuery()->_collection = $array;
             $res = $inst->$name()->get();
+
+            if (get_class($this)=='User')
+            {
+                $this->$name = $res;
+                $_SESSION['user'] = $this;
+            }
             return $res;
             //dd($this);
             //return $this->$name()->get();
