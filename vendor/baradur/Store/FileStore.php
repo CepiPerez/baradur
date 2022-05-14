@@ -147,6 +147,9 @@ class FileStore implements Store
      */
     protected function ensurePermissionsAreCorrect($path)
     {
+        if (!file_exists($path))
+            return;
+
         if (is_null($this->filePermission) ||
             intval($this->files->chmod($path), 8) == $this->filePermission) {
         }

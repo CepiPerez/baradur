@@ -136,11 +136,15 @@ class BladeOne
         if ($this->isExpired() || $forced ) //|| substr($fileName, 0, 11)=='components/')
         {
             //echo "Compiling $fileName<br>";
-            // compile the original file
-            $contents = $this->compileString($this->getFile($template));
+
+            $contents = $this->getFile($template);
 
             # Remove all HTML comments
-            $contents = preg_replace('/<!--([\s\S]*?)-->/x', '', $contents);
+            /* $contents = preg_replace('/<!--([\s\S]*?)-->/x', '', $contents); */
+
+            # compile the original file
+            $contents = $this->compileString($contents);
+
 
             if (!is_null($this->compiledPath))
             {
@@ -373,6 +377,7 @@ class BladeOne
 
             if (count($attributes)>0)
                 $temp_params['__instance'] = $instance;
+            //$temp_params = $instance;
 
         }
         else
@@ -522,8 +527,6 @@ class BladeOne
 
     }
 
-
-    
     function callbackCompileStatements($match) {
         
         //echo "REPLACING: ";var_dump($match);echo "<br>";
@@ -568,12 +571,13 @@ class BladeOne
     function replaceFromInstanceVars($item)
     {
         $val = $item[1];
+        return $this->phpTag.'echo $'.$val.'; ?>';
         return $this->variables['__instance']->$val;
     }
 
     function callComponentAttribute($command)
     {
-        #printf("Calling: $command\n");
+        //printf("Calling: $command\n");
         $command = trim($command);
         if ($command == '$attributes')
         {
@@ -589,7 +593,7 @@ class BladeOne
             $params = str_replace(')', '', $params);
             $params = str_replace('[', '', $params);
             $params = str_replace(']', '', $params);
-            $params = preg_replace_callback('/\$([\w-]+)/', array($this, "replaceFromInstanceVars"), $params);
+            $params = preg_replace_callback('/\$([\w]+)/', array($this, "replaceFromInstanceVars"), $params);
 
             return $this->variables['__instance']->$command($params);
         }
@@ -612,7 +616,7 @@ class BladeOne
         {
             return substr($matches[0], 1);
         }
-        /* else
+        else
         {
             
             if (substr($matches[2], 0, 11)=='$attributes' && isset($this->variables['__instance']))
@@ -620,20 +624,20 @@ class BladeOne
 
             
     
-            if (isset($matches[2]))
+            /* if (isset($matches[2]))
             {
                 $strval = $this->variables[str_replace('$', '', $matches[2])];
                 if (isset($strval))
                     return $strval;
-            }
+            } */
 
             if (isset($this->variables['__instance']) && strpos($matches[2], '()')>0)
             {
-                print_r($this->variables['__instance']);
+                //print_r($this->variables['__instance']);
                 $call = str_replace('()', '', str_replace('$', '', $matches[2]));
                 return $this->variables['__instance']->$call();
             }
-        } */
+        }
 
         /* $wrapped = str_replace('asset(', 'View::getAsset(', $wrapped);
         $wrapped = str_replace('route(', 'Route::getRoute(', $wrapped);

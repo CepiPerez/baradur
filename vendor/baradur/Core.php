@@ -11,9 +11,9 @@ $middlewares = array();
 $observers = array();
 $version = '';
 
-#ini_set('display_errors', true);
-#error_reporting(E_ALL + E_NOTICE);
-ini_set('display_errors', false);
+ini_set('display_errors', true);
+error_reporting(E_ALL + E_NOTICE);
+#ini_set('display_errors', false);
 
 if (version_compare(phpversion(), '8.0.0', '>='))
 {
@@ -27,9 +27,17 @@ define ('_DIR_', dirname(__FILE__));
 spl_autoload_register('custom_autoloader');
 
 
-# Enviroment variables
-require_once('DotEnv.php');
-DotEnv::load(_DIR_.'/../../.env');
+# Environment variables
+if (file_exists(_DIR_.'/../../storage/framework/config/env.php'))
+{
+    require_once(_DIR_.'/../../storage/framework/config/env.php');
+}
+else
+{
+    require_once('DotEnv.php');
+    DotEnv::load(_DIR_.'/../../', '.env');
+}
+
 
 # Globals
 require_once('Globals.php');
@@ -70,11 +78,9 @@ Storage::$path = _DIR_.'/../../storage/app/public/';
 if (file_exists(_DIR_.'/../../storage/framework/routes/web.php') && env('APP_DEBUG')==0)
 {
     Route::setRouteList(unserialize(file_get_contents(_DIR_.'/../../storage/framework/routes/web.php')));
-    //dd(Route::routeList()); exit();
 }
 else
 {
-    //include(_DIR_.'/../../routes/web.php');
     processRoutes(_DIR_.'/../..', '/routes/web.php');
     $cache->plainPut(_DIR_.'/../../storage/framework/routes/web.php', serialize((array)Route::routeList()));
 }

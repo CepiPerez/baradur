@@ -5,9 +5,12 @@
 class DotEnv
 {
 
-    public static function load($path)
+    public static function load($path, $file, $cache=true)
     {
-        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($cache)
+            $envfile = "<?php\n\n";
+
+        $lines = file($path.$file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         foreach ($lines as $line) {
 
             if (strpos(trim($line), '#') === 0) {
@@ -19,11 +22,23 @@ class DotEnv
             $value = trim($value);
 
             if (!array_key_exists($name, $_SERVER) && !array_key_exists($name, $_ENV)) {
-                //putenv(sprintf('%s=%s', $name, $value));
-                //$_ENV[$name] = $value;
-                //$_SERVER[$name] = $value;
                 define($name, $value);
+
+                if ($cache)
+                {
+                    if (is_numeric($value))
+                        $envfile .= "define('$name', $value);\n";
+                    else
+                        $envfile .= "define('$name', '$value');\n";
+                }
+                    
             }
         }
+        if ($cache)
+            $envfile .= "\n?>";
+
+        if ($cache)
+            Cache::store('file')->setDirectory($path.'/storage/framework/config')
+                ->plainPut($path.'/storage/framework/config/env.php', $envfile);
     }
 }

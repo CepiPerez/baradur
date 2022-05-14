@@ -19,8 +19,11 @@ class Filesystem
 
     public function chmod($path, $mode = null)
     {
+        if (!file_exists($path))
+            return false;
+
         if ($mode) {
-            return chmod($path, $mode);
+            return @chmod($path, $mode);
         }
 
         return substr(sprintf('%o', fileperms($path)), -4);
