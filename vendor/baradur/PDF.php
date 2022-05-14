@@ -7,10 +7,12 @@ Class PDF
     {
         $folder = _DIR_.'/../../storage/app/public/';
 
-        file_put_contents($folder.$filename.'.html', $view);
+        Storage::put($filename.'.html', $view);
         $command = env('PDF_BIN').' '.$folder.$filename.'.html '.$folder.$filename.'.pdf';
         
         shell_exec($command);
+
+        Storage::delete($filename.'.html', $view);
 
         return $folder.$filename.'.pdf';
     }

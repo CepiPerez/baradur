@@ -2,6 +2,9 @@
 
 define ('_DIR_', dirname(__FILE__));
 
+ini_set('display_errors', false);
+error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
+
 # Autoload function registration
 spl_autoload_register('custom_autoloader');
 
@@ -67,6 +70,8 @@ function custom_autoloader($class)
     
 }
 
+$artisan = true;
+
 array_shift($argv);
 $action = count($argv)>0? array_shift($argv) : null;
 $database = null;
@@ -75,6 +80,18 @@ function env($val, $default=null) { return constant($val)? constant($val) : $def
 function upper($text) { return strtoupper(str_replace('_', '', $text[0])); }
 function public_path($path) { return str_replace('//', '/', _DIR_.'/'.env('PUBLIC_FOLDER').'/'.$path); }
 function storage_path($path) { return str_replace('//', '/', _DIR_.'/storage/'.$path); }
+function asset($asset) { return env('HOME').'/'.$asset; }
+define('HOME', '/');
+
+function view($template, $params=null)
+{
+	global $app, $temp_params;
+	$app->action = 'show';
+	if (!isset($params) && isset($temp_params)) $params = $temp_params;
+	$app->result = View::loadTemplate($template, $params);
+	return $app;
+}
+
 
 function getRelativePath($file1, $file2)
 {
@@ -99,7 +116,7 @@ function getRelativePath($file1, $file2)
 
 function migrate()
 {
-   global $database;
+    global $database;
     $database = new Connector(env('DB_LOCAL_HOST'), env('DB_USER'), 
                         env('DB_PASSWORD'), env('DB_NAME'), env('DB_PORT'));
     Schema::checkMainTable();
@@ -131,7 +148,7 @@ function migrate()
         if (!in_array($name, $applied))
         {
             $startTime = microtime(true);
-            printf("\e[38;5;214mMigrating:\e[m " .$name."\n");
+            printf("\e[33mMigrating:\e[m " .$name."\n");
 
             if (!class_exists($converted))
                 include (_DIR_.'/database/migrations/'.$file);
@@ -143,7 +160,7 @@ function migrate()
 
             $endTime = microtime(true);
             $time =($endTime-$startTime)*1000;
-            printf("\e[38;5;40mMigrated: \e[m ".$name." (". round($time, 2) ."ms)\n");
+            printf("\e[32mMigrated: \e[m ".$name." (". round($time, 2) ."ms)\n");
 
             ++$count;
         }
@@ -168,7 +185,7 @@ function rollback($rollback, $output = true)
                 $startTime = microtime(true);
                 $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
 
-                if ($output) printf("\e[38;5;214mRolling back:\e[m ".$short."\n");
+                if ($output) printf("\e[33mRolling back:\e[m ".$short."\n");
     
                 include ($file);
                 Schema::init($name);
@@ -179,7 +196,7 @@ function rollback($rollback, $output = true)
 
                 $endTime = microtime(true);
                 $time =($endTime-$startTime)*1000;
-                printf("\e[38;5;40mRolled back: \e[m ".$short." (". round($time, 2) ."ms)\n");
+                printf("\e[32mRolled back: \e[m ".$short." (". round($time, 2) ."ms)\n");
             }
         }
     }
@@ -192,7 +209,7 @@ function seed()
                         env('DB_PASSWORD'), env('DB_NAME'), env('DB_PORT'));
     $seeder = new DatabaseSeeder;
     $seeder->run();
-    printf("\e[38;5;40mDatabase seeding completed successfully\e[m\n");
+    printf("\e[32mDatabase seeding completed successfully.\e[m\n");
 }
 
 function makeController($controller, $resource, $api=false)
@@ -235,7 +252,7 @@ function makeController($controller, $resource, $api=false)
         
     $class .= "\n}";
     file_put_contents('app/controllers/'.$controller.'.php', $class);
-    printf("\e[38;5;40mController created successfully \e[m\n");
+    printf("\e[32mController created successfully.\e[m\n");
 
 }
 
@@ -244,7 +261,7 @@ function makeModel($model)
     $class = "<?php\n\nclass ".$model." extends Model\n{\n\n\n}";
     file_put_contents('app/models/'.$model.'.php', $class);
     
-    printf("\e[38;5;40mModel created successfully \e[m\n");
+    printf("\e[32mModel created successfully.\e[m\n");
 
 }
 
@@ -253,7 +270,7 @@ function makePolicy($policy)
     $class = "<?php\n\nclass ".$policy."\n{\n\n\n}";
     file_put_contents('app/policies/'.$policy.'.php', $class);
     
-    printf("\e[38;5;40mPolicy created successfully \e[m\n");
+    printf("\e[32mPolicy created successfully.\e[m\n");
 }
 
 function makeMigration($command)
@@ -284,7 +301,7 @@ function makeMigration($command)
 
     file_put_contents('database/migrations/'.$timestamp.'_'.$command.'.php', $class);
 
-    printf("\e[38;5;40mMigration created successfully \e[m\n");
+    printf("\e[32mMigration created successfully.\e[m\n");
 
 }
 
@@ -301,9 +318,8 @@ function resetAll()
         rollback($rollback, false);
     }
 
-    printf("\e[38;5;40mDropped all tables successfully\e[m\n");
+    printf("\e[32mDropped all tables successfully\e[m\n");
 }
-
 
 function sortRoutesByUri($a, $b) { return strcmp($a->url, $b->url); }
 
@@ -323,6 +339,71 @@ function sortRoutesByMiddleware($a, $b)
     if (is_array($a->middleware)) $a->middleware = implode(', ', $a->middleware);
     if (is_array($b->middleware)) $b->middleware = implode(', ', $b->middleware);
     return strcmp($a->middleware, $b->middleware);
+}
+
+function cs($show) { if ($show) printf("\e[32m  "); }
+function ce($show) { if ($show) printf("\e[m"); }
+
+function showMenu($ex = true)
+{
+    if ($ex) printf("Baradur Framework\e[32m 1.0\e[m\n\n");
+    if ($ex) printf("\e[33mUsage:\e[m\n");
+    if ($ex) printf("  command [options] [arguments]\n\n");
+
+    if ($ex) printf("\e[33mAvailable commands:\e[m\n");
+    cs($ex); printf("migrate                     "); ce($ex); printf("Run the database migrations\n");
+    if ($ex) printf("\e[33m cache\e[m\n");
+    cs($ex); printf("cache:clear                 "); ce($ex); printf("Flush the application cache.\n");
+    if ($ex) printf("\e[33m db\e[m\n");
+    cs($ex); printf("db:seed                     "); ce($ex); printf("Seed the database with records.\n");
+    if ($ex) printf("\e[33m make\e[m\n");
+    cs($ex); printf("make:component              "); ce($ex); printf("Create a new view component class.\n");
+    cs($ex); printf("make:controller             "); ce($ex); printf("Create a new controller class\n");
+    cs($ex); printf("make:factory                "); ce($ex); printf("Create a new model factory\n");
+    cs($ex); printf("make:middleware             "); ce($ex); printf("Create a new middleware class\n");
+    cs($ex); printf("make:migration              "); ce($ex); printf("Create a new migration file\n");
+    cs($ex); printf("make:model                  "); ce($ex); printf("Create a new Eloquent model class\n");
+    cs($ex); printf("make:observer               "); ce($ex); printf("Create a new observer class\n");
+    cs($ex); printf("make:policy                 "); ce($ex); printf("Create a new policy class\n");
+    cs($ex); printf("make:request                "); ce($ex); printf("Create a new form request class\n");
+    cs($ex); printf("make:resource               "); ce($ex); printf("Create a new resource\n");
+    cs($ex); printf("make:seeder                 "); ce($ex); printf("Create a new seeder class\n");
+    if ($ex) printf("\e[33m migrate\e[m\n");
+    cs($ex); printf("migrate:fresh               "); ce($ex); printf("Drop all tables and re-run all migrations\n");
+    cs($ex); printf("migrate:reset               "); ce($ex); printf("Rollback all database migrations\n");
+    cs($ex); printf("migrate:rollback            "); ce($ex); printf("Rollback the last database migration\n");
+    if ($ex) printf("\e[33m route\e[m\n");
+    cs($ex); printf("route:cache                 "); ce($ex); printf("Create a route cache file for faster route registration\n");
+    cs($ex); printf("route:clear                 "); ce($ex); printf("Remove the route cache file\n");
+    cs($ex); printf("route:list                  "); ce($ex); printf("List all registered routes\n");
+    if ($ex) printf("\e[33m storage\e[m\n");
+    cs($ex); printf("storage:link                "); ce($ex); printf("Create the symbolic links configured for the application\n");
+    if ($ex) printf("\e[33m view\e[m\n");
+    cs($ex); printf("view:cache                  "); ce($ex); printf("Compile all of the application's Blade templates\n");
+    cs($ex); printf("view:clear                  "); ce($ex); printf("Clear all compiled view files\n");
+    printf("\n");
+}
+
+if (!$action)
+{
+    showMenu(true);
+    //printf("\e[32mMigrated: \e[m ".$name." (". round($time, 2) ."ms)\n");
+}
+
+if ($action == 'list')
+{
+    $ex = true;
+    foreach ($argv as $arg)
+    {
+        if ($arg == '--raw')
+            $ex = false;
+    }
+    showMenu($ex);
+}
+
+if ($action == '--raw')
+{
+    showMenu(false);
 }
 
 if ($action == 'make:migration' && count($argv)>0)
@@ -459,7 +540,7 @@ elseif ($action == 'make:seeder' && count($argv)>0)
 
     file_put_contents('database/seeders/'.$seeder.'.php', $class);
 
-    printf("\e[38;5;40mSeeder created successfully \e[m\n");
+    printf("\e[32mSeeder created successfully.\e[m\n");
 
 }
 
@@ -490,7 +571,7 @@ elseif ($action == 'make:factory' && count($argv)>0)
 
     file_put_contents('database/factories/'.$factory.'.php', $class);
 
-    printf("\e[38;5;40mFactory created successfully \e[m\n");
+    printf("\e[32mFactory created successfully.\e[m\n");
 
 }
 
@@ -507,7 +588,7 @@ elseif ($action == 'make:middleware' && count($argv)>0)
 
     file_put_contents('app/middleware/'.$middleware.'.php', $class);
 
-    printf("\e[38;5;40mMiddleware created successfully \e[m\n");
+    printf("\e[32mMiddleware created successfully.\e[m\n");
 
 }
 
@@ -527,7 +608,7 @@ elseif ($action == 'make:request' && count($argv)>0)
 
     file_put_contents('app/requests/'.$request.'.php', $class);
 
-    printf("\e[38;5;40mRequest created successfully \e[m\n");
+    printf("\e[32mRequest created successfully.\e[m\n");
 
 }
 
@@ -542,7 +623,7 @@ elseif ($action == 'make:component' && count($argv)>0)
         mkdir('app/view/components');
 
     if (file_exists('app/view/components/'.$component.'Component.php'))
-        die ("Error: request ".$component." already exists\n");
+        die ("Error: component ".$component." already exists\n");
 
     $class = "<?php\n\nclass ".$component." extends Component\n".
             "{\n\tpublic function __construct()\n\t{\n\t\t//\n\t}".
@@ -560,7 +641,7 @@ elseif ($action == 'make:component' && count($argv)>0)
     $class = "<div>\n\t<!-- Well begun is half done. - Aristotle -->\n</div>";
     file_put_contents('resources/views/components/'.$kebab.'.blade.php', $class);
 
-    printf("\e[38;5;40mComponent created successfully \e[m\n");
+    printf("\e[32mComponent created successfully.\e[m\n");
 
 }
 
@@ -582,7 +663,7 @@ elseif ($action == 'make:observer' && count($argv)>1)
         mkdir('app/observers');
 
     if (file_exists('app/observers/'.$observer.'.php'))
-        die ("Error: request ".$observer." already exists\n");
+        die ("Error: observer ".$observer." already exists\n");
 
     $class = "<?php\n\nclass ".$observer."\n".
             "{\n\tpublic function created(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
@@ -591,7 +672,50 @@ elseif ($action == 'make:observer' && count($argv)>1)
 
     file_put_contents('app/observers/'.$observer.'.php', $class);
 
-    printf("\e[38;5;40mObserver created successfully \e[m\n");
+    printf("\e[32mObserver created successfully.\e[m\n");
+
+}
+
+elseif ($action == 'make:resource' && count($argv)>0)
+{
+    $resource = $argv[0];
+    $collection = false;
+
+    //print("MAKE:$resource\n");
+
+    foreach ($argv as $arg)
+    {
+        if ($arg=='--collection' || strpos($resource, 'Collection')>0)
+            $collection = true;
+
+    }
+
+    if (!file_exists('app/resources'))
+        mkdir('app/resources');
+
+    if (file_exists('app/resources/'.$resource.'.php'))
+        die ("Error: resource ".$resource." already exists\n");
+
+    $class = null;
+
+    if ($collection)
+    {
+        $resource = str_replace('Collection', '', $resource).'Collection';
+        $class = "<?php\n\nclass ".$resource." extends ResourceCollection\n".
+                "{\n\tpublic function toArray(".'$request'.")\n\t{\n".
+                "\t\treturn parent::toArray(".'$request'.");\n\t}\n\n}";
+    }
+    else
+    {
+        $resource = str_replace('Resource', '', $resource).'Resource';
+        $class = "<?php\n\nclass ".$resource." extends JsonResource\n".
+                "{\n\tpublic function toArray(".'$request'.")\n\t{\n".
+                "\t\treturn parent::toArray(".'$request'.");\n\t}\n\n}";
+    }
+
+    file_put_contents('app/resources/'.$resource.'.php', $class);
+
+    printf("\e[32mResource created successfully.\e[m\n");
 
 }
 
@@ -648,10 +772,19 @@ elseif ($action == 'route:list')
         }
     }
 
-
-    $config = new Config;
-    $config->boot();
-    include(_DIR_.'/routes/routes.php');
+    if (file_exists(_DIR_.'/storage/framework/routes/web.php'))
+    {
+        Route::setRouteList(unserialize(file_get_contents(_DIR_.'/storage/framework/routes/web.php')));
+    }
+    else
+    {
+        $config = new Config;
+        $config->boot();    
+        processRoutes(_DIR_, '/routes/web.php');
+        Cache::store('file')->setDirectory(_DIR_.'/storage/framework/routes')
+            ->plainPut(_DIR_.'/storage/framework/routes/web.php', serialize(Route::routeList()));
+    }
+    
     printf("\n");
 
     $list = Route::routeList()->toArrayObject();
@@ -671,15 +804,15 @@ elseif ($action == 'route:list')
         $line = str_replace('DELETE',   "DELETE    ", $line);
         $line = str_replace('PUT',      "PUT       ", $line);
 
-        $line = str_replace('GET', "\e[38;5;63mGET\e[m", $line);
+        $line = str_replace('GET', "\e[34mGET\e[m", $line);
         $line = str_replace('|HEAD', "\e[38;5;243m|HEAD\e[m", $line);
-        $line = str_replace('POST', "\e[38;5;214mPOST\e[m", $line);
+        $line = str_replace('POST', "\e[33mPOST\e[m", $line);
         $line = str_replace('PUT', "\e[38;5;129mPUT\e[m", $line);
         $line = str_replace('DELETE', "\e[38;5;160mDELETE\e[m", $line);
 
         printf("  "); echo sprintf("%' -11s", $line);
 
-        $line = str_replace('{', "\e[38;5;214m{", $route->url);
+        $line = str_replace('{', "\e[33m{", $route->url);
         $line = str_replace('}', "}\e[m", $line);
 
         printf(" /". $line .' ');
@@ -716,31 +849,69 @@ elseif ($action == 'route:list')
 
 elseif ($action == 'route:clear')
 {
-    Cache::store('file')
-        ->setDirectory(_DIR_.'/resources/_system/cache')
-            ->forget('baradur_routes');
+    Cache::store('file')->setDirectory(_DIR_.'/storage/framework/routes')->flush();
     
-    printf("Route cache cleared!\n");
+    printf("\e[32mRoute cache cleared successfully.\e[m\n");
+}
+
+elseif ($action == 'route:cache')
+{
+    unlink(_DIR_.'/storage/framework/routes/web.php');
+    
+    printf("\e[32mRoute cache cleared successfully.\e[m\n");
+
+    require_once(_DIR_.'/vendor/baradur/Route_functions.php');
+
+    $config = new Config;
+    $config->boot();
+    
+    processRoutes(_DIR_, '/routes/web.php');
+
+    Cache::store('file')->setDirectory(_DIR_.'/storage/framework/routes')
+        ->plainPut(_DIR_.'/storage/framework/routes/web.php', serialize((array)Route::routeList()));
+    
+    printf("\e[32mRoutes cached successfully.\e[m\n");
 }
 
 elseif ($action == 'view:clear')
 {
-    $files = glob(_DIR_.'/resources/_system/compiled/*');
-    foreach($files as $file)
+    Cache::store('file')->setDirectory(_DIR_.'/storage/framework/views')->flush(); 
+    printf("\e[32mCompiled views cleared successfully.\e[m\n");
+}
+
+elseif ($action == 'view:cache')
+{
+    Cache::store('file')->setDirectory(_DIR_.'/storage/framework/views')->flush();
+    printf("\e[32mCompiled views cleared successfully.\e[m\n");
+
+    global $app;
+    $app = new App();
+
+    $it = new RecursiveDirectoryIterator(_DIR_.'/resources/views');
+    foreach(new RecursiveIteratorIterator($it) as $file)
     {
-        if(is_file($file))
-            unlink($file);
+
+
+        if (substr(basename($file), -10 )=='.blade.php')
+        {
+            $file = str_replace(_DIR_.'/resources/views/', '', $file);
+            $file = str_replace('.blade.php', '', $file);
+		    $res = View::loadTemplate($file, array());
+        }
     }
-    printf("Compiled views cleared!!\n");
+    printf("\e[32mBlade templates cached successfully.\e[m\n");
+
 }
 
 elseif ($action == 'cache:clear')
 {
-    Cache::store('file')
-        ->setDirectory(_DIR_.'/resources/_system/cache')
-            ->flush();
-    
-    printf("App cache cleared!\n");
+    $result = Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache')->flush();
+
+    if ($result)
+        printf("\e[32mApplication cache cleared successfully.\e[m\n");
+    else
+        printf("Error clearing cache!\n");
+
 }
 
 elseif ($action == 'storage:link')
@@ -752,9 +923,9 @@ elseif ($action == 'storage:link')
         //chmod($val, 0777);
         //symlink($val, $back.$key);
         shell_exec("ln -sr $val $key");
-        printf("\e[38;5;40mThe [$key] link has been connected to [$val].\e[m\n");
+        printf("\e[32mThe [$key] link has been connected to [$val].\e[m\n");
     }
-    printf("\e[38;5;40mThe links have been created.\e[m\n");
+    printf("\e[32mThe links have been created.\e[m\n");
     
 
 }

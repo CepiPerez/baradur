@@ -4,6 +4,7 @@ return array(
 
     'home' => 'Inicio',
     'login' => 'Ingresar',
+    'logout' => 'Salir',
     'invalid' => 'Usuario o contraseña incorrecta',
     'validation_required' => 'Usted no ha validado el correo de confirmacion',
     'registered' => 'Usuario registrado',

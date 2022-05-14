@@ -28,6 +28,7 @@ class Filesystem
 
     public function put($path, $contents, $lock = false)
     {
+        //echo "Saving $path<br>";
         return file_put_contents($path, $contents, $lock ? LOCK_EX : 0);
     }
 
@@ -74,23 +75,19 @@ class Filesystem
         }
 
         
-        $it = new RecursiveDirectoryIterator($directory);
-
-        foreach(new RecursiveIteratorIterator($it) as $file)
+        $files = array_diff(scandir($directory), array('.','..'));
+        foreach ($files as $file)
         {
-            
-            if ($file->getFilename() !== '.' && $file->getFilename() !== '..')
+            if (is_dir("$directory/$file") && !is_link("$directory/$file")) 
             {
-                if ($file->isDir() && ! $file->isLink()) {
-                    //$this->deleteDirectory($file->getPathname());
-                }
-                else {
-                    //dd($file->getPathname());
-                    $this->delete($file->getPathname());
-                }
-
+                $this->deleteDirectory("$directory/$file");
+            }
+            else
+            {
+                $this->delete("$directory/$file");
             }
         }
+        
 
         /* $items = new FilesystemIterator($directory);
 
@@ -128,6 +125,7 @@ class Filesystem
         } */
 
         $directories = glob($directory . '/*' , GLOB_ONLYDIR);
+        $directories[] = $directory;
 
         return $directories;
     }

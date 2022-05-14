@@ -22,6 +22,12 @@ Class App {
         return $this;
     }
 
+    public function json($json)
+    {
+        $this->result = $json;
+        return $this;
+    }
+
     public function with($key, $value)
     {
         $_SESSION['messages'][$key] = $value;
@@ -69,8 +75,8 @@ Class App {
 
     public static function setLocale($lang)
     {
-        global $locale;
-        $locale = $lang;
+        /* global $locale;
+        $locale = $lang; */
     }
 
     public function render()

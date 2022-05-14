@@ -8,6 +8,13 @@ Class Request
     public $_url = null;
     public $_files = array();
 
+    private $_validated = array();
+
+    public function validated()
+    {
+        return $this->_validated;
+    }
+
     public function validate($arguments)
     {
         $pass = true;
@@ -33,7 +40,7 @@ Class Request
                     if ( !isset($this->_post[$key]) || strlen($this->_post[$key])==0 )
                     {
                         $pass = false;
-                        $errors[$key] = 'The field '.$key.' is required';
+                        $errors[$key] = __("validation.required", array('attribute' => $key));
                     }
                 }
 
@@ -44,7 +51,7 @@ Class Request
                     else
                     {
                         $pass = false;
-                        $errors[$key] = $key.' is too long';
+                        $errors[$key] = __("validation.max.string", array('attribute' => $key, 'max' => $values));
                     }
                 }
 
@@ -60,7 +67,7 @@ Class Request
                     if ($val && $val->$column!=$ignore)
                     {
                         $pass = false;
-                        $errors[$key] = 'The '.$key.' has already been taken';
+                        $errors[$key] = __("validation.unique", array('attribute' => $key));
                     }
                 }
 
@@ -70,6 +77,7 @@ Class Request
 
             if ($stopOnFirstFail && !$pass) break;
 
+            $this->_validated[$key] = $this->_post[$key];
 
         }
 

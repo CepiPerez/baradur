@@ -89,6 +89,7 @@ Class RouteGroup
             {
                 foreach ($r as $route)
                 {
+                    $route->url = ltrim($route->url, '/');
                     if ($this->controller) $route->controller = $this->controller;
                     if ($this->middleware) $route->middleware = $this->middleware;
                     if ($this->prefix) $route->url = $this->prefix . '/' . $route->url;
@@ -98,21 +99,27 @@ Class RouteGroup
             }
             else if (isset($r->method))
             {
+                //dd($r); dd($this->controller);
+                $r->url = ltrim($r->url, '/');
                 if ($this->controller) $r->controller = $this->controller;
                 if ($this->middleware) $r->middleware = $this->middleware;
                 if ($this->prefix) $r->url = $this->prefix . '/' . $r->url;
                 if ($this->prefix && isset($r->name)) $r->name = $this->prefix . '.' . $r->name;
 
+                if (!$res->_collection->where('method', $r->method)->where('url', $r->url)->first())
+                    $res->_collection->put($r);
+                    
                 $this->added[] = $r;
             }
             else
             {
                 foreach ($r->added as $rs)
                 {
-                    if ($this->controller) $r->controller = $this->controller;
-                    if ($this->middleware) $r->middleware = $this->middleware;
-                    if ($this->prefix) $r->url = $this->prefix . '/' . $r->url;
-                    if ($this->prefix && isset($r->name)) $r->name = $this->prefix . '.' . $rs->name;
+                    $rs->url = ltrim($rs->url, '/');
+                    if ($this->controller) $rs->controller = $this->controller;
+                    if ($this->middleware) $rs->middleware = $this->middleware;
+                    if ($this->prefix) $rs->url = $this->prefix . '/' . $rs->url;
+                    if ($this->prefix && isset($rs->name)) $rs->name = $this->prefix . '.' . $rs->name;
 
                     //if (!$res->_collection->where('method', $rs->method)->where('url', $rs->url)->first())
                     //    $res->_collection->put($rs);
@@ -122,7 +129,7 @@ Class RouteGroup
                 }
             }
         }
-
+        //dd($this);
         return $this;
 
     } 
@@ -188,6 +195,11 @@ class Route
         $this->_collection = new Collection('Route');
     }
 
+    /**
+     * Get Route instance
+     * 
+     * @return Route
+     */
     public static function getInstance()
     {
         if (!self::$_instance)
@@ -212,7 +224,10 @@ class Route
     public static function setRouteList($routes)
     {
         $res = self::getInstance();
-        $res->_collection = $routes;
+        $res->_collection->collect($routes, 'Route');
+        /* dd($routes);
+        dd($res->_collection);
+        exit(); */
     }
     
 
@@ -251,6 +266,7 @@ class Route
             //dd($r);
             if (!is_array($r))
             {
+                $r->url = ltrim($r->url, '/');
                 if (isset($res->_controller)) $r->controller = $res->_controller;
                 if (isset($res->_middleware)) $r->middleware = $res->_middleware;
                 if (isset($res->_prefix)) $r->url = $res->_prefix . '/' . $r->url;
@@ -484,7 +500,7 @@ class Route
 
         $arr = new RouteItem;
         $arr->method = $method;
-        $arr->url = $url=='/'?'':$url;
+        $arr->url = $url=='/' ? '' : $url;
         $arr->controller = $controller;
         $arr->func = $func;
         
@@ -642,8 +658,7 @@ class Route
         {
             if (is_object($value))
             {
-                
-                $val = call_user_func_array(array($value, 'getRouteKeyName'), array());
+                $val = $value->getInstance()->getRouteKeyName();
                 return preg_replace('/\{[^}]*\}/', $value->$val, $route, 1);
             }
             else
@@ -710,6 +725,9 @@ class Route
     public static function start()
     {
         global $app; //, $middlewares;
+
+        //dd('starting');
+        //dd($_SESSION['user']);
         
         # Convert GET/POST into PUT/DELETE if necessary
         if (isset($_GET['_method']) || isset($_POST['_method']))
@@ -733,7 +751,7 @@ class Route
         $request->method = $_SERVER['REQUEST_METHOD'];
         $request->_route = $ruta;
         $request->_uri = env('HOME').$_SERVER['REQUEST_URI'];
-        $request->_user = Auth::user();
+        $request->_userid = Auth::user()->id;
 
         if (isset($_GET))
         {
@@ -905,7 +923,12 @@ class Route
         }
 
         # Show the results
-        $res->showFinalResult();
+        if (is_object($res) && !method_exists(get_class($res), 'showFinalResult'))
+            response($res)->showFinalResult();
+        elseif (is_string($res))
+            echo $res;
+        else
+            $res->showFinalResult();
 
     }
 

@@ -1,7 +1,5 @@
 <?php
 
-require_once('app/lib/random_compat/lib/random.php');
-
 class ApiController
 {
 

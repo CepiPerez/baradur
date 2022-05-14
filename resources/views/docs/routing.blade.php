@@ -13,7 +13,7 @@ They are defined in <b>web/routes.php</b></h5>
 </p>
 <br>
 <b>Adding routes:</b>
-<pre><code class="language-php7">Route::get('users', 'UsersController@index');</code></pre>
+<pre><code class="">Route::get('users', 'UsersController@index');</code></pre>
 <pre><code class="language-php7">Route::post('users', 'UsersController@store');</code></pre>
 <pre><code class="language-php7">Route::get('users/{id}', 'UsersController@show');</code></pre>
 
@@ -45,7 +45,8 @@ They are defined in <b>web/routes.php</b></h5>
 <br><b>Localization for resources</b>
 <br><br>
 <p class="card-warning">
-   <b>NOTE:</b> Although it can be added in routes.php, you can use app/config.php
+   <b>NOTE:</b> Although you can declare this in routes.php, it's better to use app/Config.php 
+   since <b>Artisan</b> checks this one when making controllers.
 </p>
 
 <pre><code class="language-php7">Route::resourceVerbs(array(

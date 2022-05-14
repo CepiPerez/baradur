@@ -37,7 +37,7 @@ Class RedisDB
             $data = json_decode($cached[0], true);
             $data = Helpers::arrayToObject($data);
             $col = new Collection('stdClass');
-            $col = $col->collect($data);
+            $col->collect($data);
             return $col;
         }
         return null;

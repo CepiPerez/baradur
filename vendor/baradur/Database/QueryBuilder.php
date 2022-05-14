@@ -794,27 +794,164 @@ Class QueryBuilder
     }
 
     /**
-     * Saves the current record in database\
-     * Uses INSERT for new record\
-     * Uses UPDATE for retrieved record\
-     * Returns error or empty string if ok
+     * Saves the model in database
      * 
-     * @return string
+     * @return bool
      */
     public function save($values)
     {
-        
-        if(!$values)
-            return 'No se definieron datos';
+        //dd($values); dd($this);
+        //exit();
 
-        if ($this->_where == '')
-            return $this->_insert($values);
+        if(!$values)
+            throw new Exception('No values asigned');
+
+
+        $final_vals = array();
+        if (is_object($values) && class_exists(get_class($values)) && isset($this->_relationVars['relation_current']))
+        {
+            //dd($values); exit();
+            $vals = array();
+            foreach ($values as $key => $val)
+                $vals[$key] = $val;
+
+            $where = array($this->_relationVars['foreign'] => $this->_relationVars['relation_current']);
+
+            return $this->updateOrCreate($where, $vals);
+
+        }
         else
         {
-            $this->_fillableOff = true;
-            $res = $this->update($values);
-            $this->_fillableOff = false;
-            return $res;
+            foreach ($values as $key => $val)
+            {
+                if (!(is_object($val) && class_exists(get_class($val))))
+                {
+                    $final_vals[$key] = $val;
+                }
+            }
+            
+            if (!$this->_collection->first())
+            {
+                //die("CREATE");
+                return $this->_insert($final_vals);
+            }
+            else
+            {
+                //dd($final_vals);
+                //dd($this);
+                //die("UPDATE");
+                $this->_fillableOff = true;
+                $res = $this->where($this->_primary, $this->_collection->pluck($this->_primary)->first())
+                            ->update($final_vals);
+                $this->_fillableOff = false;
+                return $res;
+            }
+        }
+
+
+    }
+
+    /**
+     * Save the model and all of its relationships
+     * 
+     * @return bool
+     */
+    public function push($values)
+    {
+        /* dd($values); dd($this);
+        exit(); */
+        
+        $relations = array();
+
+        if(!$values)
+            throw new Exception('No values asigned');
+
+        $final_vals = array();
+        foreach ($values as $key => $val)
+        {
+            if (is_object($val) && class_exists(get_class($val)))
+            {
+                $relation = array();
+                foreach ($val as $k => $v)
+                    $relation[$k] = $v;
+
+                $class = get_class($values);
+                $class = new $class;
+                $class->getInstance()->getQuery()->varsOnly = true;
+                $_key = $class->getInstance()->getRouteKeyName();
+                $data = $class->$key();
+                $relation[$data->_relationVars['foreign']] = $values->$_key;
+                $relation['__key'] = $data->_relationVars['foreign'];
+
+                $relations[get_class($val)] = $relation;
+
+            }
+            else
+            {
+                $final_vals[$key] = $val;
+            }
+        }
+
+        /* dd($final_vals);
+        dd($relations);
+        dd($this);
+        dd($this->_primary); */
+        //exit();
+
+        /* $key = $this->_primary;
+        //unset($final_vals[$key]);
+        if ( !$this->updateOrCreate(array($key => $final_vals[$key]), $final_vals)) return false;
+            
+        foreach ($relations as $model => $values)
+        {
+            $key = $values['__key'];
+            unset($values['__key']);
+            //dd($model); dd($key); dd($values[$key]); dd($values); exit();
+            if (! $model::updateOrCreate(array($key => $values[$key]), $values))
+                return false;
+        }
+        return true; */
+
+        if (!$this->_collection->first())
+        {
+            //return $this->_insert($final_vals);
+            //die("CREATE");
+
+            
+            if ( !$this->save($final_vals)) return false;
+            
+            foreach ($relations as $model => $values)
+            {
+                $key = $values['__key'];
+                unset($values['__key']);
+                //dd($model); dd($key); dd($values[$key]); dd($values); exit();
+                if (! $model::updateOrCreate(array($key => $values[$key]), $values))
+                    return false;
+            }
+            return true;
+        }
+        else
+        {
+            //$this->_fillableOff = true;
+            
+            $this->where($this->_primary, $this->_collection->pluck($this->_primary)->first());
+            //dd($this);            
+            //die("UPDATE");
+
+
+            if ( !$this->update($final_vals)) return false;
+            
+            foreach ($relations as $model => $values)
+            {
+                $key = $values['__key'];
+                unset($values['__key']);
+                //dd($model); dd($key); dd($values[$key]); dd($values); exit();
+                if (! $model::updateOrCreate(array($key => $values[$key]), $values))
+                    return false;
+            }
+
+            //$this->_fillableOff = false;
+            return true;
         }
 
     }
@@ -915,7 +1052,7 @@ Class QueryBuilder
      */
     public function create($record = null)
     {
-
+        
         foreach ($record as $key => $val)
         {
             if (in_array($key, $this->_fillable) || $this->_fillableOff)
@@ -1027,12 +1164,13 @@ Class QueryBuilder
 
         /* foreach ($record as $key => $val)
             $this->set($key, $val, false); */
-
+    
         if ($this->_where == '')
             return 'WHERE not assigned. Use updateAll() if you want to update all records';
-            
+
         if (!$this->_values)
             return 'No values assigned for update';
+
 
         $valores = array();
         
@@ -1042,7 +1180,8 @@ Class QueryBuilder
 
         $sql = 'UPDATE `' . $this->_table . '` SET ' . implode(', ', $valores) . ' ' . $this->_where;
 
-        #echo $sql."::";var_dump($this->_wherevals);echo "<br>";
+        //echo $sql."::";var_dump($this->_wherevals);echo "<br>";
+        //exit();
         $query = $this->_connector->execSQL($sql, $this->_wherevals);
 
         $this->clear();
@@ -1092,7 +1231,7 @@ Class QueryBuilder
      */
     public function updateOrCreate($attributes, $values)
     {
- 
+
         $this->clear();
         foreach ($values as $key => $val)
         {
@@ -1381,16 +1520,15 @@ Class QueryBuilder
         {
             if (method_exists($this->_parent, 'get'.ucfirst($key).'Attribute'))
             {
-                //$cl = $this->_parent;
                 $fn = 'get'.ucfirst($key).'Attribute';
-                //$val = call_user_func_array(array($cl, $fn), array($val));
-                //$val = $cl::$fn($val);
-                $newmodel = new $this->_parent;
-                $val = $newmodel->$fn($val);
+                /* $newmodel = new $this->_parent;
+                $val = $newmodel->$fn($val); */
+                $val = $item->$fn($val);
             }
 
             $item->$key = $val;
         }
+        $this->__new = false;
         $item->setQuery($this);
 
         return $item;
@@ -1408,13 +1546,10 @@ Class QueryBuilder
             {
                 if (method_exists($this->_parent, 'get'.ucfirst($key).'Attribute'))
                 {
-                    //$cl = $this->_parent;
                     $fn = 'get'.ucfirst($key).'Attribute';
-                    //$val = new $cl;
-                    //$val = $val->$fn($val);
-                    //$val = $cl::$fn($val);
-                    $newmodel = new $this->_parent;
-                    $val = $newmodel->$fn($val);
+                    /* $newmodel = new $this->_parent;
+                    $val = $newmodel->$fn($val); */
+                    $val = $item->$fn($val);
                 }
 
                 $item->$key = $val;
@@ -1716,7 +1851,9 @@ Class QueryBuilder
         $res->_relationVars = array(
             'foreign' => $foreign,
             'primary' => $primary,
-            'relationship' => $relationship);
+            'relationship' => $relationship,
+            'relation_class' => $this->_parent,
+            'relation_current' => $this->_collection->first()->$primary);
 
         if ($this->varsOnly)
             return $res;
@@ -1928,6 +2065,17 @@ Class QueryBuilder
         return $arraydata;
     }
 
+    public function load($relations)
+    {
+        $relations = is_string($relations) ? func_get_args() : $relations;
+        
+        foreach ($relations as $extra)
+        {
+            $this->addWith($extra, null, null);
+        }
+        return $this->_collection;
+    }
+
     private function addWith($relation, $parent=null, $extrawhere)
     {
         #echo "ADDING WITH: ".$relation."<br>";
@@ -1982,7 +2130,7 @@ Class QueryBuilder
         }
 
         //echo "extra: "; var_dump($extra->_wherevals); echo "<br>";
-
+        //dd($extra);
 
         $relationship = $extra->_relationVars['relationship'];
         $foreign = $extra->_relationVars['foreign'];

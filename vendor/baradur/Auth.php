@@ -6,41 +6,48 @@ class Auth extends Controller
     protected $primaryKey = 'username';
     protected static $useAuth = false;
 
+    protected static $_currentUser = null;
+
     public static function user()
     {
+        //dd($_SESSION['user']);
+        
         #unset($_SESSION['user']);
-        if (isset($_SESSION['user']))
+        if (!isset(self::$_currentUser) && isset($_SESSION['user']))
         {
-            $usuario =  $_SESSION['user'];
-            /* $usuario = User::where('username', $_SESSION['user']['username'])->first();
-            return $usuario; */
-            /* $usuario = new Collection('User');
-            $usuario = $usuario->arrayToObject($_SESSION['user']); */
-
-            //dd($usuario);
-            return $usuario;
+            self::$_currentUser = $_SESSION['user'];
         }
-        return null;
+        return self::$_currentUser;
     }
+
 
     public static function check()
     {
-        return isset($_SESSION['user']);
+        return isset(self::$_currentUser);
     }
 
     public function handle($request, $next)
     {
         if (!Auth::check())
         {
+            $history = isset($_SESSION['url_history']) ? $_SESSION['url_history'] : array();
+            array_unshift($history, $request->fullUrl());
+            $_SESSION['url_history'] = $history;
+            
             $_SESSION['_requestedRoute'] = $request->fullUrl();
-            return redirect('login');
+            return redirect('/login');
         }
+
         return $next;
     }
 
-    public function login()
+    public function login($referer = null)
     {
-        if (isset($_SESSION['url_history'][1]) && !isset($_SESSION['_requestedRoute']))
+        #if (isset($_SESSION['url_history'][1]) && !isset($_SESSION['_requestedRoute']))
+        #    $_SESSION['_requestedRoute'] = $_SESSION['url_history'][1];
+        #echo $_SESSION['url_history'][1] ." :: ". $_SESSION['_requestedRoute'];
+
+        if (isset($_SESSION['url_history'][1]) && isset($_SESSION['_requestedRoute']) && $_SESSION['url_history'][1]!=$_SESSION['_requestedRoute'])
             $_SESSION['_requestedRoute'] = $_SESSION['url_history'][1];
 
         $title = __('login.login');
@@ -69,12 +76,9 @@ class Auth extends Controller
         }
         else
         {
-            $token = md5($user->username.'_'.$user->password.'_'.time());
-            User::where('username', $user->username)
-                        ->update(array(
-                            "token" => $token,
-                            'token_timestamp' => time()
-                        ));
+            $token = md5($user->username.'_'.$user->password);
+            $user->token = $token;
+            $user->save();
 
             $domain = $_SERVER["HTTP_HOST"];
             setcookie(env('APP_NAME').'_token', $token, time()+86400, '/'.env('APP_FOLDER'), $domain, false, true);
@@ -98,19 +102,22 @@ class Auth extends Controller
     {
         global $version;
 
+        Auth::user()->token = null;
+        Auth::user()->save();
+
         $domain = $_SERVER["HTTP_HOST"];
         setcookie(env('APP_NAME').'_token', '', time() - 3600, '/'.env('APP_FOLDER'), $domain);
 
-        if ($version == 'NEW') {
+        /* if ($version == 'NEW') {
             if (session_status() === PHP_SESSION_ACTIVE)
                 session_destroy();
         } else {
             if (isset($_SESSION['user']))
                 unset($_SESSION['user']);
-        }
+        } */
         
-        /* unset($_SESSION['user']);
-        unset($_SESSION['tokens']); */
+        unset($_SESSION['user']);
+        unset($_SESSION['tokens']);
         return back();
     }
 
@@ -242,15 +249,21 @@ class Auth extends Controller
 
     public static function autoLogin($token)
     {
+        //dd("AUTOLOGIN: $token");
         $user = User::where('token', $token)->first();
 
-        if (isset($user->username))
+        //dd($user);
+
+        if ($user)
         {
+            $domain = $_SERVER["HTTP_HOST"];
+            setcookie(env('APP_NAME').'_token', $user->token, time()+86400, '/'.env('APP_FOLDER'), $domain, false, true);
             unset($user->password);
             unset($user->validation);
-            $_SESSION['user'] = $user;
-        }
+            self::$_currentUser = $user;
 
+            //dd($_SESSION['user']);
+        }
     }
 
     /**

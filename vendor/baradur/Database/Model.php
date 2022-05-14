@@ -56,6 +56,7 @@ class Model
     Protected $connector = null;
 
 
+    
     public function __construct($empty = false)
     {
         global $version;
@@ -221,12 +222,13 @@ class Model
 
         elseif (method_exists($this, $name))
         {
-            $array = new Collection($this->_parent);
+            /* $array = new Collection($this->_parent);
             $array->put($this);
                         
-            $inst = self::getInstance();
-            $inst->getQuery()->_collection = $array;
-            $res = $inst->$name()->get();
+            $this->getQuery()->_collection = $array; */
+
+            //echo "Calling relation: $name<br>";
+            $res = $this->load($name)->$name;
 
             if (get_class($this)=='User')
             {
@@ -234,8 +236,7 @@ class Model
                 $_SESSION['user'] = $this;
             }
             return $res;
-            //dd($this);
-            //return $this->$name()->get();
+
         }
 
     }
@@ -267,10 +268,10 @@ class Model
      * Declare model observer
      * 
      */
-    public static function observer($class)
+    public static function observe($class)
     {
         global $version, $observers;
-        $model = $version=='NEW'? get_called_class() : self::$_parent;
+        $model = /* $version=='NEW'? get_called_class() : */ self::$_parent;
         if (!isset($observers[$model]))
             $observers[$model] = $class;
     }
@@ -587,16 +588,23 @@ class Model
     }
 
     /**
-     * Saves the current record in database\
-     * Uses INSERT for new record\
-     * Uses UPDATE for retrieved record
+     * Saves the model in database
      * 
      * @return bool
      */
     public function save()
     {
-        //$res = self::getInstance();
         return $this->getQuery()->save($this);
+    }
+
+    /**
+     * Save the model and all of its relationships
+     * 
+     * @return bool
+     */
+    public function push()
+    {
+        return $this->getQuery()->push($this);
     }
 
     /**
@@ -644,23 +652,20 @@ class Model
         //var_dump(self::getInstance()->getQuery());
         if( isset($this) && $this instanceof self )
         {
-            $this->checkObserver('updating', $this);
+            //$this->checkObserver('updating', $this);
 
             $class = get_class($this);
-            $primary = $this->getRouteKeyName();
-            $newmodel = call_user_func_array(array($class, 'where'), array($primary, $this->$primary));
-            $res = $newmodel->update($record);
+            $primary = $this->getInstance()->getRouteKeyName();
+            $res = $this->getQuery()->where($primary, $this->$primary)->update($record);
 
-            if ($res) $this->checkObserver('updated', $this);
+            //if ($res) $this->checkObserver('updated', $this);
 
             return $res;
-            //return self::getInstance()->getQuery()->update($record, $this);
         }
 
 
         return self::getInstance()->getQuery()->update($record);
     }
-
 
     /**
      * Deletes the current model from database
@@ -820,6 +825,34 @@ class Model
     {
         return self::getInstance()->getQuery()->query($query);
     }
+
+
+
+    /**
+     * Adds records from a sub-query inside the current records\
+     * Check Laravel documentation
+     * 
+     * @return Model
+     */
+    public function load($relations)
+    {
+        if( isset($this) && $this instanceof self )
+        {
+            $relations = is_string($relations) ? func_get_args() : $relations;
+
+            foreach ($relations as $relation)
+            {
+                $res = $this->getQuery()->load($relation)->first();
+                $this->$relation = $res->$relation;
+            }
+            return $this;
+        }
+
+        /* return self::getInstance()->getQuery()->load(
+            is_string($relations) ? func_get_args() : $relations
+        ); */
+    }
+
 
     /**
      * Adds records from a sub-query inside the current records\
@@ -1018,12 +1051,12 @@ class Model
         return $this->getQuery()->processMorphRelationship($class, $method, 'morphMany');
     }
 
-    public function checkQuery()
+    private function checkQuery()
     {
         if (!$this->getQuery())
         {
-            $col = new Collection(get_class($this));
-            $col->put($this);
+            //$col = new Collection(get_class($this));
+            //$col->put($this);
             $classname = get_class($this);
             $newmodel = call_user_func_array(array($classname, 'select'), array('*'));
             $this->setQuery($newmodel);

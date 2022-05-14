@@ -2,7 +2,7 @@ module.exports = {
   content: [
     "./resources/**/*.blade.php",
     "./resources/**/*.js",
-    "./resources/_system/compiled/*.*",
+    "./storage/framework/compiled/*.*",
   ],
   theme: {
     extend: {},

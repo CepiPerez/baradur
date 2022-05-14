@@ -44,16 +44,16 @@ class BladeOne
     protected $escapedTags = array('{{{', '}}}');
     protected $echoFormat = '(%s)';
     protected $footer = array();
-    protected $verbatimPlaceholder = '@__verbatim__@';
+    protected $verbatimPlaceholder = '__verbatim__';
     protected $verbatimBlocks = array();
     protected $forelseCounter = 0;
     protected $compilers = array(
+        'SelfClosingComponents',
+        'Components',
         'Extensions',
         'Statements',
         'Comments',
         'Echos',
-        'SelfClosingComponents',
-        'Components'
     );
 
     public $phpTag='<?php ';
@@ -101,7 +101,6 @@ class BladeOne
 
     private function runInternal($view,$variables=array(), $forced=false,$isParent=true,$runFast=false)
     {
- 
         if ($isParent) {
             $this->variables=$variables;
         }
@@ -118,7 +117,12 @@ class BladeOne
         }
         $this->isForced=$forced;
         $this->isRunFast=$runFast;
-        return $this->evaluatePath($this->getCompiledFile(),$variables);
+
+        global $artisan;
+        if (!$artisan)
+            return $this->evaluatePath($this->getCompiledFile(),$variables);
+        else
+            return file_get_contents($this->getCompiledFile());
     }
 
 
@@ -129,16 +133,20 @@ class BladeOne
         }
         $compiled = $this->getCompiledFile();
         $template = $this->getTemplateFile();
-        if ($this->isExpired() || $forced) {
+        if ($this->isExpired() || $forced ) //|| substr($fileName, 0, 11)=='components/')
+        {
+            //echo "Compiling $fileName<br>";
             // compile the original file
             $contents = $this->compileString($this->getFile($template));
 
-            /* foreach(preg_split("/((\r?\n)|(\r\n?))/", $contents) as $line){
-                echo "L:: <code>".$line."</code><br>";
-            } */
+            # Remove all HTML comments
+            $contents = preg_replace('/<!--([\s\S]*?)-->/x', '', $contents);
 
-            if (!is_null($this->compiledPath)) {
-                file_put_contents($compiled, $contents);
+            if (!is_null($this->compiledPath))
+            {
+                Cache::store('file')->setDirectory(_DIR_.'/storage/framework/views')
+                    ->plainPut($compiled, $contents);
+                //file_put_contents($compiled, $contents);
             }
         }
     }
@@ -214,8 +222,8 @@ class BladeOne
     protected function compileMethod($expression)
     {
         $v = $this->stripParentheses($expression);
+        return $this->phpTag."echo method_field($v); ?>";
 
-        return "<input type='hidden' name='_method' value='{$this->phpTag}echo $v; " . "?>'/>";
     }
 
     protected function compileError($expression)
@@ -237,9 +245,9 @@ class BladeOne
 
     protected function compileCsrf()
     {
-        $csrf = App::generateToken();
-        $template = '<input type="hidden" id="csrf" name="csrf" value="'.$csrf.'">';
-        return "<input type='hidden' name='csrf' value='".$csrf."'/>";
+        //$csrf = App::generateToken();
+        //$template = '<input type="hidden" id="csrf" name="csrf" value="'.$csrf.'">';
+        return $this->phpTag.'echo csrf_field(); ?>';
     }
 
 
@@ -393,13 +401,24 @@ class BladeOne
 
        // dd($reflect->getMethods(ReflectionMethod::IS_PUBLIC));
         //dd($temp_params);
+        
+        //return $this->runChild('components.'.$component, $temp_params, true);
+        /* $this->variables = array_merge($this->variables, $temp_params);
+        return '@include("components.'.$component.'")'; */
 
-        $back_action = $app->action;
-        $result = $instance->render()->result;
-        $app->action = $back_action;
-        $temp_params = null;
-        //dd($instance);
-        return $result;
+        /* global $artisan;
+        if (!$artisan)
+        { */
+            $back_action = $app->action;
+            $result = $instance->render()->result;
+            $app->action = $back_action;
+            $temp_params = null;
+            return $result;
+        /* }
+        else
+        {
+            return $instance->render();
+        } */
 
     }
 
@@ -554,7 +573,7 @@ class BladeOne
 
     function callComponentAttribute($command)
     {
-        //echo "calling: ".$command."<br>";
+        #printf("Calling: $command\n");
         $command = trim($command);
         if ($command == '$attributes')
         {
@@ -593,11 +612,13 @@ class BladeOne
         {
             return substr($matches[0], 1);
         }
-        else
+        /* else
         {
-
+            
             if (substr($matches[2], 0, 11)=='$attributes' && isset($this->variables['__instance']))
                 return $this->callComponentAttribute($matches[2]);
+
+            
     
             if (isset($matches[2]))
             {
@@ -608,18 +629,17 @@ class BladeOne
 
             if (isset($this->variables['__instance']) && strpos($matches[2], '()')>0)
             {
+                print_r($this->variables['__instance']);
                 $call = str_replace('()', '', str_replace('$', '', $matches[2]));
                 return $this->variables['__instance']->$call();
             }
-        }
+        } */
 
         /* $wrapped = str_replace('asset(', 'View::getAsset(', $wrapped);
         $wrapped = str_replace('route(', 'Route::getRoute(', $wrapped);
         $wrapped = str_replace('session(', 'App::getSession(', $wrapped); */
 
         
-
-
         return $this->phpTag.'echo '.$wrapped.'; ?>'.$whitespace;
     }
 
@@ -636,7 +656,7 @@ class BladeOne
     {
         $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];
 
-        return $matches[1] ? $matches[0] : $this->phpTag.'echo ('.$this->compileEchoDefaults($matches[2]).'); ?>'.$whitespace;
+        return $matches[1] ? $matches[0] :  $this->phpTag.'echo ('.$this->compileEchoDefaults($matches[2]).'); ?>'.$whitespace;
     }
 
     protected function compileEscapedEchos($value)

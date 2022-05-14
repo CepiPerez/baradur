@@ -1,13 +1,13 @@
 <?php
 
 function asset($val) { return View::getAsset($val); }
-function route($val) { return Route::getRoute(func_get_args()); }
+function route() { return Route::getRoute(func_get_args()); }
 function session($val) { return App::getSession($val); }
 function request() { return Helpers::getRequest(); }
 function __($translation, $placeholder=null) { return Helpers::trans($translation, $placeholder); }
 function public_path($path=null) { return env('APP_URL').'/'.env('PUBLIC_FOLDER').'/'.$path; }
-function storage_path($path=null) { return env('APP_URL').'/storage/'.$path; }
-
+function storage_path($path=null) { return _DIR_.'/storage/'.$path; }
+function csrf_token() { return App::generateToken(); }
 
 $errors = new MessageBag();
 
@@ -142,7 +142,7 @@ function redirect($url=null)
  * @param string $filename
  * @return App
  */
-function response($data, $code, $type='application/json', $filename=null, $inline=false, $headers=null)
+function response($data=null, $code='200', $type='application/json', $filename=null, $inline=false, $headers=null)
 {
 	global $app;
 
@@ -166,4 +166,14 @@ function dd($data)
 {
 	highlight_string("<?php\n" . print_r($data, true) . ";?>");
 	echo "<br>";
+}
+
+function csrf_field()
+{
+	return "<input type='hidden' name='csrf' value='".csrf_token()."'/>\n";
+}
+
+function method_field($v)
+{
+	return "<input type='hidden' name='_method' value='$v'/>\n";
 }

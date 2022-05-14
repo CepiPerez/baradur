@@ -11,6 +11,7 @@ class FileStore implements Store
         $this->files = $files;
         $this->directory = $directory;
         $this->filePermission = $filePermission;
+        $this->setDirectory($directory);
     }
 
     public function has($key)
@@ -54,6 +55,31 @@ class FileStore implements Store
 
         return false;
     }
+
+    /**
+     * Store an item in the cache just as it comes
+     *
+     * @param  string  $key
+     * @param  mixed  $value
+     * @return bool
+     */
+    public function plainPut($path, $value)
+    {
+        $this->ensureCacheDirectoryExists($path);
+
+        $result = $this->files->put(
+            $path, $value, true
+        );
+
+        if ($result !== false && $result > 0) {
+            $this->ensurePermissionsAreCorrect($path);
+
+            return true;
+        }
+
+        return false;
+    }
+    
 
     /**
      * Store an item in the cache if the key doesn't exist.
@@ -123,7 +149,6 @@ class FileStore implements Store
     {
         if (is_null($this->filePermission) ||
             intval($this->files->chmod($path), 8) == $this->filePermission) {
-            return;
         }
 
         $this->files->chmod($path, $this->filePermission);
@@ -317,7 +342,7 @@ class FileStore implements Store
      */
     public function setDirectory($directory)
     {
-        $this->ensureCacheDirectoryExists($directory);
+        $this->ensureCacheDirectoryExists($directory.'/dummy');
 
         $this->directory = $directory;
         return $this;

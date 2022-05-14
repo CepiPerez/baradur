@@ -6,7 +6,7 @@ Class SmartCache
 
     private static function getInstance($group=null)
     {
-        $cache = _DIR_.'/../../resources/_system/cache';
+        $cache = _DIR_.'/../../storage/framework/cache';
 
         if (!isset(self::$instance))
         {
@@ -24,24 +24,24 @@ Class SmartCache
 
     public static function has($group, $key)
     {
-        if (is_array($key)) $key = serialize($key);
-        else if (is_object($key)) $key = serialize((array)$key);
+        if (is_array($key)) $key = md5(serialize($key));
+        else if (is_object($key)) $key = md5(serialize((array)$key));
 
         return self::getInstance($group)->has($key);
     }
 
     public static function get($group, $key)
     {
-        if (is_array($key)) $key = serialize($key);
-        else if (is_object($key)) $key = serialize((array)$key);
+        if (is_array($key)) $key = md5(serialize($key));
+        else if (is_object($key)) $key = md5(serialize((array)$key));
 
         return unserialize(self::getInstance($group)->get($key));
     }
 
     public static function put($group, $key, $value)
     {
-        if (is_array($key)) $key = serialize($key);
-        else if (is_object($key)) $key = serialize((array)$key);
+        if (is_array($key)) $key = md5(serialize($key));
+        else if (is_object($key)) $key = md5(serialize((array)$key));
 
         $value = serialize($value);
 
@@ -50,8 +50,8 @@ Class SmartCache
 
     public static function forget($group, $key)
     {
-        if (is_array($key)) $key = serialize($key);
-        else if (is_object($key)) $key = serialize((array)$key);
+        if (is_array($key)) $key = md5(serialize($key));
+        else if (is_object($key)) $key = md5(serialize((array)$key));
 
         return self::getInstance($group)->forget($key);
     }

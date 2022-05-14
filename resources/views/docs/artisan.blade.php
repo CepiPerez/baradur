@@ -34,6 +34,38 @@
 </code></pre>
 <pre><code class="language-bash">php artisan make:model Photo -mcr
 </code></pre>
+<br><b>Creating middleware:</b>
+<pre><code class="language-bash">php artisan make:middleware MyMiddleware
+</code></pre>
+<br><b>Creating policies:</b>
+<pre><code class="language-bash">php artisan make:policy MyPolicy
+</code></pre>
+<br>
+
+<br>
+<h4># Other resources</h4>
+<br><b>Creating seeders:</b>
+<pre><code class="language-bash">php artisan make:seeder PhotoSeeder
+</code></pre>
+<br><b>Creating factories:</b>
+<pre><code class="language-bash">php artisan make:factory PhotoSeeder
+</code></pre>
+<br><b>Seeding:</b>
+<pre><code class="language-bash">php artisan db:seed
+</code></pre>
+<br>
+
+<br>
+<h4># Other commands</h4>
+<br><b>Reset migations:</b>
+<pre><code class="language-bash">php artisan migrate:reset
+</code></pre>
+<br><b>Reset and re-apply migrations:</b>
+<pre><code class="language-bash">php artisan migrate:fresh
+</code></pre>
+<br><b>Reset and re-apply migrations with seeds:</b>
+<pre><code class="language-bash">php artisan migrate:reset --seed
+</code></pre>
 <br>
 
 @endsection

@@ -50,7 +50,7 @@ Class Collection extends arrayObject
      * 
      * @return array
      */
-    public function toArray()
+    public function toArray($data=null)
     {
         return (array)$this;
     }
@@ -247,7 +247,7 @@ Class Collection extends arrayObject
      */
     public function collect($data, $parent='stdClass')
     {
-        $col = new Collection($parent);
+        //$col = new Collection($parent);
 
         foreach ($data as $k => $item)
         {
@@ -258,18 +258,22 @@ Class Collection extends arrayObject
                 $pagination->second = $item->__pagination->second;
                 $pagination->third = $item->__pagination->third;
                 $pagination->fourth = $item->__pagination->fourth;
-                $col->pagination = $pagination;
+                //$col->pagination = $pagination;
+                $this->pagination = $pagination;
             }
             elseif (is_object($item))
             {
-                $col[$k] = $this->getObjectItemsForCollect($item);
+                //$col[$k] = $this->getObjectItemsForCollect($item);
+                $this[$k] = $this->getObjectItemsForCollect($item);
             }
             elseif ($k!='__name')
             {
-                $col[] = $item;
+                //$col[] = $item;
+                $this[] = $item;
             }
         }
-        return $col;
+        //return $col;
+        return $this;
     }
 
 
@@ -471,6 +475,19 @@ Class Collection extends arrayObject
             if (isset($record->$key) && $record->$key==$value)
                 return $record;
         }
+    }
+
+    /**
+     * Adds records from a sub-query inside the current records\
+     * Check Laravel documentation
+     * 
+     * @return Model
+     */
+    public function load($relations)
+    {
+        $class = new self::$_parent;
+        $class->getQuery()->_collection = $this;
+        $class->load( is_string($relations) ? func_get_args() : $relations );
     }
     
 

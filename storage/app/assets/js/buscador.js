@@ -20,7 +20,7 @@ class Buscador extends HTMLElement
         var buscarval = $(this).attr("valor") ? $(this).attr("valor") : '';
         var placeholder = $(this).attr("placeholder") ? $(this).attr("placeholder") : '';
         var formulario = $(this).attr("form");
-        console.log("Inicializando buscador: " + myid + " - valor: " + buscarval);
+        //console.log("Inicializando buscador: " + myid + " - valor: " + buscarval);
 
         //this.classList.add("mt-3");
         this.classList.add("pb-3");
@@ -32,16 +32,16 @@ class Buscador extends HTMLElement
 
         inputtext.classList.add("border");
         inputtext.classList.add("shadow");
-        inputtext.classList.add("dark:bg-slate-800");
-        inputtext.classList.add("dark:text-gray-100");
+        inputtext.classList.add("dark:bg-zinc-800");
+        inputtext.classList.add("dark:text-zinc-100");
         inputtext.classList.add("text-slate-700");
         inputtext.classList.add("rounded");
         inputtext.classList.add("w-full");
         inputtext.classList.add("py-1.5");
         inputtext.classList.add("px-3");
         inputtext.classList.add("border-slate-300");
-        inputtext.classList.add("dark:border-slate-600");
-        inputtext.classList.add("focus:border-cyan-500");
+        inputtext.classList.add("dark:border-zinc-600");
+        inputtext.classList.add("focus:border-sky-500");
         inputtext.classList.add("focus:ring");
         inputtext.classList.add("focus:outline-none");
 

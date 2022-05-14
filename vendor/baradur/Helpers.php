@@ -23,12 +23,12 @@ Class Helpers
 
     public static function getPlural($string, $fromCli=false)
     {
-        global $locale;
+        global $locale, $fallback_locale;
 
-        $filepath = _DIR_.'/../../resources/lang/'.$locale.'/plurals.php';
+        $filepath = _DIR_.'/../../lang/'.$locale.'/plurals.php';
         
         if (!file_exists($filepath))
-            $filepath = _DIR_.'/resources/lang/en/plurals.php';
+            $filepath = _DIR_.'/../../lang/'.$fallback_locale.'/plurals.php';
 
         
         $lang = include $filepath;
@@ -83,30 +83,43 @@ Class Helpers
 
     public static function trans($string, $placeholder=null)
     {
-        global $locale;
-        list($file, $value) = explode('.', $string);
+        global $locale, $fallback_locale;
+        $array = explode('.', $string);
 
-        $filepath = _DIR_.'/../../resources/lang/'.$locale.'/'.$file.'.php';
+        $file = array_shift($array);
+
+        $filepath = _DIR_.'/../../lang/'.$locale.'/'.$file.'.php';
+        
+        if (!file_exists($filepath))
+            $filepath = _DIR_.'/../../lang/'.$fallback_locale.'/'.$file.'.php';
+
         if (file_exists($filepath))
         {
             $lang = include $filepath;
         }
         else
         {
-            $filepath = _DIR_.'/../../resources/lang/'.$locale.'.json';
+            $filepath = _DIR_.'/../../lang/'.$locale.'.json';
+            
+            if (!file_exists($filepath))
+                $filepath = _DIR_.'/../../lang/'.$fallback_locale.'.json';
+
             if (file_exists($filepath))
             {
                 $lang = json_decode(file_get_contents($filepath, 'r'), true);
                 return $lang[$string] ? $lang[$string] : $string;
             }
-            else
-            {
-                $filepath = _DIR_.'/../../resources/lang/en/'.$file.'.php';
-                $lang = include $filepath;
-            }
         }
 
+        $value = array_shift($array);
         $result = $lang[$value] ? $lang[$value] : $value;
+
+        while (count($array)>0)
+        {
+            $value = array_shift($array);            
+            $result = $result[$value] ? $result[$value] : $value;
+        }
+            
 
         if ($placeholder)
         {

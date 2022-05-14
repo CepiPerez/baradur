@@ -11,9 +11,9 @@ $middlewares = array();
 $observers = array();
 $version = '';
 
-ini_set('display_errors', true);
-error_reporting(E_ALL + E_NOTICE);
-#ini_set('display_errors', false);
+#ini_set('display_errors', true);
+#error_reporting(E_ALL + E_NOTICE);
+ini_set('display_errors', false);
 
 if (version_compare(phpversion(), '8.0.0', '>='))
 {
@@ -35,8 +35,9 @@ DotEnv::load(_DIR_.'/../../.env');
 require_once('Globals.php');
 
 
-# Global functions
+# Global functions / Router functions
 require_once('Global_functions.php');
+require_once('Route_functions.php');
 
 
 # Generating Application KEY (for Tokens usage)
@@ -48,25 +49,34 @@ if (!isset($_SESSION['key']))
 # Instantiating App
 $app = new App();
 
+# Including config file
+$config = include _DIR_.'/../../config/app.php';
+
+# Initializing locale
+$locale = $config['locale'];
+$fallback_locale = $config['fallback_locale'];
+
 # Startup services
 $config = new Config;
 $config->boot();
 
 # Initializing App cache
-$cache = Cache::store('file');
+$cache = new FileStore(new Filesystem(), _DIR_.'/../../storage/framework/cache/classes', 0777);
 
 # Initializing Storage
 Storage::$path = _DIR_.'/../../storage/app/public/';
 
 # Routes
-if ($cache->has('baradur_routes') && env('APP_DEBUG')==0)
+if (file_exists(_DIR_.'/../../storage/framework/routes/web.php') && env('APP_DEBUG')==0)
 {
-    Route::setRouteList($cache->get('baradur_routes'));
+    Route::setRouteList(unserialize(file_get_contents(_DIR_.'/../../storage/framework/routes/web.php')));
+    //dd(Route::routeList()); exit();
 }
 else
 {
-    include(_DIR_.'/../../routes/routes.php');
-    $cache->put('baradur_routes', Route::routeList(), 172800);
+    //include(_DIR_.'/../../routes/web.php');
+    processRoutes(_DIR_.'/../..', '/routes/web.php');
+    $cache->plainPut(_DIR_.'/../../storage/framework/routes/web.php', serialize((array)Route::routeList()));
 }
 
 # Autoload function
@@ -136,9 +146,26 @@ function custom_autoloader($class)
         }
     }
 
-    
-    if ($newclass!='' && $version=='OLD')
+
+    if (file_exists(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php'))
     {
+        $date = filemtime($newclass);
+        $cachedate = filemtime(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');
+        if ($date < $cachedate)
+        {
+            require_once(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');
+            $newclass = '';
+        } 
+        else
+        {
+            @unlink(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');
+        }
+    }
+
+    
+    if ($newclass!='') // && $version=='OLD')
+    {
+
         $temp = file_get_contents($newclass);
         $temp = str_replace('  ', ' ', $temp);
         if (strpos($temp, ' extends Model')>0)
@@ -166,30 +193,48 @@ function custom_autoloader($class)
             }
 
 
-            if (file_exists(_DIR_.'/../../resources/_system/'.$class.'Model.php'))
-                unlink(_DIR_.'/../../resources/_system/'.$class.'Model.php');
-            file_put_contents(_DIR_.'/../../resources/_system/'.$class.'Model.php', $temp2);
-            require_once(_DIR_.'/../../resources/_system/'.$class.'Model.php');
-            unlink(_DIR_.'/../../resources/_system/'.$class.'Model.php');
+            if (file_exists(_DIR_.'/../../storage/framework/'.$class.'Model.php'))
+                unlink(_DIR_.'/../../storage/framework/'.$class.'Model.php');
+            file_put_contents(_DIR_.'/../../storage/framework/'.$class.'Model.php', $temp2);
+            require_once(_DIR_.'/../../storage/framework/'.$class.'Model.php');
+            unlink(_DIR_.'/../../storage/framework/'.$class.'Model.php');
 
-            if (file_exists(_DIR_.'/../../resources/_system/'.$class.'.php'))
-                unlink(_DIR_.'/../../resources/_system/'.$class.'.php');
-            file_put_contents(_DIR_.'/../../resources/_system/'.$class.'.php', $temp);
-            require_once(_DIR_.'/../../resources/_system/'.$class.'.php');
-            unlink(_DIR_.'/../../resources/_system/'.$class.'.php');
+            if (file_exists(_DIR_.'/../../storage/framework/'.$class.'.php'))
+                unlink(_DIR_.'/../../storage/framework/'.$class.'.php');
+            file_put_contents(_DIR_.'/../../storage/framework/'.$class.'.php', $temp);
+            require_once(_DIR_.'/../../storage/framework/'.$class.'.php');
+            unlink(_DIR_.'/../../storage/framework/'.$class.'.php');
 
     
         }
         else
         {
-            require_once($newclass);
+            //echo "$newclass<br>";
+            if (strpos($newclass, '/app/')!=false)
+            {
+                $temp = str_replace('=[', '= [', $temp);
+                //$temp = preg_replace('/([\W][^\]])\[/x', '$1array(', $temp);
+                //$temp = preg_replace('/([^\[])][^\[]/x', '$1);', $temp);
+                $temp = preg_replace_callback('/([\W][^\]])\[/x', 'callbackReplaceArrayStart', $temp);
+                $temp = preg_replace_callback('/(array\([^\]]*)(\]*[\W]*\])/x', 'callbackReplaceArrayEnd', $temp);
+
+                //echo "Saving $class in cache<br>";
+                Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
+                    ->plainPut(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php', $temp);
+                require_once(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');
+
+            }
+            else
+            {
+                require_once($newclass);
+            }
         }
 
     }
-    else if ($newclass!='' && $version=='NEW')
+    /* else if ($newclass!='' && $version=='NEW')
     {
         require_once($newclass);
-    }
+    } */
     
 }
 

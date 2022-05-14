@@ -27,35 +27,11 @@ Class View
 		return self::$pagination;
 	}
 
-	# Creates necessary cache folders
-	# IMPORTANT: resources/_system folder should have full access (777)
-	private static function checkFolders()
-    {
-		$mkdir_error = false;
-		if ( !file_exists(_DIR_.'/../../resources/_system/cache') )
-		{
-			if (!mkdir(_DIR_.'/../../resources/_system/cache', 0777))
-				$mkdir_error = true;
-		}
-		if ( !file_exists(_DIR_.'/../../resources/_system/compiled') )
-		{
-			if (!mkdir(_DIR_.'/../../resources/_system/compiled', 0777))
-				$mkdir_error = true;
-		}
-		if ($mkdir_error) 
-		{
-			echo "Error trying to create cache folders<br>".
-			"Plase, give 777 permission to <b>resources/_system</b><br>";
-			die();
-		}
-
-	}
-	
 
 	# Loads the template file
 	static function loadTemplate($file, $args=array())
 	{
-		global $app;
+		global $app, $artisan;
 
 		/* echo "VIEW PARAMS:";
 		dd($args);
@@ -63,10 +39,8 @@ Class View
 
 		$file = str_replace('.', '/', $file);
 
-		if (!file_exists(_DIR_.'/../../resources/views/'.$file.'.blade.php'))
+		if (!file_exists(_DIR_.'/../../resources/views/'.$file.'.blade.php') && !isset($artisan))
 			abort(404);
-
-		self::checkFolders();
 
 		$arguments = array(
 			'app_name' => env('APP_NAME')
@@ -100,10 +74,10 @@ Class View
 
 
 		#include "BladeOne2.php";
-		$views = _DIR_.'/../../resources/views';
-		$cache = _DIR_.'/../../resources/_system/compiled';
+		$views = _DIR_.(!isset($artisan)?'/../..':'').'/resources/views';
+		$cache = _DIR_.(!isset($artisan)?'/../..':'').'/storage/framework/views';
 		$blade = new BladeOne($views, $cache);
-		define("BLADEONE_MODE", 1); // (optional) 1=forced (test),2=run fast (production), 0=automatic, default value.
+		define("BLADEONE_MODE", env('APP_DEBUG')); // (optional) 1=forced (test),2=run fast (production), 0=automatic, default value.
 
 		$result = $blade->run($file, $arguments);
 
