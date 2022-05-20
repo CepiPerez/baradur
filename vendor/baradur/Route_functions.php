@@ -42,19 +42,15 @@ function processRoutes($path, $file)
 {
 	$routeFile = file_get_contents($path.$file);
 
+    # Closures
     $pattern = '/,[\s]*[\S]*function[\s\S]*?}[\s]*\)/x';
     $routeFile = preg_replace_callback($pattern, 'callbackReplaceClosures', $routeFile);
 
+    # Group closures
     $pattern = '/->group[\s]*[\S]*\([\s]*[\S]*function[\s\S]*?}[\s]*\)/x';
     $routeFile = preg_replace_callback($pattern, 'callbackReplaceGroupClosures', $routeFile);
 
-    $routeFile = preg_replace_callback('/([\W][^\]])\[/x', 'callbackReplaceArrayStart', $routeFile);
-    $routeFile = preg_replace_callback('/(array\([^\]]*)(\]*[\W]*\])/x', 'callbackReplaceArrayEnd', $routeFile);
-
-
-    $routeFile = str_replace('::class', '', preg_replace('/\w*::class/x', "'$0'", $routeFile));
-
-    //$routeFile = preg_replace('/\[.*?([^\]]*).?]/x', 'array($1)', $routeFile);
+    $routeFile = replaceNewPHPFunctions($routeFile);
 
     global $_closures;
 
@@ -74,17 +70,19 @@ function processRoutes($path, $file)
         file_put_contents($path.'/storage/framework/cache/classes/baradurClosures.php', $controller);
         file_put_contents($path.'/storage/framework/cache/classes/baradurRoutes.php', $routeFile); */
 
-        Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
+        Cache::store('file')->setDirectory($path.'/storage/framework/cache/classes')
             ->plainPut($path.'/storage/framework/cache/classes/baradurClosures.php', $controller);
 
-        Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
-            ->plainPut($path.'/storage/framework/cache/classes/baradurRoutes.php', $routeFile);
-        
         include($path.'/storage/framework/cache/classes/baradurClosures.php');
-        include($path.'/storage/framework/cache/classes/baradurRoutes.php');
 
-        //dd($controller);
     }
+    
+    Cache::store('file')->setDirectory($path.'/storage/framework/cache/classes')
+        ->plainPut($path.'/storage/framework/cache/classes/baradurRoutes.php', $routeFile);
+    
+    include($path.'/storage/framework/cache/classes/baradurRoutes.php');
+
+
 }
 
 function callbackReplaceArrayStart($match)
@@ -96,4 +94,23 @@ function callbackReplaceArrayStart($match)
 function callbackReplaceArrayEnd($match)
 {
     return $match[1] . str_replace(']', ')', $match[2]);
+}
+
+function replaceNewPHPFunctions($text)
+{
+    $text = str_replace('=[', '= [', $text);
+
+    # New array method -> []
+    $text = preg_replace_callback('/([\W][^\]])\[/x', 'callbackReplaceArrayStart', $text);
+    $text = preg_replace_callback('/(array\([^\]]*)(\]*[\W]*\])/x', 'callbackReplaceArrayEnd', $text);
+
+    # something ?? else  -> isset(something)? something : else
+    $text = str_replace('::class', '', preg_replace('/\(([\w|\$])/x', "( $1", $text));
+    $text = str_replace('::class', '', preg_replace('/[\s]([^\s]*.?[^\b.*[^\?{2}])(\?{2})/x', "isset($1) ? $1 : ", $text));
+
+    # Someclass::class to 'Someclass'
+    $text = str_replace('::class', '', preg_replace('/\w*::class/x', "'$0'", $text));
+
+    return $text;
+
 }

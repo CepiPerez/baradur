@@ -2076,7 +2076,7 @@ Class QueryBuilder
         return $this->_collection;
     }
 
-    private function addWith($relation, $parent=null, $extrawhere)
+    private function addWith($relation, $parent, $extrawhere)
     {
         #echo "ADDING WITH: ".$relation."<br>";
         #echo "TABLE: ".$this->_parent->getTable()."<br>";

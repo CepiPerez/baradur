@@ -15,11 +15,11 @@ ini_set('display_errors', true);
 error_reporting(E_ALL + E_NOTICE);
 #ini_set('display_errors', false);
 
-if (version_compare(phpversion(), '8.0.0', '>='))
+/* if (version_compare(phpversion(), '8.0.0', '>='))
 {
     ini_set('display_errors', false);
     error_reporting(0);
-}
+} */
 
 define ('_DIR_', dirname(__FILE__));
 
@@ -46,6 +46,7 @@ require_once('Globals.php');
 # Global functions / Router functions
 require_once('Global_functions.php');
 require_once('Route_functions.php');
+
 
 
 # Generating Application KEY (for Tokens usage)
@@ -216,15 +217,16 @@ function custom_autoloader($class)
         else
         {
             //echo "$newclass<br>";
-            if (strpos($newclass, '/app/')!=false)
+            if (strpos($newclass, '\/app/')!=false)
             {
+                //echo "Saving $newclass in cache<br>";
+                var_dump( function_exists('callbackReplaceArrayStart') );
                 $temp = str_replace('=[', '= [', $temp);
-                //$temp = preg_replace('/([\W][^\]])\[/x', '$1array(', $temp);
-                //$temp = preg_replace('/([^\[])][^\[]/x', '$1);', $temp);
-                $temp = preg_replace_callback('/([\W][^\]])\[/x', 'callbackReplaceArrayStart', $temp);
-                $temp = preg_replace_callback('/(array\([^\]]*)(\]*[\W]*\])/x', 'callbackReplaceArrayEnd', $temp);
+                #$temp = preg_replace_callback('/([\W][^\]])\[/x', 'callbackReplaceArrayStart', $temp);
+                #$temp = preg_replace_callback('/(array\([^\]|;]*)(\]|;*[\W]*\])/x', 'callbackReplaceArrayEnd', $temp);
+                #$temp = str_replace('::class', '', preg_replace('/\w*::class/x', "'$0'", $temp));
+                $temp = replaceNewPHPFunctions($temp);
 
-                //echo "Saving $class in cache<br>";
                 Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
                     ->plainPut(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php', $temp);
                 require_once(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');

@@ -70,14 +70,15 @@ Class View
 		if (isset($errors))
 			$arguments['errors'] = $errors;
 
-		$app->arguments = $args;
+		//$app->arguments = $args;
 
 
 		#include "BladeOne2.php";
 		$views = _DIR_.(!isset($artisan)?'/../..':'').'/resources/views';
 		$cache = _DIR_.(!isset($artisan)?'/../..':'').'/storage/framework/views';
 		$blade = new BladeOne($views, $cache);
-		define("BLADEONE_MODE", env('APP_DEBUG')); // (optional) 1=forced (test),2=run fast (production), 0=automatic, default value.
+
+		//define("BLADEONE_MODE", env('APP_DEBUG')); // (optional) 1=forced (test),2=run fast (production), 0=automatic, default value.
 
 		$result = $blade->run($file, $arguments);
 

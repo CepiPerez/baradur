@@ -9,8 +9,16 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 spl_autoload_register('custom_autoloader');
 
 # Enviroment variables
-require_once('vendor/baradur/DotEnv.php');
-DotEnv::load(_DIR_.'/.env');
+if (file_exists(_DIR_.'/storage/framework/config/env.php'))
+{
+    require_once(_DIR_.'/storage/framework/config/env.php');
+}
+else
+{
+    require_once(_DIR_.'/vendor/baradur/DotEnv.php');
+    DotEnv::load(_DIR_.'/', '.env', false);
+}
+
 
 # Autoload function
 function custom_autoloader($class) 
@@ -62,10 +70,90 @@ function custom_autoloader($class)
             }
         }
     }
-    
-    if ($newclass!='')
+
+    if (file_exists(_DIR_.'/storage/framework/cache/classes/'.$class.'.php'))
     {
-        require_once($newclass);
+        $date = filemtime($newclass);
+        $cachedate = filemtime(_DIR_.'/storage/framework/cache/classes/'.$class.'.php');
+        if ($date < $cachedate)
+        {
+            require_once(_DIR_.'/storage/framework/cache/classes/'.$class.'.php');
+            $newclass = '';
+        } 
+        else
+        {
+            @unlink(_DIR_.'/storage/framework/cache/classes/'.$class.'.php');
+        }
+    }
+    
+    if ($newclass!='') // && $version=='OLD')
+    {
+
+        $temp = file_get_contents($newclass);
+        $temp = str_replace('  ', ' ', $temp);
+        if (strpos($temp, ' extends Model')>0)
+        {
+            //echo "Class ".$class.' is Model's subclass!<br>';
+
+            $temp2 = file_get_contents(_DIR_.'/Database/Model.php');
+            $temp2 = str_replace('Model', $class.'Model', $temp2);
+            $temp2 = str_replace('myparent', $class, $temp2);
+
+            $temp = str_replace('extends Model', 'extends '.$class.'Model', $temp);
+
+            $pattern = "/scope(.*)\(/i";
+            if (preg_match_all($pattern, $temp, $matches))
+            {
+                $temp2 = rtrim($temp2, '}');
+                foreach ($matches[1] as $scope)
+                {
+                    $temp2 .= "\n   public static function ". lcfirst($scope) ."()
+    {
+        return self::getInstance()->getQuery()->callScope('". lcfirst($scope) ."', func_get_args());
+    }";
+                }
+                $temp2 .= "\n}";
+            }
+
+
+            if (file_exists(_DIR_.'/storage/framework/'.$class.'Model.php'))
+                unlink(_DIR_.'/storage/framework/'.$class.'Model.php');
+            file_put_contents(_DIR_.'/storage/framework/'.$class.'Model.php', $temp2);
+            require_once(_DIR_.'/storage/framework/'.$class.'Model.php');
+            unlink(_DIR_.'/storage/framework/'.$class.'Model.php');
+
+            if (file_exists(_DIR_.'/storage/framework/'.$class.'.php'))
+                unlink(_DIR_.'/storage/framework/'.$class.'.php');
+            file_put_contents(_DIR_.'/storage/framework/'.$class.'.php', $temp);
+            require_once(_DIR_.'/storage/framework/'.$class.'.php');
+            unlink(_DIR_.'/storage/framework/'.$class.'.php');
+
+    
+        }
+        else
+        {
+            //echo "$newclass<br>";
+            if (strpos($newclass, '\/app/')!=false)
+            {
+                //echo "Saving $newclass in cache<br>";
+                var_dump( function_exists('callbackReplaceArrayStart') );
+                $temp = str_replace('=[', '= [', $temp);
+                #$temp = preg_replace_callback('/([\W][^\]])\[/x', 'callbackReplaceArrayStart', $temp);
+                #$temp = preg_replace_callback('/(array\([^\]|;]*)(\]|;*[\W]*\])/x', 'callbackReplaceArrayEnd', $temp);
+                #$temp = str_replace('::class', '', preg_replace('/\w*::class/x', "'$0'", $temp));
+                $temp = replaceNewPHPFunctions($temp);
+
+                Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
+                    ->plainPut(_DIR_.'/storage/framework/cache/classes/'.$class.'.php', $temp);
+                require_once(_DIR_.'/storage/framework/cache/classes/'.$class.'.php');
+
+            }
+            else
+            {
+                require_once($newclass);
+            }
+        }
+
     }
     
 }
@@ -353,11 +441,14 @@ function showMenu($ex = true)
     if ($ex) printf("\e[33mAvailable commands:\e[m\n");
     cs($ex); printf("migrate                     "); ce($ex); printf("Run the database migrations\n");
     if ($ex) printf("\e[33m cache\e[m\n");
-    cs($ex); printf("cache:clear                 "); ce($ex); printf("Flush the application cache.\n");
+    cs($ex); printf("cache:clear                 "); ce($ex); printf("Flush the application cache\n");
+    if ($ex) printf("\e[33m config\e[m\n");
+    cs($ex); printf("config:cache                "); ce($ex); printf("Create a cache file for faster configuration loading\n");
+    cs($ex); printf("config:clear                "); ce($ex); printf("Remove the configuration cache file\n");
     if ($ex) printf("\e[33m db\e[m\n");
-    cs($ex); printf("db:seed                     "); ce($ex); printf("Seed the database with records.\n");
+    cs($ex); printf("db:seed                     "); ce($ex); printf("Seed the database with records\n");
     if ($ex) printf("\e[33m make\e[m\n");
-    cs($ex); printf("make:component              "); ce($ex); printf("Create a new view component class.\n");
+    cs($ex); printf("make:component              "); ce($ex); printf("Create a new view component class\n");
     cs($ex); printf("make:controller             "); ce($ex); printf("Create a new controller class\n");
     cs($ex); printf("make:factory                "); ce($ex); printf("Create a new model factory\n");
     cs($ex); printf("make:middleware             "); ce($ex); printf("Create a new middleware class\n");
@@ -372,6 +463,8 @@ function showMenu($ex = true)
     cs($ex); printf("migrate:fresh               "); ce($ex); printf("Drop all tables and re-run all migrations\n");
     cs($ex); printf("migrate:reset               "); ce($ex); printf("Rollback all database migrations\n");
     cs($ex); printf("migrate:rollback            "); ce($ex); printf("Rollback the last database migration\n");
+    if ($ex) printf("\e[33m optimize\e[m\n");
+    cs($ex); printf("optimize:clear              "); ce($ex); printf("Remove the cached bootstrap files\n");
     if ($ex) printf("\e[33m route\e[m\n");
     cs($ex); printf("route:cache                 "); ce($ex); printf("Create a route cache file for faster route registration\n");
     cs($ex); printf("route:clear                 "); ce($ex); printf("Remove the route cache file\n");
@@ -850,7 +943,6 @@ elseif ($action == 'route:list')
 elseif ($action == 'route:clear')
 {
     Cache::store('file')->setDirectory(_DIR_.'/storage/framework/routes')->flush();
-    
     printf("\e[32mRoute cache cleared successfully.\e[m\n");
 }
 
@@ -905,13 +997,42 @@ elseif ($action == 'view:cache')
 
 elseif ($action == 'cache:clear')
 {
-    $result = Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache')->flush();
+    printf("\e[32mApplication cache cleared successfully.\e[m\n");
+}
 
-    if ($result)
-        printf("\e[32mApplication cache cleared successfully.\e[m\n");
-    else
-        printf("Error clearing cache!\n");
+elseif ($action == 'config:clear')
+{
+    Cache::store('file')->setDirectory(_DIR_.'/storage/framework/config')->flush();
+    printf("\e[32mConfiguration cache cleared successfully.\e[m\n");
+}
 
+elseif ($action == 'config:cache')
+{
+    Cache::store('file')->setDirectory(_DIR_.'/storage/framework/config')->flush();
+    printf("\e[32mConfiguration cache cleared successfully.\e[m\n");
+
+    require_once(_DIR_.'/vendor/baradur/DotEnv.php');
+    DotEnv::load(_DIR_.'/', '.env');
+    printf("\e[32mConfiguration cached successfully.\e[m\n");
+
+}
+
+elseif ($action == 'optimize:clear')
+{
+    Cache::store('file')->setDirectory(_DIR_.'/storage/framework/views')->flush(); 
+    printf("\e[32mCompiled views cleared successfully.\e[m\n");
+
+    Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache')->flush();
+    printf("\e[32mApplication cache cleared successfully.\e[m\n");
+
+    Cache::store('file')->setDirectory(_DIR_.'/storage/framework/routes')->flush();
+    printf("\e[32mRoute cache cleared successfully.\e[m\n");
+
+    Cache::store('file')->setDirectory(_DIR_.'/storage/framework/config')->flush();
+    printf("\e[32mConfiguration cache cleared successfully.\e[m\n");
+
+    printf("\e[32mCaches cleared successfully.\e[m\n");
 }
 
 elseif ($action == 'storage:link')

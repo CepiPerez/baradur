@@ -222,12 +222,16 @@ class Model
 
         elseif (method_exists($this, $name))
         {
-            /* $array = new Collection($this->_parent);
-            $array->put($this);
-                        
-            $this->getQuery()->_collection = $array; */
+            //echo "Calling relation: $name <br>";
 
-            //echo "Calling relation: $name<br>";
+            if (count($this->getQuery()->_collection)==0)
+            {
+                $array = new Collection($this->_parent);
+                $array->put($this);
+                            
+                $this->getQuery()->_collection = $array;
+            }
+
             $res = $this->load($name)->$name;
 
             if (get_class($this)=='User')

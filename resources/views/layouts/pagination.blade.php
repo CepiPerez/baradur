@@ -1,6 +1,6 @@
 
 @if (View::pagination())
-<ul class="no_print my-5 flex w-fit h-fit rounded-lg border border-slate-300 dark:border-zinc-700 overflow-hidden shadow-md h-9 bg-white dark:bg-zinc-800">
+<ul class="no_print pagination my-5 flex w-fit h-fit rounded-lg border border-slate-300 dark:border-zinc-700 overflow-hidden shadow-md h-9 bg-white dark:bg-zinc-800">
 
     <div class="py-1">
         @if (View::pagination()->first)

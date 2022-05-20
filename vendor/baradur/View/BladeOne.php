@@ -82,10 +82,10 @@ class BladeOne
 
     public function run($view,$variables=array())
     {
-        $mode=0; // mode=0 automatic: not forced and not run fast.
-        if (env('BLADEONE_MODE')) {
+        $mode= env('APP_DEBUG'); // mode=0 automatic: not forced and not run fast.
+        /* if (env('BLADEONE_MODE')) {
             $mode=BLADEONE_MODE;
-        }
+        } */
         $forced = $mode & 1; // mode=1 forced:it recompiles no matter if the compiled file exists or not.
         $runFast = $mode & 2; // mode=2 runfast: the code is not compiled neither checked and it runs directly the compiled
 

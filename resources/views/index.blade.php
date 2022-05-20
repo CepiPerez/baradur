@@ -2,10 +2,6 @@
 
 @section('content')
 
-@php
-    $type = "info";
-@endphp
-
 <link href="{{ asset('assets/css/index_styles.css') }}" rel="stylesheet">
 
 
@@ -13,21 +9,6 @@
     
     <img src="{{ asset('assets/logo.ico') }}" alt="" class="align-center h-[64px] lg:h-[128px]">
     <h1 class="main-title text-[300%] lg:text-[400%]">Baradur</h1>
-
-    
-    <!-- <x-alert :type="$type" class="pb-0 mb-3 pt-3">
-        <x-slot name="title">Alerta</x-slot>
-        Mensaje de prueba
-    </x-alert> -->
-
-    <!-- <x-alert2 >
-        <x-slot name="title2">
-            Titulo de alerta
-        </x-slot>
-        TEST
-    </x-alert2> -->
-
-    <!-- <x-alert type="error" :message="$message" class="mt-4"/> -->
 
 
     @if ($data)

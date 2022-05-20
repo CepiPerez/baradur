@@ -740,18 +740,22 @@ class Route
         $current = isset($_GET['ruta']) ? $_GET['ruta'] :  '/';
         $ruta = self::findRoute($_SERVER['REQUEST_METHOD'], rtrim($current,'/'));
 
+        //dd(Route::routeList());
+
+
         # Return 404 if route doesn't exists
         if (!isset($ruta->controller))
         {
             abort(404);
         }
+        
        
         # Put GET values into Request
         $request = new Request;
         $request->method = $_SERVER['REQUEST_METHOD'];
         $request->_route = $ruta;
         $request->_uri = env('HOME').$_SERVER['REQUEST_URI'];
-        $request->_userid = Auth::user()->id;
+        //$request->_userid = Auth::user()? Auth::user()->id : null;
 
         if (isset($_GET))
         {
