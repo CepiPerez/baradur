@@ -20,16 +20,17 @@ class HomeController extends Controller
         $data = array();
         $lista = Route::filter('GET', '*')
                 ->whereNotIn('controller', array('Auth'))
+                ->whereNotContains('url', 'api/')
                 ->whereNotContains('url', '{');
 
         foreach ($lista as $ruta)
         {
             
             # Skip Auth routes and routes with params (between {})
-            if (isset($ruta->name)) //) && Gate::allows('check-route', $ruta->name))
+            if (isset($ruta->name) && substr($ruta->name, 0, 3)!='api')
             {
 
-                $seccion = SECCION_BASE;
+                $seccion = env('SECCION_BASE');
                 $titulo = $ruta->name;
 
                 if (count(explode('.', $ruta->name)) > 1)
@@ -38,19 +39,20 @@ class HomeController extends Controller
                     $seccion = ucfirst(str_replace('_', ' ', $seccion));
                 }
                 
-                $arr = array(
+                $arr = [
                     'titulo' => ucfirst(str_replace('_', ' ', $titulo)),
                     'url' => $ruta->url
-                );
+                ];
+
                 $data[$seccion][] = $arr;
             }
         }
         
-        $breadcrump = array(
+        $breadcrumb = array(
             __('login.home') => '#'
         );
         
-        return view('index', compact('breadcrump', 'data'));
+        return view('index', compact('breadcrumb', 'data'));
 
     }
 

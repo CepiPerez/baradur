@@ -20,7 +20,7 @@ $locale = 'en';
 if ( !function_exists('json_decode') )
 {
     function json_decode($content, $assoc=false){
-        require_once('../app/lib/json/json.php');
+        require_once(_DIR_.'/../json/json.php');
         if ( $assoc ){
             $json = new Services_JSON(SERVICES_JSON_LOOSE_TYPE);
         } else {
@@ -33,7 +33,7 @@ if ( !function_exists('json_decode') )
 if ( !function_exists('json_encode') )
 {
     function json_encode($content){
-        require_once('../app/lib/json/json.php');
+        require_once(_DIR_.'/../json/json.php');
         $json = new Services_JSON;  
         return $json->encode($content);
     }

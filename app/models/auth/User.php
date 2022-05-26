@@ -14,7 +14,7 @@ class User extends Model
         if (Storage::exists('users/'.$this->username.'.jpg'))
             return asset('storage/users/' . $this->username . '.jpg');
 
-        return asset('storage/users/nopicture.png');
+        return asset('storage/users/default.png');
     }
 
     

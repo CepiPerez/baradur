@@ -14,6 +14,12 @@ Class Helpers
             return $converted;
     }
 
+    public static function snakeCaseToCamelCase($name)
+    {
+        $converted = str_replace(' ', '', ucwords(str_replace('_', ' ', $name)));
+        return $converted;
+    }
+
     public static function camelCaseToKebabCase($name)
     {
         $converted = preg_replace('/([A-Z])/', '-$1', $name);
@@ -31,7 +37,7 @@ Class Helpers
             $filepath = _DIR_.'/../../lang/'.$fallback_locale.'/plurals.php';
 
         
-        $lang = include $filepath;
+        $lang = CoreLoader::loadConfigFile($filepath);
         $result = '';
         foreach ($lang as $key => $value)
         {
@@ -95,7 +101,7 @@ Class Helpers
 
         if (file_exists($filepath))
         {
-            $lang = include $filepath;
+            $lang = CoreLoader::loadConfigFile($filepath);
         }
         else
         {
@@ -179,6 +185,28 @@ Class Helpers
             }
         }
         return $selected;
+    }
+
+    public static function config($val)
+    {
+        $array = explode('.', $val);
+        $file = array_shift($array);
+
+        if (!file_exists(_DIR_.'/../../config/'.$file.'.php'))
+            throw new Exception("File not found: $file.php");
+
+        $config = CoreLoader::loadConfigFile(_DIR_.'/../../config/'.$file.'.php');
+
+        $value = array_shift($array);
+        $result = $config[$value] ? $config[$value] : $value;
+
+        while (count($array)>0)
+        {
+            $value = array_shift($array);            
+            $result = $result[$value] ? $result[$value] : $value;
+        }
+        
+        return $result;
     }
 
 

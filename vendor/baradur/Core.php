@@ -7,7 +7,6 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 # Global variables
 $routes = array();
-$middlewares = array();
 $observers = array();
 $version = '';
 
@@ -25,7 +24,6 @@ define ('_DIR_', dirname(__FILE__));
 
 # Autoload function registration
 spl_autoload_register('custom_autoloader');
-
 
 # Environment variables
 if (file_exists(_DIR_.'/../../storage/framework/config/env.php'))
@@ -45,8 +43,7 @@ require_once('Globals.php');
 
 # Global functions / Router functions
 require_once('Global_functions.php');
-require_once('Route_functions.php');
-
+require_once('Routing/Route_functions.php');
 
 
 # Generating Application KEY (for Tokens usage)
@@ -59,15 +56,11 @@ if (!isset($_SESSION['key']))
 $app = new App();
 
 # Including config file
-$config = include _DIR_.'/../../config/app.php';
+$config = CoreLoader::loadConfigFile(_DIR_.'/../../config/app.php');
 
 # Initializing locale
 $locale = $config['locale'];
 $fallback_locale = $config['fallback_locale'];
-
-# Startup services
-$config = new Config;
-$config->boot();
 
 # Initializing App cache
 $cache = new FileStore(new Filesystem(), _DIR_.'/../../storage/framework/cache/classes', 0777);
@@ -75,16 +68,14 @@ $cache = new FileStore(new Filesystem(), _DIR_.'/../../storage/framework/cache/c
 # Initializing Storage
 Storage::$path = _DIR_.'/../../storage/app/public/';
 
-# Routes
-if (file_exists(_DIR_.'/../../storage/framework/routes/web.php') && env('APP_DEBUG')==0)
+# Loading Providers
+foreach($config['providers'] as $provider)
 {
-    Route::setRouteList(unserialize(file_get_contents(_DIR_.'/../../storage/framework/routes/web.php')));
+    CoreLoader::loadProvider(_DIR_.'/../../app/providers/'.$provider.'.php');
 }
-else
-{
-    processRoutes(_DIR_.'/../..', '/routes/web.php');
-    $cache->plainPut(_DIR_.'/../../storage/framework/routes/web.php', serialize((array)Route::routeList()));
-}
+
+#dd(Route::routeList()); exit();
+
 
 # Autoload function
 function custom_autoloader($class) 
@@ -169,6 +160,21 @@ function custom_autoloader($class)
         }
     }
 
+    if (file_exists(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php'))
+    {
+        $date = filemtime($newclass);
+        $cachedate = filemtime(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php');
+        if ($date < $cachedate)
+        {
+            require_once(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php');
+            $newclass = '';
+        } 
+        else
+        {
+            @unlink(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php');
+        }
+    }
+
     
     if ($newclass!='') // && $version=='OLD')
     {
@@ -182,13 +188,51 @@ function custom_autoloader($class)
             $temp2 = file_get_contents(_DIR_.'/Database/Model.php');
             $temp2 = str_replace('Model', $class.'Model', $temp2);
             $temp2 = str_replace('myparent', $class, $temp2);
+            $temp2 = rtrim($temp2, '}');
 
             $temp = str_replace('extends Model', 'extends '.$class.'Model', $temp);
 
+
+            # Get table and query DB to get columns
+            # This way we can create where{COLUMN_NAME} methods
+            if ($class!='DB')
+            {    
+                preg_match('/(protected[\s]*\$table[\s]*=)[\s]*(.*);/', $temp, $table);
+                if (count($table)!=3)
+                    $table = strtolower(Helpers::camelCaseToSnakeCase($class));
+                else
+                    $table = str_replace("'", "", $table[2]);
+    
+                $query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS  
+                        WHERE TABLE_SCHEMA='".env('DB_NAME')."' AND TABLE_NAME = '$table'";
+                $res = DB::table($table)->query($query);
+                
+                $arr = array();
+                if ($res->num_rows>0)
+                {
+                    while ($row = $res->fetch_assoc()){
+                        $arr[] = $row['COLUMN_NAME'];
+                    }
+                }
+    
+                if (count($arr)>0)
+                {
+                    //$temp2 = rtrim($temp2, '}');
+                    foreach ($arr as $column)
+                    {
+                        $colname = Helpers::snakeCaseToCamelCase($column);
+                        $temp2 .= "\n   public static function where".ucfirst($colname). '($val) { return self::getInstance()->getQuery()->where(\''.$column.'\', $val); }'."\n";
+                    }
+                    
+                }
+            }
+            
+
+            # Make custom scopes
             $pattern = "/scope(.*)\(/i";
             if (preg_match_all($pattern, $temp, $matches))
             {
-                $temp2 = rtrim($temp2, '}');
+                //$temp2 = rtrim($temp2, '}');
                 foreach ($matches[1] as $scope)
                 {
                     $temp2 .= "\n   public static function ". lcfirst($scope) ."()
@@ -196,32 +240,40 @@ function custom_autoloader($class)
         return self::getInstance()->getQuery()->callScope('". lcfirst($scope) ."', func_get_args());
     }";
                 }
-                $temp2 .= "\n}";
             }
+            $temp2 .= "\n}\n";
 
 
-            if (file_exists(_DIR_.'/../../storage/framework/'.$class.'Model.php'))
+            /* if (file_exists(_DIR_.'/../../storage/framework/'.$class.'Model.php'))
                 unlink(_DIR_.'/../../storage/framework/'.$class.'Model.php');
             file_put_contents(_DIR_.'/../../storage/framework/'.$class.'Model.php', $temp2);
             require_once(_DIR_.'/../../storage/framework/'.$class.'Model.php');
-            unlink(_DIR_.'/../../storage/framework/'.$class.'Model.php');
+            unlink(_DIR_.'/../../storage/framework/'.$class.'Model.php'); */
 
-            if (file_exists(_DIR_.'/../../storage/framework/'.$class.'.php'))
+            Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
+                ->plainPut(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php', $temp2);
+            require_once(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php');
+
+
+            /* if (file_exists(_DIR_.'/../../storage/framework/'.$class.'.php'))
                 unlink(_DIR_.'/../../storage/framework/'.$class.'.php');
             file_put_contents(_DIR_.'/../../storage/framework/'.$class.'.php', $temp);
             require_once(_DIR_.'/../../storage/framework/'.$class.'.php');
-            unlink(_DIR_.'/../../storage/framework/'.$class.'.php');
+            unlink(_DIR_.'/../../storage/framework/'.$class.'.php'); */
 
+            Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
+                ->plainPut(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php', $temp);
+            require_once(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');
     
         }
         else
         {
             //echo "$newclass<br>";
-            if (strpos($newclass, '\/app/')!=false)
+            if (strpos($newclass, '/app/')!=false)
             {
-                //echo "Saving $newclass in cache<br>";
-                var_dump( function_exists('callbackReplaceArrayStart') );
-                $temp = str_replace('=[', '= [', $temp);
+                #echo "Saving $newclass in cache<br>";
+                #var_dump( function_exists('callbackReplaceArrayStart') );
+                #$temp = str_replace('=[', '= [', $temp);
                 #$temp = preg_replace_callback('/([\W][^\]])\[/x', 'callbackReplaceArrayStart', $temp);
                 #$temp = preg_replace_callback('/(array\([^\]|;]*)(\]|;*[\W]*\])/x', 'callbackReplaceArrayEnd', $temp);
                 #$temp = str_replace('::class', '', preg_replace('/\w*::class/x', "'$0'", $temp));

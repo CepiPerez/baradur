@@ -1,5 +1,6 @@
 <?php
 
+function app($val=null) { global $app; return $app->instance($val); }
 function asset($val) { return View::getAsset($val); }
 function route() { return Route::getRoute(func_get_args()); }
 function session($val) { return App::getSession($val); }
@@ -7,7 +8,9 @@ function request() { return Helpers::getRequest(); }
 function __($translation, $placeholder=null) { return Helpers::trans($translation, $placeholder); }
 function public_path($path=null) { return env('APP_URL').'/'.env('PUBLIC_FOLDER').'/'.$path; }
 function storage_path($path=null) { return _DIR_.'/storage/'.$path; }
+function base_path($path=null) { return _DIR_.'/../../'.$path; }
 function csrf_token() { return App::generateToken(); }
+function config($val) { return Helpers::config($val); }
 
 $errors = new MessageBag();
 

@@ -123,6 +123,26 @@ Class Request
             
         return $array;
     }
+
+    public function only()
+    {
+        $only = func_get_args();
+
+        $array = array();
+        foreach ($this->_post as $key => $val)
+        {
+            if (in_array($key, $only))
+                $array[$key] = $val;
+        }
+
+        foreach ($this->_files as $key => $val)
+        {
+            if (in_array($key, $only))
+                $array[$key] = $val;
+        }
+            
+        return $array;
+    }
     
     public function query()
     {
@@ -137,6 +157,11 @@ Class Request
     public function input($key)
     {
         return isset($this->_post[$key]) ? $this->_post[$key] : null;
+    }
+
+    public function get($key)
+    {
+        return isset($this->_get[$key]) ? $this->_get[$key] : null;
     }
 
     public function serialize()

@@ -917,7 +917,6 @@ Class QueryBuilder
             //return $this->_insert($final_vals);
             //die("CREATE");
 
-            
             if ( !$this->save($final_vals)) return false;
             
             foreach ($relations as $model => $values)
@@ -925,8 +924,11 @@ Class QueryBuilder
                 $key = $values['__key'];
                 unset($values['__key']);
                 //dd($model); dd($key); dd($values[$key]); dd($values); exit();
-                if (! $model::updateOrCreate(array($key => $values[$key]), $values))
+                $m = new $model;
+                if (! $m->updateOrCreate(array($key => $values[$key]), $values))
                     return false;
+                /* if (! $model::updateOrCreate(array($key => $values[$key]), $values))
+                    return false; */
             }
             return true;
         }
@@ -946,8 +948,11 @@ Class QueryBuilder
                 $key = $values['__key'];
                 unset($values['__key']);
                 //dd($model); dd($key); dd($values[$key]); dd($values); exit();
-                if (! $model::updateOrCreate(array($key => $values[$key]), $values))
+                $m = new $model;
+                if (! $m->updateOrCreate(array($key => $values[$key]), $values))
                     return false;
+                /* if (! $model::updateOrCreate(array($key => $values[$key]), $values))
+                    return false; */
             }
 
             //$this->_fillableOff = false;
@@ -1675,7 +1680,7 @@ Class QueryBuilder
      * Executes the SQL $query
      * 
      * @param string $query
-     * @return array
+     * @return msqli_result|bool
      */
     public function query($sql)
     {

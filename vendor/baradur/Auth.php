@@ -14,15 +14,17 @@ class Auth extends Controller
         
         #unset($_SESSION['user']);
         if (!isset(self::$_currentUser) && isset($_SESSION['user']))
-        {
             self::$_currentUser = $_SESSION['user'];
-        }
+
         return self::$_currentUser;
     }
 
 
     public static function check()
     {
+        if (!isset(self::$_currentUser) && isset($_SESSION['user']))
+            self::$_currentUser = $_SESSION['user'];
+        
         return isset(self::$_currentUser);
     }
 
@@ -35,7 +37,7 @@ class Auth extends Controller
             $_SESSION['url_history'] = $history;
             
             $_SESSION['_requestedRoute'] = $request->fullUrl();
-            return redirect('/login');
+            return redirect(HOME.'/login');
         }
 
         return $next;
@@ -80,20 +82,24 @@ class Auth extends Controller
             $user->token = $token;
             $user->save();
 
+            
+
             $domain = $_SERVER["HTTP_HOST"];
             setcookie(env('APP_NAME').'_token', $token, time()+86400, '/'.env('APP_FOLDER'), $domain, false, true);
             unset($user->password);
             unset($user->validation);
             $_SESSION['user'] = $user;
+            self::$_currentUser = $user;
 
             if (isset($_SESSION['_requestedRoute']))
             {
                 $res = $_SESSION['_requestedRoute'];
                 unset($_SESSION['_requestedRoute']);
+                $res = str_replace(env('HOME'), '', $res);
                 return redirect($res);
             }
             else
-                return redirect('/');
+                return redirect(env('HOME'));
         }
 
     }
@@ -102,8 +108,10 @@ class Auth extends Controller
     {
         global $version;
 
-        Auth::user()->token = null;
-        Auth::user()->save();
+        //dd($_SESSION['user']);
+        //dd(self::user());
+        self::user()->token = null;
+        self::user()->save();
 
         $domain = $_SERVER["HTTP_HOST"];
         setcookie(env('APP_NAME').'_token', '', time() - 3600, '/'.env('APP_FOLDER'), $domain);
@@ -118,6 +126,7 @@ class Auth extends Controller
         
         unset($_SESSION['user']);
         unset($_SESSION['tokens']);
+        self::$_currentUser = null;
         return back();
     }
 
@@ -125,6 +134,7 @@ class Auth extends Controller
     {
         unset($_SESSION['user']);
         unset($_SESSION['tokens']);
+        self::$_currentUser = null;
 
         $title = __('login.registration');
 
@@ -261,8 +271,7 @@ class Auth extends Controller
             unset($user->password);
             unset($user->validation);
             self::$_currentUser = $user;
-
-            //dd($_SESSION['user']);
+            $_SESSION['user'] = $user;
         }
     }
 

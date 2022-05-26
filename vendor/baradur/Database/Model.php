@@ -181,6 +181,9 @@ class Model
 
     public function getQuery()
     {
+        if (!isset(self::$_query))
+            self::$_query = self::getInstance()->getQuery();
+            
         return self::$_query;
     }
 
@@ -210,10 +213,23 @@ class Model
         eval( "self::\$_parent = \$val;" );
     } */
 
+    
+
+    /* public static function __callStatic($name, $arguments)
+    {
+        die ("Static call $name");
+    } */
+
+    /* public function __call($name, $arguments)
+    {
+        die ("Method call $name");
+    } */
+
+
    
     public function __get($name)
     {
-
+        
         if (method_exists($this, 'get'.ucfirst($name).'Attribute'))
         {
             $fn = 'get'.ucfirst($name).'Attribute';
@@ -228,7 +244,7 @@ class Model
             {
                 $array = new Collection($this->_parent);
                 $array->put($this);
-                            
+                
                 $this->getQuery()->_collection = $array;
             }
 
@@ -246,18 +262,18 @@ class Model
     }
 
     # PHP > 5.3 only
-    public static function __callStatic($name, $arguments)
+    /* public static function __callStatic($name, $arguments)
     {
         if (method_exists(get_called_class(), 'scope'.ucfirst($name)))
         {
             return self::getInstance()->getQuery()->callScope($name, $arguments);
         }
 
-        /* else if (method_exists('QueryBuilder', $name))
-        {
-            return self::getInstance()->getQuery()->$name($arguments);
-        } */
-    }
+        #else if (method_exists('QueryBuilder', $name))
+        #{
+        #    return self::getInstance()->getQuery()->$name($arguments);
+        #}
+    } */
 
 
     public static function newFactory()

@@ -12,6 +12,8 @@ Class App {
     public static $messages = array();
     public static $localization = null;
 
+    public $binds = array();
+
     //public static function allErrors() { return self::$errors; }
 
     public static function start() { return Route::start(); }
@@ -22,9 +24,9 @@ Class App {
         return $this;
     }
 
-    public function json($json)
+    public function json($json=null)
     {
-        $this->result = $json;
+        if ($json) $this->result = $json;
         return $this;
     }
 
@@ -83,6 +85,51 @@ Class App {
     {
         return serialize($this);
     }
+
+    public function bind($abstract, $concrete = null, $shared = false)
+    {
+        $this->binds[$abstract] = array(
+            'concrete' => $concrete, 
+            'shared' => $shared
+        );
+    }
+
+    public function singleton($abstract, $concrete = null)
+    {
+        $this->bind($abstract, $concrete, true);
+    }
+
+    public static function instance($name = null)
+    {
+        global $app;
+
+        if (!isset($name))
+        {
+            return $app;
+        }
+
+        if (isset($app->binds[$name]))
+        {
+            if ($app->binds[$name]['shared'])
+            {
+                if (!isset($app->binds[$name]['instance']))
+                {
+                    $class = $app->binds[$name]['concrete'];
+                    $app->binds[$name]['instance'] = new $class;
+                }
+
+                
+                return $app->binds[$name]['instance'];
+            }
+            else
+            {
+                $class = $app->binds[$name]['concrete'];
+                return new $class;
+            }
+
+        }
+    }
+
 
     public function showFinalResult()
     {

@@ -70,90 +70,10 @@ function custom_autoloader($class)
             }
         }
     }
-
-    if (file_exists(_DIR_.'/storage/framework/cache/classes/'.$class.'.php'))
-    {
-        $date = filemtime($newclass);
-        $cachedate = filemtime(_DIR_.'/storage/framework/cache/classes/'.$class.'.php');
-        if ($date < $cachedate)
-        {
-            require_once(_DIR_.'/storage/framework/cache/classes/'.$class.'.php');
-            $newclass = '';
-        } 
-        else
-        {
-            @unlink(_DIR_.'/storage/framework/cache/classes/'.$class.'.php');
-        }
-    }
     
-    if ($newclass!='') // && $version=='OLD')
+    if ($newclass!='')
     {
-
-        $temp = file_get_contents($newclass);
-        $temp = str_replace('  ', ' ', $temp);
-        if (strpos($temp, ' extends Model')>0)
-        {
-            //echo "Class ".$class.' is Model's subclass!<br>';
-
-            $temp2 = file_get_contents(_DIR_.'/Database/Model.php');
-            $temp2 = str_replace('Model', $class.'Model', $temp2);
-            $temp2 = str_replace('myparent', $class, $temp2);
-
-            $temp = str_replace('extends Model', 'extends '.$class.'Model', $temp);
-
-            $pattern = "/scope(.*)\(/i";
-            if (preg_match_all($pattern, $temp, $matches))
-            {
-                $temp2 = rtrim($temp2, '}');
-                foreach ($matches[1] as $scope)
-                {
-                    $temp2 .= "\n   public static function ". lcfirst($scope) ."()
-    {
-        return self::getInstance()->getQuery()->callScope('". lcfirst($scope) ."', func_get_args());
-    }";
-                }
-                $temp2 .= "\n}";
-            }
-
-
-            if (file_exists(_DIR_.'/storage/framework/'.$class.'Model.php'))
-                unlink(_DIR_.'/storage/framework/'.$class.'Model.php');
-            file_put_contents(_DIR_.'/storage/framework/'.$class.'Model.php', $temp2);
-            require_once(_DIR_.'/storage/framework/'.$class.'Model.php');
-            unlink(_DIR_.'/storage/framework/'.$class.'Model.php');
-
-            if (file_exists(_DIR_.'/storage/framework/'.$class.'.php'))
-                unlink(_DIR_.'/storage/framework/'.$class.'.php');
-            file_put_contents(_DIR_.'/storage/framework/'.$class.'.php', $temp);
-            require_once(_DIR_.'/storage/framework/'.$class.'.php');
-            unlink(_DIR_.'/storage/framework/'.$class.'.php');
-
-    
-        }
-        else
-        {
-            //echo "$newclass<br>";
-            if (strpos($newclass, '\/app/')!=false)
-            {
-                //echo "Saving $newclass in cache<br>";
-                var_dump( function_exists('callbackReplaceArrayStart') );
-                $temp = str_replace('=[', '= [', $temp);
-                #$temp = preg_replace_callback('/([\W][^\]])\[/x', 'callbackReplaceArrayStart', $temp);
-                #$temp = preg_replace_callback('/(array\([^\]|;]*)(\]|;*[\W]*\])/x', 'callbackReplaceArrayEnd', $temp);
-                #$temp = str_replace('::class', '', preg_replace('/\w*::class/x', "'$0'", $temp));
-                $temp = replaceNewPHPFunctions($temp);
-
-                Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
-                    ->plainPut(_DIR_.'/storage/framework/cache/classes/'.$class.'.php', $temp);
-                require_once(_DIR_.'/storage/framework/cache/classes/'.$class.'.php');
-
-            }
-            else
-            {
-                require_once($newclass);
-            }
-        }
-
+        require_once($newclass);
     }
     
 }
@@ -168,6 +88,7 @@ function env($val, $default=null) { return constant($val)? constant($val) : $def
 function upper($text) { return strtoupper(str_replace('_', '', $text[0])); }
 function public_path($path) { return str_replace('//', '/', _DIR_.'/'.env('PUBLIC_FOLDER').'/'.$path); }
 function storage_path($path) { return str_replace('//', '/', _DIR_.'/storage/'.$path); }
+function base_path($path) { return str_replace('//', '/', _DIR_.'/'.$path); }
 function asset($asset) { return env('HOME').'/'.$asset; }
 define('HOME', '/');
 
@@ -302,8 +223,9 @@ function seed()
 
 function makeController($controller, $resource, $api=false)
 {
-    $config = new Config;
-    $config->boot();
+    /* $config = new Config;
+    $config->boot(); */
+    CoreLoader::loadProvider(_DIR_.'/', 'app/providers/RouteServiceProvider.php');
 
     $class = '';
 
@@ -363,8 +285,9 @@ function makePolicy($policy)
 
 function makeMigration($command)
 {
-    $config = new Config;
-    $config->boot();
+    /* $config = new Config;
+    $config->boot(); */
+    CoreLoader::loadProvider(_DIR_.'/', 'app/providers/RouteServiceProvider.php');
 
     list($table, $create) = TableGuesser::guess($command);
     $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $command);
@@ -603,8 +526,9 @@ elseif ($action == 'make:model' && count($argv)>0)
         
     makeModel(ucfirst($model));
 
-    $config = new Config;
-    $config->boot();
+    /* $config = new Config;
+    $config->boot(); */
+    CoreLoader::loadProvider(_DIR_.'/', 'app/providers/RouteServiceProvider.php');
 
     if (!file_exists('app/controllers/'.$model.'Controller.php') && $controller)
     {
@@ -865,18 +789,22 @@ elseif ($action == 'route:list')
         }
     }
 
-    if (file_exists(_DIR_.'/storage/framework/routes/web.php'))
+    require_once('vendor/baradur/Routing/Route_functions.php');
+    CoreLoader::loadProvider(_DIR_.'/', 'app/providers/RouteServiceProvider.php');
+    //$provider->boot();
+
+    /* if (file_exists(_DIR_.'/storage/framework/routes/web.php'))
     {
         Route::setRouteList(unserialize(file_get_contents(_DIR_.'/storage/framework/routes/web.php')));
     }
     else
     {
         $config = new Config;
-        $config->boot();    
+        $config->boot();
         processRoutes(_DIR_, '/routes/web.php');
         Cache::store('file')->setDirectory(_DIR_.'/storage/framework/routes')
             ->plainPut(_DIR_.'/storage/framework/routes/web.php', serialize(Route::routeList()));
-    }
+    } */
     
     printf("\n");
 
@@ -954,8 +882,9 @@ elseif ($action == 'route:cache')
 
     require_once(_DIR_.'/vendor/baradur/Route_functions.php');
 
-    $config = new Config;
-    $config->boot();
+    /* $config = new Config;
+    $config->boot(); */
+    CoreLoader::loadProvider(_DIR_.'/', 'app/providers/RouteServiceProvider.php');
     
     processRoutes(_DIR_, '/routes/web.php');
 

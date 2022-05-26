@@ -11,7 +11,8 @@ class DotEnv
             $envfile = "<?php\n\n";
 
         $lines = file($path.$file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        foreach ($lines as $line) {
+        foreach ($lines as $line)
+        {
 
             if (strpos(trim($line), '#') === 0) {
                 continue;
@@ -21,7 +22,8 @@ class DotEnv
             $name = trim($name);
             $value = trim($value);
 
-            if (!array_key_exists($name, $_SERVER) && !array_key_exists($name, $_ENV)) {
+            //if (!array_key_exists($name, $_SERVER) && !array_key_exists($name, $_ENV))
+            //{
                 define($name, $value);
 
                 if ($cache)
@@ -30,15 +32,15 @@ class DotEnv
                         $envfile .= "define('$name', $value);\n";
                     else
                         $envfile .= "define('$name', '$value');\n";
-                }
-                    
-            }
+                }    
+            //}
         }
         if ($cache)
+        {
             $envfile .= "\n?>";
 
-        if ($cache)
             Cache::store('file')->setDirectory($path.'/storage/framework/config')
                 ->plainPut($path.'/storage/framework/config/env.php', $envfile);
+        }
     }
 }

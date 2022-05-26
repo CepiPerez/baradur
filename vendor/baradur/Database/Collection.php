@@ -247,7 +247,9 @@ Class Collection extends arrayObject
      */
     public function collect($data, $parent='stdClass')
     {
-        //$col = new Collection($parent);
+        //echo "DATA:"; var_dump($data); echo "<br>";
+        if (count($data)==0)
+            return $this;
 
         foreach ($data as $k => $item)
         {
@@ -374,7 +376,7 @@ Class Collection extends arrayObject
         $res = new Collection(self::$_parent);
         foreach ($this as $record)
         {
-            if (strpos($record->$key, $value)==false)
+            if (strpos($record->$key, $value)==false && substr($record->$key, 0, strlen($value))!=$value)
                 $res[] = $record;
         }
         return $res;
