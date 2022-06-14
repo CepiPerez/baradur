@@ -4,10 +4,10 @@ function env($val, $default=null) {
     return constant($val)? constant($val) : $default;
 }
 
-$base = '/'. rtrim(env('APP_FOLDER'), '/');
-
-$home = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off' ? 'https' : 'http') .
-        "://" . $_SERVER['SERVER_NAME'] . $base;
+$base = '/'. rtrim(env('PUBLIC_FOLDER'), '/');
+$home = rtrim(env('APP_URL'), '/') . $base;
+/* $home = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off' ? 'https' : 'http') .
+        "://" . $_SERVER['SERVER_NAME'] . $base; */
 
 
 #define('_ASSETS', 'assets');
@@ -20,7 +20,7 @@ $locale = 'en';
 if ( !function_exists('json_decode') )
 {
     function json_decode($content, $assoc=false){
-        require_once(_DIR_.'/../json/json.php');
+        include(_DIR_.'/../json/json.php');
         if ( $assoc ){
             $json = new Services_JSON(SERVICES_JSON_LOOSE_TYPE);
         } else {
@@ -33,7 +33,7 @@ if ( !function_exists('json_decode') )
 if ( !function_exists('json_encode') )
 {
     function json_encode($content){
-        require_once(_DIR_.'/../json/json.php');
+        include(_DIR_.'/../json/json.php');
         $json = new Services_JSON;  
         return $json->encode($content);
     }
@@ -46,6 +46,41 @@ if ( !function_exists('lcfirst') )
         $rest = (strlen($content) > 1)? substr($content, 1, strlen($content)-1) : '';
         return $first.$rest;
     }
+}
+
+if (!function_exists('str_contains'))
+{
+    function str_contains($haystack, $needle)
+    {
+        return '' === $needle || false !== strpos($haystack, $needle);
+    }
+}
+
+if (!function_exists('str_starts_with'))
+{
+    function str_starts_with($haystack, $needle)
+    {
+        return 0 === strncmp($haystack, $needle, \strlen($needle));
+    }
+}
+
+if (!function_exists('str_ends_with'))
+{
+    function str_ends_with($haystack, $needle)
+    {
+        if ('' === $needle || $needle === $haystack) {
+            return true;
+        }
+
+        if ('' === $haystack) {
+            return false;
+        }
+
+        $needleLength = \strlen($needle);
+
+        return $needleLength <= \strlen($haystack) && 0 === substr_compare($haystack, $needle, -$needleLength);
+    }
+
 }
 
 /* if(!function_exists('array_column'))

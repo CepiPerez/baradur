@@ -2,17 +2,94 @@
 
 Class Request
 {
-    public $_get = array();
-    public $_post = array();
-    public $_route = null;
-    public $_url = null;
-    public $_files = array();
+    private $get = array();
+    private $post = array();
+    private $files = array();
 
-    private $_validated = array();
+    public $route = null;
+    private $method = null;
+    private $uri = array();
+
+    private $validated = array();
+
+    public function generate($route)
+    {
+        $this->clear();
+
+        $this->route = $route;
+        $this->method = $_SERVER['REQUEST_METHOD'];
+        $this->uri = env('HOME').$_SERVER['REQUEST_URI'];
+
+        # Adding GET values into Request
+        if (isset($_GET))
+        {
+            foreach ($_GET as $key => $val)
+            {
+                if ($key!='_method' && $key!='csrf')
+                    $this->get[$key] = $val;
+            }
+        }
+
+        # Adding POST values into Request
+        if (isset($_POST))
+        {
+            foreach ($_POST as $key => $val)
+            {
+                if ($key!='_method' && $key!='csrf')
+                    $this->post[$key] = $val;
+            }
+        }
+
+        # Adding PUT values into Request
+        if ($_SERVER['REQUEST_METHOD']=='PUT')
+        {
+            parse_str(file_get_contents("php://input"), $data);
+            foreach ($data as $key => $val)
+            {
+                if ($key!='_method' && $key!='csrf')
+                    $this->post[$key] = $val;
+            }
+        }
+
+        # Adding files into Request
+        if (isset($_FILES))
+        {
+            foreach ($_FILES as $key => $val)
+            {
+                $this->files[$key] = new StorageFile($val);
+            }
+        }
+
+    }
+
+    public function setUri($val)
+    {
+        $this->uri = $$val;
+    }
+
+    public function setMethod($val)
+    {
+        $this->method = $$val;
+    }
+
+    public function setRoute($val)
+    {
+        $this->route = $$val;
+    }
+
+    public function clear()
+    {
+        $this->route = null;
+        $this->uri = null;
+        $this->get = array();
+        $this->post = array();
+        $this->files = array();
+        $this->validated = array();
+    }
 
     public function validated()
     {
-        return $this->_validated;
+        return $this->validated;
     }
 
     public function validate($arguments)
@@ -37,7 +114,7 @@ Class Request
 
                 else if ($arg=='required') 
                 {
-                    if ( !isset($this->_post[$key]) || strlen($this->_post[$key])==0 )
+                    if ( !isset($this->post[$key]) || strlen($this->post[$key])==0 )
                     {
                         $pass = false;
                         $errors[$key] = __("validation.required", array('attribute' => $key));
@@ -46,8 +123,8 @@ Class Request
 
                 else if ($arg=='max') 
                 {
-                    if ( isset($this->_post[$key]) && is_string($this->_post[$key]) && strlen($this->_post[$key])<=$values) continue;
-                    elseif ( isset($this->_post[$key]) && $this->_post[$key]<=$values) continue;
+                    if ( isset($this->post[$key]) && is_string($this->post[$key]) && strlen($this->post[$key])<=$values) continue;
+                    elseif ( isset($this->post[$key]) && $this->post[$key]<=$values) continue;
                     else
                     {
                         $pass = false;
@@ -60,7 +137,7 @@ Class Request
                     list($table, $column, $ignore) = explode(',', $values);
                     if (!$column) $column = $key;
 
-                    $value = $this->_post[$key];
+                    $value = $this->post[$key];
 
                     $val = DB::table($table)->where($column, $value)->first();
                     
@@ -77,7 +154,7 @@ Class Request
 
             if ($stopOnFirstFail && !$pass) break;
 
-            $this->_validated[$key] = $this->_post[$key];
+            $this->validated[$key] = $this->post[$key];
 
         }
 
@@ -92,52 +169,61 @@ Class Request
 
     public function path()
     {
-        return $this->_route->url;
+        return $this->route->url;
     }
 
     public function url()
     {
-        return rtrim(preg_replace('/\?.*/', '', $this->_uri), '/');
+        return rtrim(preg_replace('/\?.*/', '', $this->uri), '/');
     }
 
     public function fullUrl()
     {
-        return $this->_uri;
+        return $this->uri;
     }
 
 
     public function routeIs($name)
     {
-        return $this->_route->name == $name;
+        return $this->route->name == $name;
     }
 
     public function all()
     {
         $array = array();
-        foreach ($this->_post as $key => $val)
-            $array[$key] = $val;
 
-        foreach ($this->_files as $key => $val)
-            $array[$key] = $val;
+        //dd($this->method);
 
-            
+        if($this->method=='GET')
+        {
+            foreach ($this->get as $key => $val)
+                $array[$key] = $val;
+        }
+
+        elseif($this->method=='POST' || $this->method=='PUT')
+        {
+            foreach ($this->post as $key => $val)
+                $array[$key] = $val;
+
+            foreach ($this->files as $key => $val)
+                $array[$key] = $val;
+        }
+
         return $array;
     }
 
     public function only()
     {
-        $only = func_get_args();
-
         $array = array();
-        foreach ($this->_post as $key => $val)
+        foreach ($this->post as $key => $val)
         {
-            if (in_array($key, $only))
+            if (in_array($key, func_get_args()))
                 $array[$key] = $val;
         }
 
-        foreach ($this->_files as $key => $val)
+        foreach ($this->files as $key => $val)
         {
-            if (in_array($key, $only))
+            if (in_array($key, func_get_args()))
                 $array[$key] = $val;
         }
             
@@ -146,22 +232,22 @@ Class Request
     
     public function query()
     {
-        return $this->_get;
+        return $this->get;
     }
 
     public function file($name)
     {
-        return $this->_files[$name];
+        return $this->files[$name];
     }
 
     public function input($key)
     {
-        return isset($this->_post[$key]) ? $this->_post[$key] : null;
+        return isset($this->post[$key]) ? $this->post[$key] : null;
     }
 
     public function get($key)
     {
-        return isset($this->_get[$key]) ? $this->_get[$key] : null;
+        return isset($this->get[$key]) ? $this->get[$key] : null;
     }
 
     public function serialize()
@@ -171,26 +257,21 @@ Class Request
 
     public function __get($key)
     {
-        $res = isset($this->_post[$key]) ? $this->_post[$key] : null;
+        if (isset($this->post[$key]))
+            return $this->post[$key];
 
-        if (!isset($res))
-            $res = isset($this->_get[$key]) ? $this->_get[$key] : null;
+        if (isset($this->get[$key]))
+            return $this->get[$key];
 
-        if (!isset($res))
-            $res = isset($this->_files[$key]) ? $this->_files[$key] : null;
+        if (isset($this->files[$key]))
+            return $this->files[$key];
 
-        return $res;
-    }
-
-    public function addFile($name, $data)
-    {
-        $newfile = new StorageFile($data);
-        $this->_files[$name] = $newfile;
+        return null;
     }
 
     public function hasFile($name)
     {
-        return isset($this->_files[$name]);
+        return isset($this->files[$name]);
     }
 
 

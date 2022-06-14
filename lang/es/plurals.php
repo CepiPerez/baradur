@@ -1,6 +1,6 @@
 <?php
 
-return array(
+return [
 
     'a' => 'as',
     'e' => 'es',
@@ -10,4 +10,4 @@ return array(
     'z' => 'ces',
     '*' => 'es'
 
-);
+];

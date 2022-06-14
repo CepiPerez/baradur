@@ -9,6 +9,7 @@ Class Connector
     {
         $this->connection = new mysqli($host, $user, $password, $database, $port);
         $this->connection->set_charset("utf8");
+        mysqli_query($this->connection, "SET NAMES 'utf8'");
         mysqli_report(MYSQLI_REPORT_OFF);
         if (!$this->connection) {
             throw new Exception("Error trying to connect to database");
@@ -41,15 +42,23 @@ Class Connector
         //$sql = str_replace("'NOW()'", "NOW()", $sql);
         
         $query = $this->connection->query($sql);
+
+        //dd($this->connection->insert_id); 
+
         if (!$query) {
             throw new Exception($this->connection->error);
         }
         return $query;
     }
 
+    public function getLastId()
+    {
+        return $this->connection->insert_id;
+    }
+
     public function execSQL($sql, $wherevals=array(), $collection=null)
     {
-
+        //var_dump($wherevals);
         if ($collection==null)
             $collection = new Collection('stdClass');
         
@@ -68,15 +77,20 @@ Class Connector
     public function _execSQL($sql, $wherevals=array(), $collection=null)
     {
         //global $version;
+        //var_dump($wherevals);
         
-        foreach ($wherevals as $val)
+        /* foreach ($wherevals as $val)
         {
             foreach ($val as $k => $v)
+            {
+                //var_dump($v);
                 $sql = preg_replace('/\?/', "'".$v."'", $sql, 1);
+            }
         }
-        $res = array();
+        $res = array(); */
 
         //$sql = str_replace("'NOW()'", "NOW()", $sql);
+        
         
         //echo "SQL:".$sql."<br>";
         $query = $this->connection->query($sql);

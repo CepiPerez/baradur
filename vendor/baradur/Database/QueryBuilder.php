@@ -8,6 +8,7 @@ Class QueryBuilder
     public $_foreign;
     public $_fillable;
     public $_guarded;
+    public $_hidden;
     public $_routeKey;
     
     public $_fillableOff = false;
@@ -38,7 +39,7 @@ Class QueryBuilder
 
     public $_relationVars = null;
 
-    public function __construct($connector, $table, $primary, $parent, $fillable, $guarded, $routeKey='id')
+    public function __construct($connector, $table, $primary, $parent, $fillable, $guarded, $hidden, $routeKey='id')
     {        
         $this->_connector = $connector;
         $this->_table = $table;
@@ -46,8 +47,9 @@ Class QueryBuilder
         $this->_parent = $parent;
         $this->_fillable = $fillable;
         $this->_guarded = $guarded;
+        $this->_hidden = $hidden;
         $this->_routeKey = $routeKey;
-        $this->_collection = new Collection($parent);
+        $this->_collection = new Collection($parent, $hidden);
 
     }
 
@@ -178,6 +180,8 @@ Class QueryBuilder
     {
         if (!is_array($val)) $val = func_get_args();
 
+        //dd($val); exit();
+
         $columns = array();
         foreach($val as $column)
         {
@@ -265,18 +269,20 @@ Class QueryBuilder
             $column = '`'.$table.'`.`'.$col.'`';
         }
 
-        $vtype = 'i';
+        /* $vtype = 'i';
         if (is_string($val))
         {
             $vtype = 's';   
         }
 
-        $this->_wherevals[] = array($vtype => $val);
+        $this->_wherevals[] = array($vtype => $val); */
+
+        if (is_string($val)) $val = "'$val'";
 
         if ($this->_where == '')
-            $this->_where = 'WHERE ' . $column . ' ' . $cond . ' ?';
+            $this->_where = 'WHERE ' . $column . ' ' . $cond . ' ' . $val; // ' ?';
         else
-            $this->_where .= ' AND ' . $column . ' ' .$cond . ' ?';
+            $this->_where .= ' AND ' . $column . ' ' .$cond . ' ' . $val; // ' ?';
 
         if ($ret) return $this;
     }
@@ -313,18 +319,19 @@ Class QueryBuilder
         if ($col) $column = '`'.$table.'`.`'.$col.'`';
         else $column = '`'.$table.'`';
 
-        $vtype = 'i';
+        /* $vtype = 'i';
         if (is_string($val))
         {
             $vtype = 's';   
         }
 
-        $this->_wherevals[] = array($vtype => $val);
+        $this->_wherevals[] = array($vtype => $val); */
+        if (is_string($val)) $val = "'$val'";
 
         if ($this->_where == '')
-            $this->_where = 'WHERE ' . $column . ' ' . $cond . ' ?';
+            $this->_where = 'WHERE ' . $column . ' ' . $cond . ' ' . $val; // ' ?';
         else
-            $this->_where .= ' OR ' . $column . ' ' .$cond . ' ?';
+            $this->_where .= ' OR ' . $column . ' ' .$cond . ' ' . $val; // ' ?';
 
         if ($ret) return $this;
     }
@@ -451,18 +458,19 @@ Class QueryBuilder
         if ($col) $reference = '`'.$table.'`.`'.$col.'`';
         else $reference = '`'.$table.'`';
 
-        $vtype = 'i';
+        /* $vtype = 'i';
         if (is_string($value))
         {
             $vtype = 's';   
         }
 
-        $this->_wherevals[] = array($vtype => $value);
+        $this->_wherevals[] = array($vtype => $value); */
+        if (is_string($value)) $value = "'$value'";
 
         if ($this->_having == '')
-            $this->_having = 'HAVING ' . $reference . ' ' . $operator . ' ?';
+            $this->_having = 'HAVING ' . $reference . ' ' . $operator . ' ' . $value; // ' ?';
         else
-            $this->_having .= ' AND ' . $reference . ' ' .$operator . ' ?';
+            $this->_having .= ' AND ' . $reference . ' ' .$operator . ' ' . $value; // ' ?';
 
         return $this;
     }
@@ -578,15 +586,15 @@ Class QueryBuilder
 
     private function _joinSubResult($side, $query, $alias, $filter)
     {
-        var_dump($filter);
+        //var_dump($filter);
         $side = trim($side);
         $filter = $filter->_join;
         $alias = '`' . trim($alias) . '`';
 
         if ($this->_join == '')
-            $this->_join = $side.'JOIN (' . $query->toSql() . ') as ' . $alias . ' ' . $filter;
+            $this->_join = $side.' JOIN (' . $query . ') as ' . $alias . ' ' . $filter;
         else
-            $this->_join .= ' '.$side.' JOIN (' . $query->toSql() . ') as ' . $alias . ' ' . $filter;
+            $this->_join .= ' '.$side.' JOIN (' . $query . ') as ' . $alias . ' ' . $filter;
   
         return $this;
     }
@@ -601,9 +609,34 @@ Class QueryBuilder
      * @param Query $filter
      * @return QueryBuilder
      */
-    public function joinSub($query, $alias, $filter)
+    /* public function joinSub($query, $alias, $filter)
     {
         return $this->_joinSubResult('INNER', $query, $alias, $filter);
+    } */
+    public function joinSub($query, $as, $first, $operator = null, $second = null, $type = 'inner', $where = false)
+    {
+        $side = trim($type);
+
+        $filter = '';
+
+        if (!isset($second) && isset($operator))
+        {
+            $operator = '=';
+            $second = $operator;
+        }
+        if (isset($second) && isset($operator))
+        {
+            $filter = ' ON ' . $first . $operator . $second;  
+        }
+
+        $alias = '`' . trim($as) . '`';
+
+        if ($this->_join == '')
+            $this->_join .= ' ' . $side.' JOIN (' . $query . ') as ' . $alias . $filter;
+        else
+            $this->_join .= ' ' . $side.' JOIN (' . $query . ') as ' . $alias . $filter;
+  
+        return $this;
     }
 
     /**
@@ -615,10 +648,10 @@ Class QueryBuilder
      * @param Query $filter
      * @return QueryBuilder
      */
-    public function leftJoinSub($query, $alias, $filter)
+    /* public function leftJoinSub($query, $alias, $filter)
     {
         return $this->_joinSubResult('LEFT', $query, $alias, $filter);
-    }
+    } */
 
     /**
      * RIGHT Joins as subquery\
@@ -629,10 +662,10 @@ Class QueryBuilder
      * @param Query $filter
      * @return QueryBuilder
      */
-    public function rightJoinSub($query, $alias, $filter)
+    /* public function rightJoinSub($query, $alias, $filter)
     {
         return $this->_joinSubResult('RIGHT', $query, $alias, $filter);
-    }
+    } */
 
 
     /**
@@ -754,40 +787,62 @@ Class QueryBuilder
             foreach ($key as $k => $v)
             {
                 array_push($this->_keys, $k);
-                if (is_string($v))
-                {
+
+                $camel = Helpers::snakeCaseToCamelCase($key);
                     
-                    if (method_exists($this->_parent, 'set'.ucfirst($k).'Attribute'))
-                    {
-                        //$cl = $this->_parent;
-                        $fn = 'get'.ucfirst($k).'Attribute';
-                        //$v = call_user_func_array(array($cl, $fn), array($v));
-                        $newmodel = new $this->_parent;
-                        $v = $newmodel->$fn($v);
-                    }
-                    $v = "'".$v."'";
+                if (method_exists($this->_parent, 'set'.ucfirst($camel).'Attribute'))
+                {
+                    //$cl = $this->_parent;
+                    $fn = 'get'.ucfirst($camel).'Attribute';
+                    //$v = call_user_func_array(array($cl, $fn), array($v));
+                    $newmodel = new $this->_parent;
+                    $v = $newmodel->$fn($v);
                 }
+
+                if (method_exists($this->_parent, $camel.'Attribute'))
+                {
+                    #echo "Value:$v<br>";
+                    $fn = $camel.'Attribute';
+                    $newmodel = new $this->_parent;
+                    $nval = $newmodel->$fn($v, (array)$newmodel);
+                    if (isset($nval['set'])) $v = $nval['set'];
+                    #echo "NEW value:$v<br>";
+                }
+
+                if (is_string($v))
+                    $v = "'".$v."'";
+
                 array_push($this->_values, $v? $v : "NULL");
             }
         }
         else
         {
             array_push($this->_keys, $key);
-            if (is_string($val)) 
-            {
-                if (method_exists($this->_parent, 'set'.ucfirst($key).'Attribute'))
-                {
-                    //$cl = $this->_parent;
-                    $fn = 'set'.ucfirst($key).'Attribute';
-                    //$val = call_user_func_array(array($cl, $fn), array($v));
-                    //$val = $cl::$fn($val);
-                    $newmodel = new $this->_parent;
-                    $val = $newmodel->$fn($val);
-                }
 
-                $val = "'".$val."'";
+            $camel = Helpers::snakeCaseToCamelCase($key);
+            #echo "KEY: $camel"."Attribute<br>";
+
+            if (method_exists($this->_parent, 'set'.ucfirst($camel).'Attribute'))
+            {
+                $fn = 'set'.ucfirst($camel).'Attribute';
+                $newmodel = new $this->_parent;
+                $val = $newmodel->$fn($val);
             }
-            array_push($this->_values, $val? $val : "NULL");
+
+            if (method_exists($this->_parent, $camel.'Attribute'))
+            {
+                #echo "Value:$val<br>";
+                $fn = $camel.'Attribute';
+                $newmodel = new $this->_parent;
+                $nval = $newmodel->$fn($val, (array)$newmodel);
+                if (isset($nval['set'])) $val = $nval['set'];
+                #echo "NEW value:$val<br>";
+            }
+
+            if (is_string($val)) 
+                $val = "'".$val."'";
+
+            array_push($this->_values, isset($val)? $val : "NULL");
         }
 
         if ($ret) return $this;
@@ -1068,77 +1123,20 @@ Class QueryBuilder
                 unset($record[$key]);
         }
 
-        $this->checkObserver('creating', $record);
-
         if(count($this->_values) == 0)
             return null;
+        
+        $this->checkObserver('creating', $record);
 
         if ($this->_insert(array()))
         {
             $this->checkObserver('created', $record);
-            return $this->insertUnique($record);
+            return $this->insertNewItem();
         }
         else
             return null;
 
     }
-
-    /**
-     * Creates a new record in database\
-     * ignoring fillable
-     * Returns new record
-     * 
-     * @param array $record
-     * @return Model
-     */
-    /* public function __create($record = null)
-    {
-
-        foreach ($record as $key => $val)
-            $this->set($key, $val, false);
-
-        if(count($this->_values) == 0)
-            return null;
-
-        if ($this->_insert(array()))
-            return $this->insertUnique($record);
-        else
-            return null;
-
-    } */
-
-    /**
-     * Updates a record in database\
-     * Returns error or empty string if ok
-     * 
-     * @param array $record
-     * @return string
-     */
-    /* public function update($record)
-    {
-        $isarray = false;
-        $where = $this->_where;
-        $wherevals = $this->_wherevals;
-
-        foreach ($record as $key => $val)
-        {
-            if (!is_array($val))
-            {
-                $this->set($key, $val, false);
-            }
-            else
-            {
-                $this->_where = $where;
-                $this->_wherevals = $wherevals;
-
-                $isarray = true;
-                $this->_update($val);
-            }
-        }
-        if (!$isarray)
-            $this->_update(array());
-
-    } */
 
     /**
      * Updates a record in database
@@ -1185,9 +1183,10 @@ Class QueryBuilder
 
         $sql = 'UPDATE `' . $this->_table . '` SET ' . implode(', ', $valores) . ' ' . $this->_where;
 
-        //echo $sql."::";var_dump($this->_wherevals);echo "<br>";
-        //exit();
-        $query = $this->_connector->execSQL($sql, $this->_wherevals);
+        #var_dump($this->_wherevals);
+        #echo $sql."::";var_dump($this->_wherevals);echo "<br>";
+        #exit();
+        $query = $this->_connector->execSQL($sql, $this->_where, $this->_wherevals);
 
         $this->clear();
         
@@ -1518,17 +1517,38 @@ Class QueryBuilder
     }
 
 
-    private function insertUnique($data)
+    private function insertNewItem()
+    {
+        $new = $this->find($this->_connector->getLastId());
+        return $this->insertUnique($new);
+
+    }
+
+    private function insertUnique($data, $new=null)
     {
         $item = new $this->_parent;
+
+        /* $itemKey = $item->getRouteKeyName();
+
+        if (!isset($data->$itemKey) && isset($new))
+        {
+            $data = $this->find($this->_connector->getLastId());
+        } */
+
         foreach ($data as $key => $val)
         {
-            if (method_exists($this->_parent, 'get'.ucfirst($key).'Attribute'))
+            $camel = Helpers::snakeCaseToCamelCase($key);
+
+            if (method_exists($this->_parent, 'get'.ucfirst($camel).'Attribute'))
             {
-                $fn = 'get'.ucfirst($key).'Attribute';
-                /* $newmodel = new $this->_parent;
-                $val = $newmodel->$fn($val); */
+                $fn = 'get'.ucfirst($camel).'Attribute';
                 $val = $item->$fn($val);
+            }
+            if (method_exists($this->_parent, $camel.'Attribute'))
+            {
+                $fn = $camel.'Attribute';
+                $nval = $item->$fn($val, (array)$item);
+                if (isset($nval['get'])) $val = $nval['get'];
             }
 
             $item->$key = $val;
@@ -1536,12 +1556,14 @@ Class QueryBuilder
         $this->__new = false;
         $item->setQuery($this);
 
+        //dd($item->getQuery());
+
         return $item;
     }
 
     private function insertData($data)
     {
-        $col = new Collection($this->_parent); //get_class($this->_parent));
+        $col = new Collection($this->_parent, $this->_hidden); //get_class($this->_parent));
         $class = $this->_parent; //get_class($this->_parent);
 
         foreach ($data as $arr)
@@ -1549,12 +1571,21 @@ Class QueryBuilder
             $item = new $class(true);
             foreach ($arr as $key => $val)
             {
-                if (method_exists($this->_parent, 'get'.ucfirst($key).'Attribute'))
+                $camel = Helpers::snakeCaseToCamelCase($key);
+
+                if (method_exists($this->_parent, 'get'.ucfirst($camel).'Attribute'))
                 {
-                    $fn = 'get'.ucfirst($key).'Attribute';
+                    $fn = 'get'.ucfirst($camel).'Attribute';
                     /* $newmodel = new $this->_parent;
                     $val = $newmodel->$fn($val); */
                     $val = $item->$fn($val);
+                }
+
+                if (method_exists($this->_parent, $camel.'Attribute'))
+                {
+                    $fn = $camel.'Attribute';
+                    $nval = $item->$fn($val, (array)$arr);
+                    if (isset($nval['get'])) $val = $nval['get'];
                 }
 
                 $item->$key = $val;
@@ -1608,7 +1639,7 @@ Class QueryBuilder
      * Send Pagination values to View class 
      * 
      * @param int $records
-     * @return array
+     * @return Collection
      */
     public function paginate($cant = 10)
     {
@@ -1806,8 +1837,10 @@ Class QueryBuilder
         $array = array($this->_parent, $class);
         sort($array);                 
         $classthrough = Helpers::camelCaseToSnakeCase(implode('', $array), false);
-        $foreignthrough = Helpers::camelCaseToSnakeCase($this->_parent, false).'_id';
-        $primarythrough = Helpers::camelCaseToSnakeCase($class, false).'_id';
+        //$foreignthrough = Helpers::camelCaseToSnakeCase($this->_parent, false).'_id';
+        //$primarythrough = Helpers::camelCaseToSnakeCase($class, false).'_id';
+        $foreignthrough = Helpers::camelCaseToSnakeCase($this->_parent, false).'_'.$this->_routeKey;
+        $primarythrough = Helpers::camelCaseToSnakeCase($class, false).'_'.$this->_routeKey;
 
         if (!$foreign) $foreign = 'id';
         if (!$primary) $primary = $this->_primary;
@@ -1881,6 +1914,7 @@ Class QueryBuilder
     {
         //echo "RELATIONSHIP THROUGH : ".$this->_rparent.":".$this->_parent."<br>";
         //var_dump(func_get_args());
+        //var_dump($this);
 
         $columns = '*';
         if (strpos($class, ':')>0) {
@@ -1920,8 +1954,12 @@ Class QueryBuilder
         $wherein = array();
         $wherein = $this->recusiveSearch($this->_collection, $primary, null, $wherein);
 
-        if ($relationship=='belongsToMany' && count($wherein)==1)
-            $res->_relationVars['current'] = $wherein[0];
+        if ($relationship=='belongsToMany')
+        {
+            if (count($wherein)==1)
+                $res->_relationVars['current'] = $wherein[0];
+
+        }
 
         //echo "WHEREIN: ".implode(',',$wherein)." :: ".$this->_parent."<br><br>";
         return $res->whereIn($foreignthrough, implode(',',$wherein));
@@ -2383,6 +2421,8 @@ Class QueryBuilder
 
     public function sync($roles, $remove = true)
     {
+        //dd($this->_relationVars);
+
         if ($remove)
             DB::table($this->_relationVars['classthrough'])
                 ->where($this->_relationVars['foreignthrough'], $this->_relationVars['current'])

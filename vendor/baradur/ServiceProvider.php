@@ -90,7 +90,7 @@ abstract Class ServiceProvider
                 }
                 Route::setRouteList(array());
 
-                $final_routes = array_merge($final_routes, $routes->toArray());
+                $final_routes = array_merge($final_routes, (array)$routes);
 
 
                 //printf(dirname(__FILE__).'/../../storage/framework/routes'.$file);exit();

@@ -25,6 +25,13 @@ Class RouteItem
         $this->middleware = $middleware;
         return $this;
     }
+
+    public function scopeBindings()
+    {
+        $this->scope_binding = true;
+        return $this;
+    }
+
 }
 
 Class RouteGroup 
@@ -278,6 +285,19 @@ class Route
 
         $routes = func_get_args();
 
+        if (is_string($routes[0]) && is_file($routes[0]))
+        {
+            if (file_exists($routes[0]))
+            {
+                return array(
+                    'middleware' => null,
+                    'prefix' => null,
+                    'controller' => null,
+                    'file' => $routes[0]
+                );
+            }
+        }
+
         if (is_array($routes[0])) // && !is_object($routes[0][0]))
         {
             $attributes = array_shift($routes);
@@ -427,15 +447,16 @@ class Route
     public static function resource($url, $controller)
     {
         $arr = new RouteGroup;
+        $item = Helpers::getSingular($url);
 
         $arr->group(
-            self::addRoute('GET', $url, $controller, Route::getVerbName('index'))->name($url.'.'.Route::getVerbName('index')),
-            self::addRoute('GET', $url.'/'.Route::getVerbName('create'), $controller, Route::getVerbName('create'))->name($url.'.'.Route::getVerbName('create')),
-            self::addRoute('POST', $url, $controller, Route::getVerbName('store'))->name($url.'.'.Route::getVerbName('store')),
-            self::addRoute('GET', $url.'/{item}', $controller, Route::getVerbName('show'))->name($url.'.'.Route::getVerbName('show')),
-            self::addRoute('GET', $url.'/{item}/'.Route::getVerbName('edit'), $controller, Route::getVerbName('edit'))->name($url.'.'.Route::getVerbName('edit')),
-            self::addRoute('PUT', $url.'/{item}', $controller, Route::getVerbName('update'))->name($url.'.'.Route::getVerbName('update')),
-            self::addRoute('DELETE', $url.'/{item}', $controller, Route::getVerbName('destroy'))->name($url.'.'.Route::getVerbName('destroy'))
+            self::addRoute('GET', $url, $controller, 'index')->name($url.'.index'),
+            self::addRoute('GET', $url.'/'.Route::getVerbName('create'), $controller, 'create')->name($url.'.create'),
+            self::addRoute('POST', $url, $controller, 'store')->name($url.'.store'),
+            self::addRoute('GET', $url.'/{'.$item.'}', $controller, 'show')->name($url.'.show'),
+            self::addRoute('GET', $url.'/{'.$item.'}/'.Route::getVerbName('edit'), $controller, 'edit')->name($url.'.edit'),
+            self::addRoute('PUT', $url.'/{'.$item.'}', $controller, 'update')->name($url.'.update'),
+            self::addRoute('DELETE', $url.'/{'.$item.'}', $controller, 'destroy')->name($url.'.destroy')
         );
         return $arr;
     }
@@ -451,12 +472,13 @@ class Route
     public static function apiResource($url, $controller)
     {
         $arr = array();
+        $item = Helpers::getSingular($url);
 
-        $arr[] = self::addRoute('GET', $url, $controller, Route::getVerbName('index'))->name($url.'.'.Route::getVerbName('index'));
-        $arr[] = self::addRoute('GET', $url.'/{item}', $controller, Route::getVerbName('show'))->name($url.'.'.Route::getVerbName('show'));
-        $arr[] = self::addRoute('POST', $url, $controller, Route::getVerbName('store'))->name($url.'.'.Route::getVerbName('store'));
-        $arr[] = self::addRoute('PUT', $url.'/{item}', $controller, Route::getVerbName('update'))->name($url.'.'.Route::getVerbName('update'));
-        $arr[] = self::addRoute('DELETE', $url.'/{item}', $controller, Route::getVerbName('destroy'))->name($url.'.'.Route::getVerbName('destroy'));
+        $arr[] = self::addRoute('GET', $url, $controller, 'index')->name($url.'.index');
+        $arr[] = self::addRoute('GET', $url.'/{'.$item.'}', $controller, 'show')->name($url.'.show');
+        $arr[] = self::addRoute('POST', $url, $controller, 'store')->name($url.'.store');
+        $arr[] = self::addRoute('PUT', $url.'/{'.$item.'}', $controller, 'update')->name($url.'.update');
+        $arr[] = self::addRoute('DELETE', $url.'/{'.$item.'}', $controller, 'destroy')->name($url.'.destroy');
 
         return $arr;
     }
@@ -528,8 +550,9 @@ class Route
     # 5- middleware (optional) >> REMOVED (maybe it will be added back)
     private static function addRoute($method, $url, $controller, $func, $view=false, $viewparams=null)
     {
-        #echo "adding:".$url."<br>";
+        #printf("adding:".$url."\n");
         $method = strtoupper($method);
+        $url = ltrim($url, "/");
 
         $arr = new RouteItem;
         $arr->method = $method;
@@ -549,13 +572,12 @@ class Route
     # Route filter
     public static function filter($method, $val)
     {
-        $res = self::getInstance();
-        $result = $res->_collection->where('method', $method);
+        $records = self::getInstance()->_collection->where('method', $method);
 
         if ($val=='*')
-            return $result;
+            return $records;
         else
-            return $result->where('url', $val);
+            return $records->where('url', $val);
     }
 
     # Route finder
@@ -564,58 +586,59 @@ class Route
     private static function findRoute($method, $val = '/')
     {
 
-        $result = self::filter($method, $val);
+        $records = self::filter($method, $val);
 
-        if ($result->count()==1)
-            return $result->first();
+        if ($records->count()==1)
+            return $records->first();
 
         $records = self::getInstance()->_collection->where('method', $method);
 
-        foreach ($records as $res)
+        foreach ($records as $record)
         {
-            $temp =  ltrim(rtrim($res->url, '/'), '/');
             $val = ltrim(rtrim($val, '/'), '/');
             $urls = explode('/', $val);
-            $carpetas = explode('/', $temp);
+            $carpetas = explode('/', ltrim(rtrim($record->url, '/'), '/'));
             $nuevaruta = '';
 
             $parametros = array();
-            $parametros_origen = array();
 
             if (count($urls) == count($carpetas))
             {
                 for ($i=0; $i<count($carpetas); $i++)
                 {
                     if ($carpetas[$i]!=$urls[$i] && strpos($carpetas[$i], '}')==false)
-                    break;
-                    //echo "Revisando ".$carpetas[$i]."<br>";
+                        break;
+
                     if (strpos($carpetas[$i], '}')!=false)
                     {
                         $nuevaruta .= $urls[$i].'/';
-                        //$orig = str_replace('{', '', str_replace('}', '', $carpetas[$i]));
-                        array_push($parametros, $urls[$i]);
-                        array_push($parametros_origen, $carpetas[$i]);
+                        $key = str_replace('{', '', str_replace('}', '', $carpetas[$i]));
+
+                        $index = null;
+                        if (strpos($key, ':')>0)
+                            list($key, $index) = explode(':', $key);
+
+                        $parametros[$key]['value'] = $urls[$i];
+                        if (isset($index)) $parametros[$key]['index'] = $index;
                     }
                     else
                     {
                         $nuevaruta .= $carpetas[$i].'/';
                     }
                 }
-                $temp = rtrim($nuevaruta, '/');
-                if ($temp==$val)
+
+                if (rtrim($nuevaruta, '/')==$val)
                 {
-                    $res->parametros = $parametros;
-                    $res->orig_parametros = $parametros_origen;
-                    $result = $res;
+                    $record->parametros = $parametros;
+                    return $record;
                 }
                 else
                 {
                     $parametros = array();
-                    $parametros_origen = array();
                 }
             }
         }
-        return $result;
+        return null;
 
     }
 
@@ -628,13 +651,12 @@ class Route
         {
             //$referer = $this->request->headers->get('referer');
 
-            $filtros = $_GET;
-            unset($filtros['ruta']);
+            unset($_GET['ruta']);
     
             $current = isset($_GET['ruta']) ? $_GET['ruta'] :  '/';
 
-            if (count($filtros)>0)
-                $ruta = $current.'?'.http_build_query($filtros,'','&');
+            if (count($_GET)>0)
+                $ruta = $current.'?'.http_build_query($_GET,'','&');
             else
                 $ruta = $current;
 
@@ -651,8 +673,7 @@ class Route
                 array_pop($history);
             
             $_SESSION['url_history'] = $history;
-            //unset($_SESSION['url_history']);
-            //var_dump($_SESSION['url_history']);
+
         }
     }
 
@@ -680,7 +701,7 @@ class Route
 
         $res = self::getInstance()->_collection->where('name', $name)->first();
         $route = $res->url;
-        $route = rtrim(HOME, '/') . '/' . $route;
+        $route = rtrim(env('APP_URL'), '/') . '/' . $route;
         
         return self::convertCodesFromParams($route, $params);
         //return self::convertCodesFromApp($route, $app->arguments);;
@@ -705,7 +726,7 @@ class Route
         return $route;
     }
 
-    private static function convertCodesFromApp($route, $args)
+    /* private static function convertCodesFromApp($route, $args)
     {
         foreach ($args as $key => $value)
         {
@@ -724,7 +745,7 @@ class Route
             }
         }
         return $route;
-    }
+    } */
 
     /**
      * Get the current route
@@ -758,12 +779,7 @@ class Route
      * Otherwise it returns error 404
      */
     public static function start()
-    {
-        global $app;
-
-        //dd('starting');
-        //dd($_SESSION['user']);
-        
+    {        
         # Convert GET/POST into PUT/DELETE if necessary
         if (isset($_GET['_method']) || isset($_POST['_method']))
         {
@@ -771,12 +787,11 @@ class Route
             $_SERVER['REQUEST_METHOD'] = strtoupper($method);
         }
 
+
         # Filter requested url
-        $current = isset($_GET['ruta']) ? $_GET['ruta'] :  '/';
+        $current = (env('PUBLIC_FOLDER')?env('PUBLIC_FOLDER').'/':'') . (isset($_GET['ruta']) ? $_GET['ruta'] :  '/');
         $ruta = self::findRoute($_SERVER['REQUEST_METHOD'], rtrim($current,'/'));
-
-        //dd(Route::routeList());
-
+        
 
         # Return 404 if route doesn't exists
         if (!isset($ruta->controller) && !isset($ruta->view))
@@ -784,236 +799,39 @@ class Route
             abort(404);
         }
         
-       
+
         # Constructing Request
-        $request = new Request;
-        $request->method = $_SERVER['REQUEST_METHOD'];
-        $request->_route = $ruta;
-        $request->_uri = env('HOME').$_SERVER['REQUEST_URI'];
-
-        # Adding GET values into Request
-        if (isset($_GET))
-        {
-            foreach ($_GET as $key => $val)
-            {
-                if ($key!='_method' && $key!='csrf')
-                    $request->_get[$key] = $val;
-            }
-        }
-
-        # Adding POST values into Request
-        if (isset($_POST))
-        {
-            foreach ($_POST as $key => $val)
-            {
-                if ($key!='_method' && $key!='csrf')
-                    $request->_post[$key] = $val;
-            }
-        }
-
-        # Adding PUT values into Request
-        if ($_SERVER['REQUEST_METHOD']=='PUT')
-        {
-            parse_str(file_get_contents("php://input"), $data);
-            foreach ($data as $key => $val)
-            {
-                $request->_post[$key] = $val;
-            }
-        }
-
-        # Adding files into Request
-        if (isset($_FILES))
-        {
-            foreach ($_FILES as $key => $val)
-            {
-                $request->addFile($key, $val);
-            }
-        }
-
-
-        Helpers::setRequest($request);
+        $request = app('request');
+        $request->generate($ruta);
         
         self::setCurrentRoute($ruta);
 
 
-        MiddlewareHelper::bootKernel();
-        $middlewares = MiddlewareHelper::getMiddlewaresList();
-        $middleware_groups = MiddlewareHelper::getMiddlewareGroup();
-
         # If route has middleware then call it
-        $continue = true;
+        $continue = false;
         if (isset($ruta->middleware))
         {
-            $res = true;
+            $res = self::checkMiddleware($request);
 
-            # Checking middlewareGroups (from Kernel.php)
-            foreach ($ruta->middleware as $m)
-            {
-                if (isset($middleware_groups[$m]))
-                {
-                    foreach ($middleware_groups[$m] as $mg)
-                    {
-                        $cont = new $mg;
-                        $res = $cont->handle($request, $res);
-                        if (!is_bool($res) || $res==false)
-                        {
-                            $continue = false;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            # Checking middleware assigned in route
-            if ($continue)
-            {
-                if (is_array($ruta->middleware))
-                {
-                    foreach ($ruta->middleware as $midd)
-                    {
-                        $middleware = $middlewares[$midd];
-                        //echo "Using middleware: ".$middleware."<br>";
-                        $cont = new $middleware;
-                        $res = $cont->handle($request, $res);
-                        if (!is_bool($res) || $res==false)
-                            break;
-                    }
-                }
-                else  // This should be obsolete now, will check later :)
-                {
-                    $middleware = $middlewares[$ruta->middleware];
-                    //echo "Using middleware: ".$middleware."<br>";
-                    $cont = new $middleware;
-                    $res = $cont->handle($request, $res);
-                }
-            }
-
-            if (!is_bool($res) || $res==false)
-                $continue = false;
+            if (is_bool($res))
+                $continue = $res;
         }
 
-        
-        
         if ($continue)
         {            
             # Save URL history
             self::saveHistory();
             
             # Callback - Calls the assigned function in assigned controller
-            if (is_string($ruta->controller) && isset($ruta->func))
+            if (is_string($request->route->controller) && isset($request->route->func))
             {
-
-                $funcion = $ruta->func;
-                
-                $reflectionClass = new \ReflectionClass($ruta->controller);
-
-                # Creating Controller
-                # Inject dependencies if needed
-                $constructor = $reflectionClass->getConstructor();
-
-                if ($constructor && $constructor->getParameters())
-                {
-                    $params = $constructor->getParameters();
-                    $paramNames = array_map(array(self::getInstance(), 'getParamArray'), $params);
-
-                    $iargs = array();
-                    foreach ($paramNames as $inject)
-                    {
-
-                        if (isset(app()->binds[$inject['param']]))
-                        {
-                            $iargs[] = app($inject['param']);
-                        }
-                        
-                        elseif (isset(app()->binds[$inject['class']]))
-                        {
-                            $iargs[] = app($inject['class']);
-                        }
-                        
-                        if (class_exists($inject['class']))
-                        {
-                            $iargs[] = new $inject['class'];
-                        }
-                    }
-
-                    $instance = $reflectionClass->newInstanceArgs($iargs);
-                }
-                else
-                {
-                    $instance = new $ruta->controller;
-                }
-                
-
-                //$controller = new $controlador;
-                $parametros = isset($ruta->parametros)? $ruta->parametros : array();
-                $ruta->method = $_SERVER['REQUEST_METHOD'];
-    
-                if ($ruta->method=='POST' || $ruta->method=='PUT')
-                    array_unshift($parametros, $request);
-    
-                
-                # Calls controller verify() // OBSOLETE??
-                # Verifies tokens if controller's $tokenVerification is true
-                /* if (method_exists($ruta->controller, 'verify'))
-                {
-                    //$controller->verify($ruta);
-                    $instance->verify($ruta);
-                } */
-
-
-                $reflectionMethod = new \ReflectionMethod($ruta->controller, $funcion);
-                $paramNames = array_map(array(self::getInstance(), 'getParamArray'), $reflectionMethod->getParameters());
-
-                # Binding parameters
-                $formRequest = null;
-                $record = null;
-                for ($i=0; $i<count($paramNames); $i++)
-                {
-                    if ($paramNames[$i]['class']!=null && is_subclass_of($paramNames[$i]['class'], 'FormRequest'))
-                    {
-                        $formRequest = new $paramNames[$i]['class']($request);
-                        $parametros[$i] = $formRequest;
-                    }
-                    else if ($paramNames[$i]['class']!=null && $paramNames[$i]['class']!='Request')
-                    {
-                        $model = new $paramNames[$i]['class'];
-                        $key = $model->getRouteKeyName();
-                        $val = $parametros[$i];
-                        $record = $model->where($key, $val)->first();
-                        $parametros[$i] = $record;
-                    }
-                }
-
-                # If there's a FormRequest, check authorization and validate
-                if (isset($formRequest) && isset($record))
-                {
-                    $formRequest->authorize($record);
-                    $request->validate($formRequest->roles());
-
-                }
-
-
-                # Final callback
-                //$res = call_user_func_array(array($instance, $funcion), $parametros);
-                $res = $reflectionMethod->invokeArgs($instance, $parametros);
-
+                $res = CoreLoader::invokeClass($request->route);
             }
             
             # Route returns a view directly
-            elseif (isset($ruta->view))
+            elseif (isset($request->route->view))
             {
-                $controller = $ruta->view;
-                $count = 0;
-                if ($ruta->parametros)
-                {
-                    foreach ($ruta->parametros as $param)
-                    {
-                        $controller = str_replace($ruta->orig_parametros[$count], $param, $controller);
-                        //$controller = str_replace('$'.$ruta->orig_parametros[$count], $param, $controller);
-                        ++$count;
-                    }
-                }
-                $res = view($controller);
+                $res = CoreLoader::invokeView($request->route);
             }
             
         }
@@ -1023,9 +841,70 @@ class Route
             response($res)->showFinalResult();
         elseif (is_string($res))
             echo $res;
-        else
+        elseif (isset($res))
             $res->showFinalResult();
 
+    }
+
+    private static function checkMiddleware($request)
+    {
+        //dd(Route::routeList());exit();
+
+        MiddlewareHelper::bootKernel();
+        $middlewares = MiddlewareHelper::getMiddlewaresList();
+        $middleware_groups = MiddlewareHelper::getMiddlewareGroup();
+
+        $result = true;
+
+        foreach ($request->route->middleware as $midd)
+        {
+            if (isset($middlewares[$midd]))
+            {
+                if (!class_exists($midd))
+                {
+                    list($midd, $params) = explode(':', $midd);
+                    $midd = $middlewares[$midd];
+                }
+
+                $result = self::invokeMiddleware($middlewares[$midd], $request);
+
+                if (!is_bool($result) || $result==false)
+                    return $result;
+            }
+            elseif (isset($middleware_groups[$midd]))
+            {
+                foreach ($middleware_groups[$midd] as $midd)
+                {
+                    if (!class_exists($midd))
+                    {
+                        list($midd, $params) = explode(':', $midd);
+                        $midd = $middlewares[$midd];
+                    }
+
+                    $result = self::invokeMiddleware($midd, $request);
+
+                    if (!is_bool($result) || $result==false)
+                        return $result;
+                }
+            }
+
+            /* $controller = new $middleware;
+            $result = $controller->handle($request, $result);
+
+            if (!is_bool($result) || $result==false);
+                return $result; */
+        }
+
+
+        return $result;
+
+    }
+
+    private static function invokeMiddleware($middleware, $request)
+    {
+        #echo "Calling middleware: $middleware<br>";
+        $controller = new $middleware;
+        return $controller->handle($request, true);
     }
 
 }

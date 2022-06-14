@@ -1,6 +1,6 @@
 <?php
 
-return array(
+return [
 
     'o' => 'oes',
     'sh' => 'shes',
@@ -12,4 +12,4 @@ return array(
     'photo' => 'photos',
     '*' => 's'
 
-);
+];

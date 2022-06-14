@@ -9,6 +9,7 @@ class Model
     protected static $_primaryKey = 'id';
     protected static $_fillable = array();
     protected static $_guarded = null;
+    protected static $_hidden = array();
     protected static $_factory;
     protected static $_connector;
     protected static $_query;
@@ -37,6 +38,11 @@ class Model
      * Default is null
      */
     protected $guarded = null;
+
+    /**
+     * Sets hidden attributes\relationships
+     */
+    protected $hidden = array();
 
     /**
      * Sets the Model's factory
@@ -121,6 +127,11 @@ class Model
         {
             self::$_guarded = $this->guarded; 
         }
+
+        if ($this->hidden)
+        {
+            self::$_hidden = $this->hidden; 
+        }
   
         unset($this->connector);
         unset($this->table);
@@ -128,6 +139,7 @@ class Model
         unset($this->fillable);
         unset($this->guarded);
         unset($this->factory);
+        unset($this->hidden);
 
         $routeKey = $this->getRouteKeyName();
 
@@ -139,7 +151,7 @@ class Model
             self::$_query = null;
         else
             self::$_query = new QueryBuilder(self::$_connector, self::$_table, self::$_primaryKey, 
-                        self::$_parent, self::$_fillable, self::$_guarded, $routeKey);
+                        self::$_parent, self::$_fillable, self::$_guarded, self::$_hidden, $routeKey);
 
         
     }
@@ -155,9 +167,9 @@ class Model
         global $version;
 
         # Only for PHP => 5.3 
-        if ($version=='NEW') {
+        /* if ($version=='NEW') {
             self::$_parent = get_called_class();
-        }
+        } */
 
         
         if (isset($table))
@@ -234,6 +246,13 @@ class Model
         {
             $fn = 'get'.ucfirst($name).'Attribute';
             return $this->$fn();
+        }
+        elseif (method_exists($this, $name.'Attribute'))
+        {
+            $fn = $name.'Attribute';
+            $nval = $this->$fn($name, (array)$this);
+            //dd($fn);
+            return $nval['get'];
         }
 
         elseif (method_exists($this, $name))
@@ -322,12 +341,12 @@ class Model
      * Specifies the SELECT clause\
      * Returns the Query builder
      * 
-     * @param string $columns String containing colums divided by comma
+     * @param string|array $columns
      * @return QueryBuilder
      */
     public static function select($columns = '*')
     {
-        return self::getInstance()->getQuery()->select(func_get_args());
+        return self::getInstance()->getQuery()->select($columns);
     }
 
 
@@ -335,7 +354,7 @@ class Model
      * Specifies the SELECT clause\
      * Returns the Query builder
      * 
-     * @param string $columns String containing colums divided by comma
+     * @param string $columns
      * @return QueryBuilder
      */
     public static function selectRaw($columns = '*')
@@ -614,6 +633,7 @@ class Model
      */
     public function save()
     {
+        //dd($this->getQuery());
         return $this->getQuery()->save($this);
     }
 

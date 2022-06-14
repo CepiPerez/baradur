@@ -1,6 +1,6 @@
 <?php
 
-return array(
+return [
 
     'home' => 'Home',
     'login' => 'Login',
@@ -31,6 +31,8 @@ return array(
     'content_reset' => 'This message was sent automatically to confirm you password reset',
     'no_user' => 'User not found',
     'register_confirmation' => 'Register confirmation',
-    'reset_confirmation' => 'Password reset confirmation'
+    'reset_confirmation' => 'Password reset confirmation',
+    'profile' => 'Profile',
+    'settings' => 'Settings'
 
-);
+];

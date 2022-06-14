@@ -4,13 +4,17 @@ function app($val=null) { global $app; return $app->instance($val); }
 function asset($val) { return View::getAsset($val); }
 function route() { return Route::getRoute(func_get_args()); }
 function session($val) { return App::getSession($val); }
-function request() { return Helpers::getRequest(); }
+function request() { return app('request'); }
 function __($translation, $placeholder=null) { return Helpers::trans($translation, $placeholder); }
 function public_path($path=null) { return env('APP_URL').'/'.env('PUBLIC_FOLDER').'/'.$path; }
 function storage_path($path=null) { return _DIR_.'/storage/'.$path; }
 function base_path($path=null) { return _DIR_.'/../../'.$path; }
 function csrf_token() { return App::generateToken(); }
 function config($val) { return Helpers::config($val); }
+function to_route($route) { return redirect()->route($route); }
+
+/** @return Stringable */
+function str($string=null) { return Str::of($string); }
 
 $errors = new MessageBag();
 
@@ -149,12 +153,44 @@ function response($data=null, $code='200', $type='application/json', $filename=n
 {
 	global $app;
 
+	# Removing hidden attributes from response
+	if (is_array($data))
+	{
+		$final = array();
+		foreach ($data as $key => $val)
+		{
+			if (is_object($val) && method_exists($val, 'getQuery'))
+			{
+				$col = new Collection(get_class($val), $val->getQuery()->_hidden);
+				$val = $col->collect($val, get_class($val))->toArray();
+			}
+
+			$final[$key] = $val;
+		}
+		$data = $final;
+	}
+	elseif (is_object($data) && get_class($data)=='Collection')
+	{
+		$data = $data->toArray();
+	}
+	elseif (is_object($data))
+	{
+		$final = array();
+		if (method_exists($data, 'getQuery'))
+		{
+			$col = new Collection(get_class($data), $data->getQuery()->_hidden);
+			$val = $col->collect($data, get_class($data))->toArray();
+		}
+		$final[] = $val;
+		$data = $final[0];
+	}
+
+	$app->result = $data;
 	$app->action = 'response';
 	$app->type = $type;
 	$app->code = $code;
 	$app->filename = $filename;
 	$app->inline = $inline;
-	$app->result = $data;
 	$app->headers = $headers;
 
 	return $app;

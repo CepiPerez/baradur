@@ -1,6 +1,6 @@
 <?php
 
-return array(
+return [
 
     'home' => 'Inicio',
     'login' => 'Ingresar',
@@ -32,5 +32,8 @@ return array(
     'content_reset' => 'Este es un mensaje enviado automaticamente para confirmar su cambio de clave.',
     'no_user' => 'No se encontró el usuario',
     'register_confirmation' => 'Confirmacion de registro',
-    'reset_confirmation' => 'Confirmacion de cambio de clave'
-);
+    'reset_confirmation' => 'Confirmacion de cambio de clave',
+    'profile' => 'Perfil',
+    'settings' => 'Configuración'
+
+];

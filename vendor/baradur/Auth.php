@@ -62,7 +62,7 @@ class Auth extends Controller
         return view('auth/login', compact('title', 'breadcrumb'));
     }
 
-    public function send_login($request)
+    public function send_login(Request $request)
     {
         $user = User::where('email', $request->username)
                     ->orWhere('username', $request->username)->first();
@@ -83,7 +83,6 @@ class Auth extends Controller
             $user->save();
 
             
-
             $domain = $_SERVER["HTTP_HOST"];
             setcookie(env('APP_NAME').'_token', $token, time()+86400, '/'.env('APP_FOLDER'), $domain, false, true);
             unset($user->password);
@@ -110,8 +109,11 @@ class Auth extends Controller
 
         //dd($_SESSION['user']);
         //dd(self::user());
-        self::user()->token = null;
-        self::user()->save();
+        //self::user()->token = null;
+        //self::user()->save();
+        $user = User::find(self::user()->id);
+        $user->token = null;
+        $user->save();
 
         $domain = $_SERVER["HTTP_HOST"];
         setcookie(env('APP_NAME').'_token', '', time() - 3600, '/'.env('APP_FOLDER'), $domain);
@@ -193,7 +195,7 @@ class Auth extends Controller
         return view('auth/reset', compact('title', 'breadcrumb'));
     }
 
-    public function restore($request)
+    public function restore(Request $request)
     {
         $title = __('login.message_sent');
         

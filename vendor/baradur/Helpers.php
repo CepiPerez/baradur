@@ -2,7 +2,7 @@
 
 Class Helpers
 {
-    private static $_request;
+    //private static $_request;
 
     public static function camelCaseToSnakeCase($name, $plural=true)
     {
@@ -17,7 +17,7 @@ Class Helpers
     public static function snakeCaseToCamelCase($name)
     {
         $converted = str_replace(' ', '', ucwords(str_replace('_', ' ', $name)));
-        return $converted;
+        return strtolower(substr($converted, 0, 1)) . substr($converted, 1, strlen($converted)-1);
     }
 
     public static function camelCaseToKebabCase($name)
@@ -56,6 +56,35 @@ Class Helpers
 
     }
 
+    public static function getSingular($string)
+    {
+        global $locale, $fallback_locale, $artisan;
+
+        $filepath = _DIR_.($artisan? '':'/../..').'/lang/'.$locale.'/plurals.php';
+        
+        if (!file_exists($filepath))
+            $filepath = _DIR_.($artisan? '':'/../..').'/lang/'.$fallback_locale.'/plurals.php';
+
+        
+        $lang = CoreLoader::loadConfigFile($filepath);
+        $result = '';
+        foreach ($lang as $key => $value)
+        {
+            $res = $string;
+            $len = strlen($value);
+            if (substr($res, -$len) == $value)
+            {
+                $result = substr($res, 0, strlen($res)-$len) . $key;
+                break;
+            }
+        }
+        if ($result == '')
+            $result = $string . $lang['*'];
+
+        return $result;
+
+    }
+
     public static function arrayToObject($array)
     {
         $obj = new stdClass;
@@ -77,15 +106,15 @@ Class Helpers
         return $obj;
     }
 
-    public static function setRequest($req)
+    /* public static function setRequest($req)
     {
         self::$_request = $req;
-    }
+    } */
 
-    public static function getRequest()
+    /* public static function getRequest()
     {
         return self::$_request;
-    }
+    } */
 
     public static function trans($string, $placeholder=null)
     {
@@ -207,6 +236,36 @@ Class Helpers
         }
         
         return $result;
+    }
+
+    public static function verifiedArray($array)
+    {
+        $new = array();
+        $current = 'get';
+        if (count(array_keys($array))==0)
+        {
+            foreach ($array as $val)
+            {
+                $new[$current] = $val;
+                $current = 'set';
+            }
+        }
+        else
+        {
+            foreach ($array as $key => $val)
+            {
+                if (!isset($key))
+                {
+                    $new[$current] = $val;
+                    $current = 'set';
+                }
+                else
+                {
+                    $new[$key] = $val;
+                }
+            }
+        }
+        return $new;
     }
 
 

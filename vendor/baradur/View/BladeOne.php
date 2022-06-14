@@ -449,7 +449,6 @@ class BladeOne
     function compileSlots($value)
     {
         //echo "Compiling slots in ";
-        //dd($value);
         $pattern = '/<x-slot (.*?)>([\s\S]*?)<\/x-slot[\ ]*>/';
         return preg_replace_callback($pattern, array($this, 'callbackCompileSlots'), $value);
     }
@@ -457,9 +456,10 @@ class BladeOne
 
     protected function compileComponents($value)
     {
+        $value = preg_replace('/(<x-slot:)(\w*)>/x', '<x-slot name="$2">', $value);
+
         preg_match_all('/<\s*x-[^ |>]*/x', $value, $matches);
 
-        //dd($matches);
         if (count($matches)>0) {
             foreach ($matches[0] as $match) {
                 $match = str_replace('<x-', '', $match);

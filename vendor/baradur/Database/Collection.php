@@ -4,6 +4,7 @@ Class Collection extends arrayObject
 {
 
     protected static $_parent = 'Model';
+    protected static $_hidden = array();
 
     /**
      * Creates a new Collection\
@@ -12,9 +13,10 @@ Class Collection extends arrayObject
      * 
      * @param string $classname
      */
-    public function __construct($classname)
+    public function __construct($classname, $hidden=array())
     {
         self::$_parent = $classname;
+        self::$_hidden = $hidden;
     }
 
     public function getParent()
@@ -52,7 +54,47 @@ Class Collection extends arrayObject
      */
     public function toArray($data=null)
     {
-        return (array)$this;
+        if (!isset($data))
+            $data = $this;
+
+        $res = array();
+        foreach ($data as $key => $val)
+        {
+            if (!in_array($key, self::$_hidden))
+            {
+                if (is_object($val) || is_array($val))
+                    $res[$key] = $data->_toArray($val);
+                else
+                    $res[$key] = $val;
+            }
+        }
+
+        return $res;
+    }
+
+    private function _toArray($object)
+    {
+        $arr = array();
+        foreach ($object as $key => $val)
+        {
+            if (!in_array($key, self::$_hidden))
+            {
+                # Remove hidden attributes from relationships
+                if (is_object($val) && class_exists(get_class($val))) {
+                    $classname = get_class($val);
+                    $c_hidden = self::$_hidden;
+                    //$class = new $classname;
+                    $arr[$key] = $this->_toArray($val);
+                    self::$_hidden = $c_hidden;
+                }
+
+                elseif (is_object($val) || is_array($val))
+                    $arr[$key] = $this->_toArray($val);
+                else
+                    $arr[$key] = $val;
+            }
+        }
+        return $arr;
     }
 
     public function toArrayObject()
@@ -271,7 +313,7 @@ Class Collection extends arrayObject
             elseif ($k!='__name')
             {
                 //$col[] = $item;
-                $this[] = $item;
+                $this[$k] = $item;
             }
         }
         //return $col;

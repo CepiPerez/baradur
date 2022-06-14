@@ -11,11 +11,18 @@ function callbackReplaceClosures($match)
 	$method = 'closure_'.count($_closures);
 	$closure = $match[0];
 
-	$pattern = '/function[\s]*[\S]*.*?\)/x';
+	//$pattern = '/function[\s]*[\S]*.*?\)/x';
+    $pattern = '/function[\s]*[\S](.*?)\)(:?.*use[\s]*\(([^\)]*)\))?/x';
 	preg_match($pattern, $match[0], $matches);
 
-	$methodname = str_replace('function', $method, $matches[0]);
-	$closure = str_replace( $matches[0], $methodname, $match[0]);
+    $parameters = array();
+
+    if (count($matches)>1 && strlen(trim($matches[1]))>0) $parameters = array_merge($parameters, explode(',', $matches[1]));
+    if (count($matches)>3) $parameters = array_merge($parameters, explode(',', $matches[3]));
+
+	$methodname = $method .'('. implode(', ', $parameters) .')';
+
+    $closure = str_replace( $matches[0], $methodname, $match[0]);
 
 	$_closures[] = $closure;
 
@@ -113,6 +120,35 @@ function callbackReplaceRealArray($match)
     return str_replace('[', '_arrayStart_', str_replace(']', '_arrayEnd_', $match[1]));
 }
 
+static $_baradur_current_arrow_func = 0;
+
+function callbackReplaceArrayFunction($match)
+{
+    global $_baradur_current_arrow_func;
+    $type = substr(trim($match[0]), 0, 3);
+    
+    if ($type!='get' && $type!='set')
+    {
+        $type = $_baradur_current_arrow_func==0? 'get' : 'set'; 
+    }
+    ++$_baradur_current_arrow_func;
+
+    return "    '$type' => ";
+
+}
+
+function callbackReplaceAccessors($match)
+{
+    global $_baradur_current_arrow_func;
+    $_baradur_current_arrow_func = 0;
+
+    $match2 = preg_replace_callback('/(?:[g|s]et\s*)?.*[^⁼>*]=>/x','callbackReplaceArrayFunction', $match[3]);
+    $match2 = preg_replace('/(return)[\s]*([^\(]*)/x', "return array", $match2);
+    $match2 = preg_replace('/,([\s]*\))/x', '$1', $match2);
+    return 'public function '. $match[2] . 'Attribute($value, $attributes) {' . $match2 . "}\n";
+}
+
+
 function replaceNewPHPFunctions($text)
 {
     $text = preg_replace('/(=[\s]*)(\[\])/x', '$1 array()', $text);
@@ -129,12 +165,16 @@ function replaceNewPHPFunctions($text)
 
 
     # something ?? else  -> isset(something)? something : else
-    $text = preg_replace('/\(([\w|\$])/x', "( $1", $text);
-    $text = preg_replace('/[\s]([^\s]*.?[^\b.*[^\?{2}])(\?{2})/x', "isset($1) ? $1 : ", $text);
+    //$text = preg_replace('/\(([\w|\$])/x', "( $1", $text);
+    //$text = preg_replace('/[\s]([^\s]*.?[^\b.*[^\?{2}])(\?{2})/x', "isset($1) ? $1 : ", $text);
+    $text = preg_replace('/\s([^\s]*.?[^\b.*[^\?{2}])(\?{2})/x', " isset($1) ? $1 : ", $text);
 
     # Someclass::class to 'Someclass' and \Path\To\SomeClass::class to 'SomeClass"
     //$text = str_replace('::class', '', preg_replace('/\w*::class/x', "'$0'", $text));
     $text = str_replace('::class', '', preg_replace('/(?:[\\\|\w].*?[$\\\])?(\w*)(::class)/x', "'$1'", $text));
+
+    # New accessors and mutators: Arrow functions
+    $text = preg_replace_callback('/(\w*)[\s]*function[\s]*(\w*)\(\)\s*:\s*Attribute[^{]*{([^}]*)}/x', 'callbackReplaceAccessors', $text);
 
     return $text;
 

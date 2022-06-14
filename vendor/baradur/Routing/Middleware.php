@@ -5,6 +5,28 @@ class Middleware
 
     public function handle($request, $next)
     {
+        foreach ($this->except as $except)
+        {
+            if ($except == $request->_uri)
+                return true;
+            
+            if (strpos($except, '*')!==false)
+            {
+                $special_chars = "\.+^$[]()|{}/'#";
+                $special_chars = str_split($special_chars);
+                $escape = array();
+                foreach ($special_chars as $char) $escape[$char] = "\\$char";
+                $pattern = strtr($except, $escape);
+                $pattern = strtr($pattern, array(
+                    '*' => '.*?',
+                    '?' => '.',
+                ));
+                if (preg_match("/$pattern/", $request->_uri))
+                    return true;
+            }
+        }
+
+        //echo "Verifying token";
         $this->checkToken(Route::getCurrentRoute());
         $this->removeOldTokens();
         return true;

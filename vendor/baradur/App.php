@@ -108,6 +108,8 @@ Class App {
             return $app;
         }
 
+        //dd($app->binds);
+
         if (isset($app->binds[$name]))
         {
             if ($app->binds[$name]['shared'])
@@ -118,16 +120,33 @@ Class App {
                     $app->binds[$name]['instance'] = new $class;
                 }
 
-                
                 return $app->binds[$name]['instance'];
             }
+            
             else
             {
                 $class = $app->binds[$name]['concrete'];
                 return new $class;
             }
+        }
+
+        foreach ($app->binds as $key => $val)
+        {
+            if ($app->binds[$key]['concrete'] == $name)
+            {
+                if (!isset($app->binds[$key]['instance']))
+                {
+                    $class = $app->binds[$key]['concrete'];
+                    $app->binds[$key]['instance'] = new $class;
+                }
+
+                return $app->binds[$key]['instance'];
+
+            }
 
         }
+
+        return null;
     }
 
 
@@ -136,12 +155,16 @@ Class App {
 
         if ($this->action == 'response')
         {
-            //header_remove('Set-Cookie');
+            #dd($this);exit();
             header('HTTP/1.1 '.$this->code);
 
             if ($this->type == 'application/json')
             {
                 header('Content-Type: application/json');
+                
+                /* if (is_object($this->result) && get_class($this->result)=='Collection')
+                    $this->result = $this->result->toArray(); */
+
                 echo json_encode($this->result);
             }
             else

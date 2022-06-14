@@ -55,6 +55,9 @@ if (!isset($_SESSION['key']))
 # Instantiating App
 $app = new App();
 
+# Instantiatin Request
+$app->singleton('request', 'Request');
+
 # Including config file
 $config = CoreLoader::loadConfigFile(_DIR_.'/../../config/app.php');
 
@@ -86,12 +89,12 @@ function custom_autoloader($class)
     $version = version_compare(phpversion(), '5.3.0', '>=')?'NEW':'OLD';
 
     $newclass = '';
-    if (file_exists(_DIR_.'/../../app/models/'.$class.'.php'))
+    /* if (file_exists(_DIR_.'/../../app/models/'.$class.'.php'))
         $newclass = _DIR_.'/../../app/models/'.$class.'.php';
     elseif (file_exists(_DIR_.'/../../app/models/auth/'.$class.'.php'))
         $newclass = _DIR_.'/../../app/models/auth/'.$class.'.php';
-    elseif (file_exists(_DIR_.'/../../app/controllers/'.$class.'.php'))
-        $newclass = _DIR_.'/../../app/controllers/'.$class.'.php';
+    elseif (file_exists(_DIR_.'/../../app/http/controllers/'.$class.'.php'))
+        $newclass = _DIR_.'/../../app/http/controllers/'.$class.'.php';
     elseif (file_exists(_DIR_.'/../../app/controllers/auth/'.$class.'.php'))
         $newclass = _DIR_.'/../../app/controllers/auth/'.$class.'.php';
     elseif (file_exists(_DIR_.'/../../app/mddleware/'.$class.'.php'))
@@ -103,7 +106,7 @@ function custom_autoloader($class)
     elseif (file_exists(_DIR_.'/Database/'.$class.'.php'))
         $newclass = _DIR_.'/Database/'.$class.'.php';
     elseif (file_exists(_DIR_.'/'.$class.'.php'))
-        $newclass = _DIR_.'/'.$class.'.php';
+        $newclass = _DIR_.'/'.$class.'.php'; */
 
     # Recursive search (class is not in predefined folders)
     if ($newclass=='') {
@@ -149,8 +152,9 @@ function custom_autoloader($class)
     {
         $date = filemtime($newclass);
         $cachedate = filemtime(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');
-        if ($date < $cachedate)
+        if ($date < $cachedate && env('APP_DEBUG')==0)
         {
+            //echo "Load cache: $class<br>";
             require_once(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');
             $newclass = '';
         } 
@@ -160,7 +164,7 @@ function custom_autoloader($class)
         }
     }
 
-    if (file_exists(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php'))
+    /* if (file_exists(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php'))
     {
         $date = filemtime($newclass);
         $cachedate = filemtime(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php');
@@ -173,17 +177,19 @@ function custom_autoloader($class)
         {
             @unlink(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php');
         }
-    }
+    } */
 
     
     if ($newclass!='') // && $version=='OLD')
     {
+        //echo "Caching: $newclass<br>";
 
         $temp = file_get_contents($newclass);
+        //echo $newclass;
         $temp = str_replace('  ', ' ', $temp);
         if (strpos($temp, ' extends Model')>0)
         {
-            //echo "Class ".$class.' is Model's subclass!<br>';
+            //echo "Class ".$class." is Model's subclass!<br>";
 
             $temp2 = file_get_contents(_DIR_.'/Database/Model.php');
             $temp2 = str_replace('Model', $class.'Model', $temp2);
@@ -260,6 +266,7 @@ function custom_autoloader($class)
             file_put_contents(_DIR_.'/../../storage/framework/'.$class.'.php', $temp);
             require_once(_DIR_.'/../../storage/framework/'.$class.'.php');
             unlink(_DIR_.'/../../storage/framework/'.$class.'.php'); */
+            $temp = replaceNewPHPFunctions($temp);
 
             Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
                 ->plainPut(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php', $temp);

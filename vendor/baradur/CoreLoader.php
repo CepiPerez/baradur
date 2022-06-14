@@ -67,7 +67,7 @@ class CoreLoader
             $provider = new $cfname;
             $provider->register();
             $provider->boot();
-            //eturn $provider;
+            //return $provider;
             
         }
 
@@ -75,7 +75,9 @@ class CoreLoader
 
     public static function loadConfigFile($file)
     {
-        $dest_folder = dirname(__FILE__).'/../../storage/framework/config/';
+        global $artisan;
+
+        $dest_folder = dirname(__FILE__). ($artisan? '':'/../..') .'/storage/framework/config/';
         $dest_file = basename($file);
 
         if (
@@ -96,6 +98,35 @@ class CoreLoader
         }
 
         return include($dest_folder.$dest_file);
+
+    }
+
+    private static function getItemClass($item)
+    {
+        return $item->getClass()!=null ? $item->getClass()->getName() : null;
+    }
+
+
+    public static function invokeView($route)
+    {
+        $controller = $route->view;
+        if ($route->parametros)
+        {
+            for ($i=0; $i < count($route->parametros); ++$i)
+            {
+                $controller = str_replace($route->orig_parametros[$i], $route->parametros[$i], $controller);
+            }
+        }
+        return view($controller);
+    }
+
+    public static function invokeClass($route)
+    {
+        #echo "Invoking $route->controller :: $route->func";
+
+        $reflectionMethod = new \ReflectionMethod($route->controller, $route->func);
+        
+        return $reflectionMethod->invokeArgs($route->instance, $route->parametros);
 
     }
 

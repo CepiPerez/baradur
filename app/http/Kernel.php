@@ -11,12 +11,12 @@ class Kernel extends HttpKernel
     protected $middlewareGroups = [
         'web' => [
             VerifyCsrfToken::class,
-            //SubstituteBindings::class,
+            SubstituteBindings::class,
         ],
 
         'api' => [
-            //'throttle:api',
-            //SubstituteBindings::class,
+            'throttle:api',
+            SubstituteBindings::class,
         ],
     ];
 
@@ -24,5 +24,6 @@ class Kernel extends HttpKernel
     protected $routeMiddleware = [
         'web' => MyMiddleware::class,
         'auth' => Auth::class,
+        'throttle' => ThrottleRequests::class
     ];
 }

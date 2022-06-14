@@ -23,9 +23,33 @@ class Http
         $instance = self::instance();
         $instance->simple_get($url);
 
-
-        return response($instance->last_response, $instance->info['http_code']);
+        return response(json_decode($instance->last_response), $instance->info['http_code']);
     }
+
+    public static function post($url, $data=array())
+    {
+        $instance = self::instance();
+        $instance->simple_post($url, $data);
+
+        return response(json_decode($instance->last_response), $instance->info['http_code']);
+    }
+
+    public static function put($url, $data=array())
+    {
+        $instance = self::instance();
+        $instance->simple_put($url, $data);
+
+        return response(json_decode($instance->last_response), $instance->info['http_code']);
+    }
+
+    public static function delete($url, $data=array())
+    {
+        $instance = self::instance();
+        $instance->simple_delete($url, $data);
+
+        return response(json_decode($instance->last_response), $instance->info['http_code']);
+    }
+
 
 
 }
