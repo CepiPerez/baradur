@@ -187,6 +187,9 @@ class Model
             self::$_table = Helpers::camelCaseToSnakeCase(self::$_parent);
         }
 
+        /* if (self::$_parent=='myparent')
+            self::$_parent = 'DB'; */
+
         return new self::$_parent();
 
     }

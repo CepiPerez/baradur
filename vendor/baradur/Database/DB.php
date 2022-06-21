@@ -21,15 +21,16 @@ class DB extends Model
     public static function table($table)
     {
         //self::initialize('DB');
-        return self::getInstance($table)->getQuery();
+        $res = self::getInstance($table);
+        return $res->getQuery();
     }
 
-    /* public static function connector($val)
+    public static function statement($query)
     {
-        $res = self::getInstance();
-        $res->getQuery()->setConnector($val);
-        return $res;
-    } */
+        $res = self::getInstance('DB');
+        return $res->getQuery()->query($query);
+        /* return $res; */
+    }
 
 
 }

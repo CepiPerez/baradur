@@ -106,7 +106,7 @@ class Table extends ArrayObject
     }
 
     private function newColumn($name, $type, $increments=false, $length=null, 
-        $precision=null, $scale=null, $default=null, $update=null, $primary=false)
+        $precision=null, $scale=null, $default=null, $update=null, $primary=false, $unsigned=false)
     {
         $col = new Column();
         $col->name = $name;
@@ -118,6 +118,7 @@ class Table extends ArrayObject
         if ($default) $col->default = $default;
         if ($update) $col->update = $update;
         if ($primary) $col->primary = $primary;
+        if ($unsigned) $col->unsigned = $unsigned;
 
         $this[] = $col;
         return $col;
@@ -179,9 +180,9 @@ class Table extends ArrayObject
         return $this->newColumn($name, 'text');
     }
 
-    public function integer($name)
+    public function integer($name, $increments=false, $unsigned=false, $length=null)
     {
-        return $this->newColumn($name, 'int', false);
+        return $this->newColumn($name, 'int', $increments, $length, null, null, null, null, null,);
     }
 
     public function bigInteger($name)
@@ -216,6 +217,10 @@ class Table extends ArrayObject
         return $this->newColumn($name, 'DROP');
     }
 
+    public function datetime($name, $precision=null)
+    {
+        return $this->newColumn($name, 'datetime', false, null, $precision);
+    }
     /* public function unique($name)
     {
         $this->unique = $name;

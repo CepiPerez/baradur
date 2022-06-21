@@ -5,9 +5,11 @@ function env($val, $default=null) {
 }
 
 $base = '/'. rtrim(env('PUBLIC_FOLDER'), '/');
-$home = rtrim(env('APP_URL'), '/') . $base;
+
 /* $home = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off' ? 'https' : 'http') .
         "://" . $_SERVER['SERVER_NAME'] . $base; */
+
+$home = rtrim(env('APP_URL'), '/') . $base;
 
 
 #define('_ASSETS', 'assets');

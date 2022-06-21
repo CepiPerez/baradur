@@ -38,6 +38,7 @@ class Schema
         else if (isset($column->precision)) $col .= ' ('.$column->precision.','.$column->scale.')';
 
         if (isset($column->increments)) $col .= ' AUTO_INCREMENT';
+        if (isset($column->unsigned)) $col .= ' UNSIGNED';
         if (!isset($column->nullable)) $col .= ' NOT NULL';
 
         if (isset($column->default)) $col .= ' DEFAULT '.$column->default;
@@ -62,9 +63,10 @@ class Schema
 
     public static function dropIfExists($table)
     {
+        //print("REMOVING $table\n");
         self::checkMainTable();
         $query = 'DROP TABLE `'.$table.'`';
-        DB::table($table)->query($query);
+        DB::statement($query);
     }
 
     

@@ -19,6 +19,10 @@ else
     DotEnv::load(_DIR_.'/', '.env', false);
 }
 
+require_once('vendor/baradur/Routing/Route_functions.php');
+$config = CoreLoader::loadConfigFile(_DIR_.'/config/app.php');
+$locale = $config['locale'];
+$fallback_locale = $config['fallback_locale'];
 
 # Autoload function
 function custom_autoloader($class) 
@@ -52,6 +56,7 @@ function custom_autoloader($class)
         {
             if (basename($file) == $class.'.php' || basename($file) == $class.'.PHP')
             {
+                //printf(basename($file)." :: $class\n");
                 $newclass = $file;
                 break;
             }
@@ -71,9 +76,109 @@ function custom_autoloader($class)
         }
     }
     
-    if ($newclass!='')
+    /* if ($newclass!='')
     {
         require_once($newclass);
+    } */
+
+    if ($newclass!='') // && $version=='OLD')
+    {
+        //echo "Caching: $newclass<br>";
+
+        $temp = file_get_contents($newclass);
+        //echo $newclass;
+        $temp = str_replace('  ', ' ', $temp);
+        if (strpos($temp, ' extends Model')>0)
+        {
+            //echo "Class ".$class." is Model's subclass!<br>";
+
+            $temp2 = file_get_contents(_DIR_.'/vendor/baradur/Database/Model.php');
+            $temp2 = str_replace('Model', $class.'Model', $temp2);
+            $temp2 = str_replace('myparent', $class, $temp2);
+            $temp2 = rtrim($temp2, '}');
+
+            $temp = str_replace('extends Model', 'extends '.$class.'Model', $temp);
+
+
+            # Get table and query DB to get columns
+            # This way we can create where{COLUMN_NAME} methods
+            if ($class!='DB')
+            {    
+                preg_match('/(protected[\s]*\$table[\s]*=)[\s]*(.*);/', $temp, $table);
+                if (count($table)!=3)
+                    $table = strtolower(Helpers::camelCaseToSnakeCase($class));
+                else
+                    $table = str_replace("'", "", $table[2]);
+    
+                $query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS  
+                        WHERE TABLE_SCHEMA='".env('DB_NAME')."' AND TABLE_NAME = '$table'";
+                $res = DB::table($table)->query($query);
+                
+                $arr = array();
+                if ($res->num_rows>0)
+                {
+                    while ($row = $res->fetch_assoc()){
+                        $arr[] = $row['COLUMN_NAME'];
+                    }
+                }
+    
+                if (count($arr)>0)
+                {
+                    //$temp2 = rtrim($temp2, '}');
+                    foreach ($arr as $column)
+                    {
+                        $colname = Helpers::snakeCaseToCamelCase($column);
+                        $temp2 .= "\n   public static function where".ucfirst($colname). '($val) { return self::getInstance()->getQuery()->where(\''.$column.'\', $val); }'."\n";
+                    }
+                    
+                }
+            }
+            
+
+            # Make custom scopes
+            $pattern = "/scope(.*)\(/i";
+            if (preg_match_all($pattern, $temp, $matches))
+            {
+                //$temp2 = rtrim($temp2, '}');
+                foreach ($matches[1] as $scope)
+                {
+                    $temp2 .= "\n   public static function ". lcfirst($scope) ."()
+    {
+        return self::getInstance()->getQuery()->callScope('". lcfirst($scope) ."', func_get_args());
+    }";
+                }
+            }
+            $temp2 .= "\n}\n";
+
+            Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
+                ->plainPut(_DIR_.'/storage/framework/cache/classes/'.$class.'Model.php', $temp2);
+            require_once(_DIR_.'/storage/framework/cache/classes/'.$class.'Model.php');
+
+            $temp = replaceNewPHPFunctions($temp);
+
+            Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
+                ->plainPut(_DIR_.'/storage/framework/cache/classes/'.$class.'.php', $temp);
+            require_once(_DIR_.'/storage/framework/cache/classes/'.$class.'.php');
+    
+        }
+        else
+        {
+            //echo "$newclass<br>";
+            if (strpos($newclass, '/app/')!=false)
+            {
+                $temp = replaceNewPHPFunctions($temp);
+
+                Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
+                    ->plainPut(_DIR_.'/storage/framework/cache/classes/'.$class.'.php', $temp);
+                require_once(_DIR_.'/storage/framework/cache/classes/'.$class.'.php');
+
+            }
+            else
+            {
+                require_once($newclass);
+            }
+        }
+
     }
     
 }
@@ -165,7 +270,7 @@ function migrate()
             $class = new $converted;
             $class->up();
 
-            DB::table('migrations')->insert(array('migration' => $name));
+            DB::statement('INSERT INTO migrations (migration) VALUES ("'. $name . '")');
 
             $endTime = microtime(true);
             $time =($endTime-$startTime)*1000;
@@ -225,14 +330,14 @@ function makeController($controller, $resource, $api=false)
 {
     /* $config = new Config;
     $config->boot(); */
-    CoreLoader::loadProvider(_DIR_.'/', 'app/providers/RouteServiceProvider.php');
+    CoreLoader::loadProvider(_DIR_.'/app/providers/RouteServiceProvider.php');
 
     $class = '';
 
     if ($api==false)
-        $class = "<?php\n\nclass ".$controller."Controller extends Controller\n";
+        $class = "<?php\n\nclass ".$controller." extends Controller\n";
     else
-        $class = "<?php\n\nclass ".$controller."Controller extends ApiController\n";
+        $class = "<?php\n\nclass ".$controller." extends ApiController\n";
 
     $class .= "{\n\t".'//protected $tokenVerification = false;'. "\n\n";
     
@@ -261,7 +366,7 @@ function makeController($controller, $resource, $api=false)
     }
         
     $class .= "\n}";
-    file_put_contents('app/controllers/'.$controller.'.php', $class);
+    file_put_contents('app/http/controllers/'.$controller.'.php', $class);
     printf("\e[32mController created successfully.\e[m\n");
 
 }
@@ -287,7 +392,7 @@ function makeMigration($command)
 {
     /* $config = new Config;
     $config->boot(); */
-    CoreLoader::loadProvider(_DIR_.'/', 'app/providers/RouteServiceProvider.php');
+    CoreLoader::loadProvider(_DIR_.'/app/providers/RouteServiceProvider.php');
 
     list($table, $create) = TableGuesser::guess($command);
     $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $command);
@@ -475,7 +580,7 @@ elseif ($action == 'make:controller' && count($argv)>0)
             $controller = $arg;
     }
 
-    if (file_exists('app/controllers/'.$controller.'.php'))
+    if (file_exists('app/http/controllers/'.$controller.'.php'))
         die ("Error: controller ".$controller." already exists\n");
 
     makeController($controller, $resource, $api);
@@ -528,9 +633,9 @@ elseif ($action == 'make:model' && count($argv)>0)
 
     /* $config = new Config;
     $config->boot(); */
-    CoreLoader::loadProvider(_DIR_.'/', 'app/providers/RouteServiceProvider.php');
+    CoreLoader::loadProvider(_DIR_.'/app/providers/RouteServiceProvider.php');
 
-    if (!file_exists('app/controllers/'.$model.'Controller.php') && $controller)
+    if (!file_exists('app/http/controllers/'.$model.'Controller.php') && $controller)
     {
         makeController($model.'Controller', $resource);        
     }
@@ -596,14 +701,14 @@ elseif ($action == 'make:middleware' && count($argv)>0)
 {
     $middleware = $argv[0];
 
-    if (file_exists('app/middleware/'.$middleware.'.php'))
+    if (file_exists('app/http/middleware/'.$middleware.'.php'))
         die ("Error: middleware ".$middleware." already exists\n");
 
     $class = "<?php\n\nclass ".$middleware."\n".
         "{\n\tpublic function handle(".'$request'.")\n\t".
         "{\n\n\t\t//\n\n\t}\n\n}";
 
-    file_put_contents('app/middleware/'.$middleware.'.php', $class);
+    file_put_contents('app/http/middleware/'.$middleware.'.php', $class);
 
     printf("\e[32mMiddleware created successfully.\e[m\n");
 
@@ -613,17 +718,17 @@ elseif ($action == 'make:request' && count($argv)>0)
 {
     $request = $argv[0];
 
-    if (!file_exists('app/requests'))
-        mkdir('app/requests');
+    if (!file_exists('app/http/requests'))
+        mkdir('app/http/requests');
 
-    if (file_exists('app/requests/'.$request.'.php'))
+    if (file_exists('app/http/requests/'.$request.'.php'))
         die ("Error: request ".$request." already exists\n");
 
     $class = "<?php\n\nclass ".$request." extends FormRequest\n".
         "{\n\tpublic function authorize()\n\t{\n\t\treturn true;\n\t}\n\n".
         "\n\tpublic function roles()\n\t{\n\t\treturn array(\n\t\t\t//\n\t\t);\n\t}\n\n}";
 
-    file_put_contents('app/requests/'.$request.'.php', $class);
+    file_put_contents('app/http/requests/'.$request.'.php', $class);
 
     printf("\e[32mRequest created successfully.\e[m\n");
 
@@ -775,6 +880,9 @@ elseif ($action == 'route:list')
     $method = null;
     $sort = null;
 
+    $screen_cols = (exec('tput cols'));
+
+
     foreach ($argv as $arg)
     {
         if ($arg=='-v') $showMiddleware = true;
@@ -789,22 +897,9 @@ elseif ($action == 'route:list')
         }
     }
 
-    require_once('vendor/baradur/Routing/Route_functions.php');
-    CoreLoader::loadProvider(_DIR_.'/', 'app/providers/RouteServiceProvider.php');
-    //$provider->boot();
+    global $locale;
+    CoreLoader::loadProvider(_DIR_.'/app/providers/RouteServiceProvider.php');
 
-    /* if (file_exists(_DIR_.'/storage/framework/routes/web.php'))
-    {
-        Route::setRouteList(unserialize(file_get_contents(_DIR_.'/storage/framework/routes/web.php')));
-    }
-    else
-    {
-        $config = new Config;
-        $config->boot();
-        processRoutes(_DIR_, '/routes/web.php');
-        Cache::store('file')->setDirectory(_DIR_.'/storage/framework/routes')
-            ->plainPut(_DIR_.'/storage/framework/routes/web.php', serialize(Route::routeList()));
-    } */
     
     printf("\n");
 
@@ -818,7 +913,9 @@ elseif ($action == 'route:list')
 
     foreach ($list as $route)
     {
-        //print_r($route);
+        $space = (int)$screen_cols>80? $screen_cols : 90;
+
+        #print_r($route);
         $line = $route->method.($route->method=='GET'? '|HEAD':'');
         $line = str_replace('GET|HEAD', "GET|HEAD  ", $line);
         $line = str_replace('POST',     "POST      ", $line);
@@ -841,14 +938,34 @@ elseif ($action == 'route:list')
         if (isset($route->name) && $route->name == '') $route->name = null;
         if (isset($route->middleware) && $route->middleware == '') $route->middleware = null;
 
-        $len = strlen($route->url);        
-        $space = 90-$len;
-        if (isset($route->name)) $space += 23;
+        $len = strlen($route->url);
+        $space = $space - $len;
 
-        $line = ' '. (isset($route->name)? "\e[38;5;60m$route->name\e[38;5;243m › ":''). $route->controller;
+        if (isset($route->controller) && strpos($route->controller, 'baradurClosures')!==false)
+        {
+            $route->controller = '(Closure)';
+            $route->func = null;
+        }
+
+        if (!isset($route->controller))
+        {
+            $route->controller = "(View: $route->view)";
+        }
+
+        $line = ' '. (isset($route->name)? "\e[38;5;60m$route->name\e[38;5;243m › ":'');
+        $line .= $route->controller;
         $line .= isset($route->func) ? '@'.$route->func : '';
 
-        printf("\e[38;5;243m%'.".$space."s\e[m", $line);
+        $spaces = $space + 6 - strlen($line) - (isset($route->name)? 0 : 23);
+
+        if ($spaces<1)
+        {
+            $line = ' '. $route->controller;
+            $line .= isset($route->func) ? '@'.$route->func : '';
+            $spaces = $space -17 - strlen($line);
+        }
+
+        printf("\e[38;5;243m".str_repeat('.', $spaces)."%s\e[m", $line);
         printf("\n");
 
         if ($showMiddleware && isset($route->middleware))
@@ -876,17 +993,15 @@ elseif ($action == 'route:clear')
 
 elseif ($action == 'route:cache')
 {
-    unlink(_DIR_.'/storage/framework/routes/web.php');
-    
+    Cache::store('file')->setDirectory(_DIR_.'/storage/framework/routes')->flush();
     printf("\e[32mRoute cache cleared successfully.\e[m\n");
 
-    require_once(_DIR_.'/vendor/baradur/Route_functions.php');
+    require_once(_DIR_.'/vendor/baradur/Routing/Route_functions.php');
 
-    /* $config = new Config;
-    $config->boot(); */
-    CoreLoader::loadProvider(_DIR_.'/', 'app/providers/RouteServiceProvider.php');
+    $config = CoreLoader::loadConfigFile(_DIR_.'/../../config/app.php');
+    CoreLoader::loadProvider(_DIR_.'/app/providers/RouteServiceProvider.php');
     
-    processRoutes(_DIR_, '/routes/web.php');
+    //processRoutes(_DIR_, '/routes/web.php');
 
     Cache::store('file')->setDirectory(_DIR_.'/storage/framework/routes')
         ->plainPut(_DIR_.'/storage/framework/routes/web.php', serialize((array)Route::routeList()));
@@ -972,6 +1087,9 @@ elseif ($action == 'storage:link')
         //list ($back, $key, $val) = getRelativePath($key, $val);
         //chmod($val, 0777);
         //symlink($val, $back.$key);
+        $val = str_replace(getcwd().'/', '', $val);
+        $key = str_replace(getcwd().'/', 'public/', $key);
+        #printf("$val -> $key\n");
         shell_exec("ln -sr $val $key");
         printf("\e[32mThe [$key] link has been connected to [$val].\e[m\n");
     }

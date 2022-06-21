@@ -65,7 +65,7 @@ Class Storage
 
         $res = file_put_contents(self::$path.$file, $contents);
 
-        if ($res) chmod(self::$path.$file, 0777);
+        if ($res) @chmod(self::$path.$file, 0777);
 
         return $res;
     }

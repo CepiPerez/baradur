@@ -896,8 +896,19 @@ Class QueryBuilder
                 //dd($this);
                 //die("UPDATE");
                 $this->_fillableOff = true;
-                $res = $this->where($this->_primary, $this->_collection->pluck($this->_primary)->first())
-                            ->update($final_vals);
+                //dd($this->_where);
+
+                $pkeyval = $this->_collection->pluck($this->_primary)->first();
+                //dd($pkeyval);exit();
+
+                if (strpos($this->_where, $pkeyval)===false)
+                {
+                    //echo "NO HAY WHERE<br>";
+                    $this->where($this->_primary, $pkeyval);
+                }
+
+                $res = $this->update($final_vals);
+
                 $this->_fillableOff = false;
                 return $res;
             }
@@ -1509,8 +1520,10 @@ Class QueryBuilder
     {
         $this->_where = 'WHERE ' . $this->_primary . ' = "' . $val . '"';
 
-        if ($this->first())
-            return $this->first();
+        $res = $this->first();
+
+        if ($res)
+            return $res;
 
         else
             abort(404);
@@ -1715,6 +1728,7 @@ Class QueryBuilder
      */
     public function query($sql)
     {
+        //print("$sql\n");
         //global $database;
         
         /* $arraySQL = array();

@@ -36,6 +36,11 @@ Class Helpers
         if (!file_exists($filepath))
             $filepath = _DIR_.'/../../lang/'.$fallback_locale.'/plurals.php';
 
+        if (!file_exists($filepath))
+            $filepath = _DIR_.'/lang/'.$locale.'/plurals.php';
+
+        if (!file_exists($filepath))
+            $filepath = _DIR_.'/lang/'.$fallback_locale.'/plurals.php';
         
         $lang = CoreLoader::loadConfigFile($filepath);
         $result = '';
