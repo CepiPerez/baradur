@@ -114,7 +114,7 @@ Class Request
 
                 else if ($arg=='required') 
                 {
-                    if ( !isset($this->post[$key]) || strlen($this->post[$key])==0 )
+                    if ( !isset($this->post[$key]) || (is_string($this->post[$key]) && strlen($this->post[$key])==0) )
                     {
                         $pass = false;
                         $errors[$key] = __("validation.required", array('attribute' => $key));
@@ -235,9 +235,15 @@ Class Request
         return $this->get;
     }
 
-    public function file($name)
+    /**
+     * Gets a file in array by key
+     * 
+     * @param string $key
+     * @return StorageFile
+     */
+    public function file($key)
     {
-        return $this->files[$name];
+        return $this->files[$key];
     }
 
     public function input($key)

@@ -30,6 +30,15 @@ Class App {
         return $this;
     }
 
+    public function __call($method, $parameters)
+    {
+        if (! Str::startsWith($method, 'with')) {
+            throw new Exception("Method [$method] does not exist on view.");
+        }
+
+        return $this->with(Str::camel(substr($method, 4)), $parameters[0]);
+    }
+
     public function with($key, $value)
     {
         $_SESSION['messages'][$key] = $value;

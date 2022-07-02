@@ -31,16 +31,38 @@ if ( !function_exists('json_decode') )
         return $json->decode($content);
     }
 }
+else
+{
+    function json_decode2($content, $assoc=false){
+        include(_DIR_.'/../json/json.php');
+        if ( $assoc ){
+            $json = new Services_JSON(SERVICES_JSON_LOOSE_TYPE);
+        } else {
+            $json = new Services_JSON;
+        }
+        return $json->decode($content);
+    }
+}
 
 if ( !function_exists('json_encode') )
 {
     function json_encode($content){
-        include(_DIR_.'/../json/json.php');
+        //var_dump($content);
+        include_once(_DIR_.'/../json/json.php');
         $json = new Services_JSON;  
         return $json->encode($content);
     }
 }
+else
+{
+    function json_encode2($content){
+        //var_dump($content);
+        include_once(_DIR_.'/../json/json.php');
+        $json = new Services_JSON;  
+        return $json->encode($content);
+    }
 
+}
 if ( !function_exists('lcfirst') )
 {
     function lcfirst($content){

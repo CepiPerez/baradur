@@ -58,9 +58,9 @@ function view($template, $params=null)
 function abort($error)
 {
 	if ($error==403)
-		$errormsg = "You don't have permission to access";
+		$errormsg = __("You don't have permission to access");
 	else if ($error==404)
-		$errormsg = "Resource not found on this server";
+		$errormsg = __("Resource not found on this server");
 	error($error, $errormsg);
 }
 
@@ -215,4 +215,15 @@ function csrf_field()
 function method_field($v)
 {
 	return "<input type='hidden' name='_method' value='$v'/>\n";
+}
+
+function js_str($s)
+{
+    return '"' . addcslashes($s, "\0..\37\"\\") . '"';
+}
+
+function js_array($array)
+{
+    $temp = array_map('js_str', $array);
+    return '[' . implode(',', $temp) . ']';
 }

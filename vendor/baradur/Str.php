@@ -32,7 +32,12 @@ class Str
 
     public static function after($subject, $search)
     {
-        return $search === '' ? $subject : array_reverse(explode($search, $subject, 2))[0];
+        if ($search === '') 
+            return $subject;
+        else {
+            $res = array_reverse(explode($search, $subject, 2));
+            return $res[0];
+        }
     }
     
     public static function contains($haystack, $needles, $ignoreCase = false)
@@ -53,7 +58,7 @@ class Str
 
     public static function camel($value)
     {
-        return lcfirst(static::studly($value));
+        return lcfirst(self::studly($value));
     }
 
     public static function kebab($value)
@@ -75,15 +80,18 @@ class Str
         return mb_strlen($value);
     }
 
+
+    public static function mapCallback($word) {
+        return self::ucfirst($word);
+    }
+
     public static function studly($value)
     {
         $key = $value;
 
-        $words = explode(' ', self::replace(['-', '_'], ' ', $value));
+        $words = explode(' ', self::replace(array('-', '_'), ' ', $value));
 
-        $studlyWords = array_map(function ($word) {
-            return static::ucfirst($word);
-        }, $words);
+        $studlyWords = array_map(array(self, 'mapCallback'), $words);
 
         return implode($studlyWords);
     }
@@ -113,7 +121,7 @@ class Str
 
             $bytes = random_bytes($size);
 
-            $string .= substr(str_replace(['/', '+', '='], '', base64_encode($bytes)), 0, $size);
+            $string .= substr(str_replace(array('/', '+', '='), '', base64_encode($bytes)), 0, $size);
         }
 
         return $string;
@@ -291,7 +299,7 @@ class Str
 
     public static function ucfirst($string)
     {
-        return static::upper(static::substr($string, 0, 1)).static::substr($string, 1);
+        return self::upper(self::substr($string, 0, 1)).self::substr($string, 1);
     }
 
     public static function ucsplit($string)

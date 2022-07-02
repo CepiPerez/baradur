@@ -865,8 +865,9 @@ class Route
                     list($midd, $params) = explode(':', $midd);
                     $midd = $middlewares[$midd];
                 }
-
-                $result = self::invokeMiddleware($middlewares[$midd], $request);
+                //dd($middlewares);
+                //echo "HOLA:: $middlewares[$midd]<br>";
+                $result = self::invokeMiddleware($midd, $request);
 
                 if (!is_bool($result) || $result==false)
                     return $result;
@@ -902,7 +903,7 @@ class Route
 
     private static function invokeMiddleware($middleware, $request)
     {
-        #echo "Calling middleware: $middleware<br>";
+        //echo "Calling middleware: $middleware<br>";
         $controller = new $middleware;
         return $controller->handle($request, true);
     }

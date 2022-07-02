@@ -53,6 +53,16 @@ Class QueryBuilder
 
     }
 
+    public function __call($method, $parameters)
+    {
+        //dd($method);
+        if (! Str::startsWith($method, 'where')) {
+            throw new Exception("Method $method does not exist");
+        }
+
+        return $this->where(Str::camel(substr($method, 5)), $parameters[0]);
+    }
+
     public function clear()
     {
         $this->_method = 'SELECT * FROM';
@@ -626,7 +636,7 @@ Class QueryBuilder
         }
         if (isset($second) && isset($operator))
         {
-            $filter = ' ON ' . $first . $operator . $second;  
+            $filter = ' ON ' . $first . ' ' . $operator . ' ' . $second;  
         }
 
         $alias = '`' . trim($as) . '`';
@@ -1676,7 +1686,8 @@ Class QueryBuilder
             return $this->_collection;
         }
         
-        $records = $this->buildQueryPaginator();
+        //$records = $this->buildQueryPaginator();
+        $records = 'select count(*) AS total from (' . $this->buildQuery() .') final';
         
         $query = $this->_connector->execSQL($records, $this->_wherevals);
 

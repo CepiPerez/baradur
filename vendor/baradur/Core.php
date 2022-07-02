@@ -85,7 +85,9 @@ function custom_autoloader($class)
 {
     global $version, $home;
 
-    //echo "Loading class: ".$class."<br>";
+    if (strpos($class, 'PHPExcel_')!==false) return;
+
+    //echo "Loading Baradur class: ".$class."<br>";
     $version = version_compare(phpversion(), '5.3.0', '>=')?'NEW':'OLD';
 
     $newclass = '';

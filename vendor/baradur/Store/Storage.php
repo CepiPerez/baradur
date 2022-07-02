@@ -17,6 +17,7 @@ Class Storage
 
     public static function exists($file)
     {
+        //dd(self::$path.$file); exit();
         return file_exists(self::$path.$file);
     }
 
@@ -41,7 +42,7 @@ Class Storage
 
     public static function url($file)
     {
-        return env('APP_URL').'/storage/'.$file;
+        return env('APP_URL').$file;
     }
 
     public static function lastModified($file)
@@ -51,7 +52,8 @@ Class Storage
 
     public static function path($file)
     {
-        return realpath(self::$path.$file);
+        return self::$path.$file;
+        //return realpath(self::$path.$file);
         //return env('APP_URL').'/storage/'.$file;
     }
 
