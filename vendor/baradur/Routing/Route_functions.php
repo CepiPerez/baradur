@@ -245,11 +245,19 @@ function getCallbackFromString($string)
 	$string = str_replace(', ', ',', $string);
 	$pos = strpos($string, '@');
 	$class = substr($string, 0, $pos);
-	$string = substr($string, $pos);
-	$pos = strpos($string, '(');
-	$method = substr($string, 1, $pos-1);
-	$string = substr($string, $pos+1);
-	$params = explode(',', substr($string, 0, -1));
+
+    $method = str_replace($class.'@', '', $string);
+    $params = null;
+
+    if (strpos($method, '(')!==false)
+    {
+        $pos = strpos($method, '(');
+        $method = substr($method, 0, $pos);
+        
+        $params = str_replace($class.'@'.$method.'(', '', $string);
+        $params = explode(',', substr($string, 0, -1));
+
+    }
 	$result = array($class, $method, $params);
 
     if (!class_exists($class))
