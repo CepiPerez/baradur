@@ -1617,7 +1617,7 @@ Class Builder
         //dump($values);
         foreach ($values as $key => $val)
         {
-            if (is_object($val) && class_exists(get_class($val)))
+            if (is_object($val) && class_exists(get_class($val)) && $key!='_query')
             {
                 $relation = array();
                 foreach ($val as $k => $v)
@@ -1666,7 +1666,7 @@ Class Builder
             //return $this->_insert($final_vals);
             //die("CREATE");
 
-            if ( !$this->save($final_vals)) return false;
+            if ( !$this->create($final_vals)) return false;
             //dd($relations);
             foreach ($relations as $model => $values)
             {
