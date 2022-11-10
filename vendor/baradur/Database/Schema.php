@@ -16,8 +16,7 @@ class Schema
 
     public static function checkMainTable()
     {
-        $query = 'CREATE TABLE if not exists migrations (migration text, applied timestamp)';
-        DB::table('migrations')->query($query);
+        DB::statement('CREATE TABLE if not exists migrations (migration text, applied timestamp)');
     }
 
 
@@ -65,8 +64,9 @@ class Schema
     {
         //print("REMOVING $table\n");
         self::checkMainTable();
-        $query = 'DROP TABLE `'.$table.'`';
-        DB::statement($query);
+        DB::statement('SET FOREIGN_KEY_CHECKS = 0');
+        DB::statement('DROP TABLE IF EXISTS `'.$table.'`');
+        DB::statement('SET FOREIGN_KEY_CHECKS = 1');
     }
 
     
@@ -186,7 +186,7 @@ class Schema
 
 
         #printf($query.PHP_EOL);
-        DB::table($table)->query($query);
+        DB::statement($query);
         
     }
 

@@ -5,29 +5,25 @@
 <h3>Routing</h3>
 <hr>
 <p>
-<h5>Routes works just like in Laravel, but Closures only works in PHP >= 5.3<br>
-They are defined in <b>web/routes.php</b></h5>
-<br>
-<p class="card-warning">
-   <b>NOTE:</b> Routes should be added using old Laravel method (controller@function)
-</p>
+<h5>Routes works just like in Laravel, including Closures.<br>
+They can be added in old way or new way</h5>
 <br>
 <b>Adding routes:</b>
 <pre><code class="">Route::get('users', 'UsersController@index');</code></pre>
 <pre><code class="language-php7">Route::post('users', 'UsersController@store');</code></pre>
-<pre><code class="language-php7">Route::get('users/{id}', 'UsersController@show');</code></pre>
+<pre><code class="language-php7">Route::get('users/{id}', [UsersController:class, 'show']);</code></pre>
 
 <br><b>Addint routes with names:</b>
 <pre><code class="language-php7">Route::get('users', 'UsersController@index')->name('users');</code></pre>
 <pre><code class="language-php7">Route::put('users/{id}', 'UsersController@update')->name('users.update');</code></pre>
 
 <br><b>Adding routes with assigned middleware:</b>
-<pre><code class="language-php7">Route::get('users', 'UsersController@index')->middleware('MyMiddlerare');</code></pre>
-<pre><code class="language-php7">Route::put('users/{id}', 'UsersController@update')->name('users.update')->middleware('MyMiddlerare');</code></pre>
+<pre><code class="language-php7">Route::get('users', 'UsersController@index')->middleware(['auth', 'web']);</code></pre>
+<pre><code class="language-php7">Route::put('users/{id}', 'UsersController@update')->name('users.update')->middleware(MyMiddlerare:class);</code></pre>
 
 <br><b>Grouping routes using same controller:</b>
 <pre><code class="language-php7">Route::controller('ProductsController')->group(
-    Route::get('products', 'inicio')->name('products.index'),
+    Route::get('products', 'index')->name('products.index'),
     Route::get('products/create', 'create')->name('products.create'),
     Route::post('products', 'store')->name('products.store'),
     Route::put('products/{id}', 'update')->name('products.update'),
@@ -49,15 +45,10 @@ They are defined in <b>web/routes.php</b></h5>
    since <b>Artisan</b> checks this one when making controllers.
 </p>
 
-<pre><code class="language-php7">Route::resourceVerbs(array(
-    'index' => 'inicio',
+<pre><code class="language-php7">Route::resourceVerbs([
     'create' => 'crear',
-    'store' => 'guardar',
-    'show' => 'mostrar',
     'edit' => 'editar',
-    'update' => 'modificar',
-    'destroy' => 'eliminar',
-));</code></pre>
+]);</code></pre>
 <br>
 
 

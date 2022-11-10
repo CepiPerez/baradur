@@ -22,7 +22,7 @@
 
 
     </div>
-    <p class="text-center text-red-600">Error {{$error}}</p>
-    <p class="text-center text-slate-600">{{$message}}</p>
+    <p class="text-center text-red-600">Error {{$error_code}}</p>
+    <p class="text-center text-slate-600">{{$error_message}}</p>
 </div>
 @endsection

@@ -5,8 +5,24 @@
 
 Class View
 {
-	# Pagination
-	public static $pagination;
+	public static $shared = array();
+	public static $composers = array();
+
+
+	public function with($key, $value)
+    {
+        $_SESSION['messages'][$key] = $value;
+        return $this;
+    }
+
+	public function withErrors($errors)
+    {
+        foreach ($errors as $key => $val)
+            $_SESSION['errors'][$key] = $val;
+
+        return $this;
+    }
+
 	
 	# Returns an asset's full address
 	# _ASSETS is defined in Globals.php
@@ -15,21 +31,25 @@ Class View
 		return env('HOME').'/'.$asset;
 	}
 
-	# Sets pagination
-	public static function setPagination($val)
+	
+
+	public static function share($key, $value)
 	{
-		self::$pagination = $val;
+		self::$shared[$key] = $value; 
 	}
 
-	# Gets pagination
-	public static function pagination()
-	{
-		return self::$pagination;
-	}
 
+	public static function composer($templates, $callback)
+	{
+		if (!is_array($templates)) 
+			$templates = array($templates);
+
+		foreach ($templates as $template)
+			self::$composers[$template] = $callback;
+	}
 
 	# Loads the template file
-	static function loadTemplate($file, $args=array())
+	public static function loadTemplate($file, $args=array())
 	{
 		global $app, $artisan;
 
@@ -60,8 +80,51 @@ Class View
 			$arguments[$key] = $val;
 		}
 
+		if (count(self::$shared)>0)
+		{
+			$arguments = array_merge($arguments, self::$shared);
+		}
+
+		$composer = isset(self::$composers[$file])? self::$composers[$file] : null;
+		if (strpos($file, '.')>0 && !$composer)
+		{
+			$arr = explode('.', $file);
+			$first = $arr[0];
+
+			if (isset(self::$composers[$first.'.*']))
+				$composer = self::$composers[$first.'.*'];
+
+			else {
+				$last = array_pop($arr); 
+				$temp = str_replace($last, '*', $file);
+
+				if (isset(self::$composers[$temp]))
+					$composer = self::$composers[$temp];
+			}
+		}
+
+		if ($composer)
+		{
+			if (strpos($composer, '@')>0)
+			{
+				list($class, $method, $params) = getCallbackFromString($composer);
+				array_shift($params);
+				call_user_func_array(array($class, $method), array_merge(array(new View()), $params));
+			}
+			else
+			{
+				$class = new $composer;
+				$class->composer(new View);
+			}
+
+		}
+
 		if (isset($_SESSION['messages']))
-			App::setSessionMessages($_SESSION['messages']);
+		{
+			//App::setSessionMessages($_SESSION['messages']);
+			$arguments = array_merge($arguments, $_SESSION['messages']);
+		}
+
 			
 		global $errors;
 		if (isset($_SESSION['errors']))
@@ -72,13 +135,9 @@ Class View
 
 		//$app->arguments = $args;
 
-
-		#include "BladeOne2.php";
 		$views = _DIR_.(!isset($artisan)?'/../..':'').'/resources/views';
 		$cache = _DIR_.(!isset($artisan)?'/../..':'').'/storage/framework/views';
 		$blade = new BladeOne($views, $cache);
-
-		//define("BLADEONE_MODE", env('APP_DEBUG')); // (optional) 1=forced (test),2=run fast (production), 0=automatic, default value.
 
 		$result = $blade->run($file, $arguments);
 

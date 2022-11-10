@@ -9,6 +9,9 @@ class SubstituteBindings
 
     public function handle($request, $next)
     {
+        if (!isset($request->route->controller))
+            return $request;
+
         $class = $request->route->controller;
         $method = $request->route->func;
         $bindings = $request->route->scope_binding==1;
@@ -81,27 +84,28 @@ class SubstituteBindings
                 
                 elseif (class_exists($iclass) && $iclass!='Request' && isset($parametros[$paramNames[$i]->name]))
                 {
-                    $model = new $iclass;
+                    
 
-                    if (is_subclass_of($model, $iclass.'Model'))
+                    if (is_subclass_of($iclass, 'Model'))
                     {
                         $data = $parametros[$paramNames[$i]->name];
-                        $key = isset($data['index']) ? $data['index'] : $model->getRouteKeyName();
+                        //$key = isset($data['index']) ? $data['index'] : $model->getRouteKeyName();
                         $val = $data['value'];
 
                         if (count($scope_bindings)==0 || !$bindings)
                         {
-                            $record = $model->where($key, $val)->first();
+                            $model = new $iclass;
+                            $key = isset($data['index']) ? $data['index'] : $model->getRouteKeyName();
+                            $record = Model::instance($iclass)->where($key, $val)->first();
                         }
                         else
                         {
                             $last = $scope_bindings[count($scope_bindings)-1];
-                            $key = isset($data['index']) ? $data['index'] : $model->getRouteKeyName();
-                            $val = $data['value'];
-
                             $arrkeys = array_keys($parametros);
                             $relation = Str::plural($arrkeys[0]);
-                            $record = $last->$relation()->where($key, $val)->first();
+                            $relation = $last->$relation();
+                            $record = $relation->where($relation->_primary[0], $val)->first();
+                            unset($last->_query);
                         }
 
                         if (!$record) abort(404);
@@ -126,7 +130,7 @@ class SubstituteBindings
             if (isset($formRequest) && isset($record))
             {
                 $formRequest->authorize($record);
-                request()->validate($formRequest->roles());
+                request()->validate($formRequest->rules());
             }
 
         }
@@ -140,7 +144,7 @@ class SubstituteBindings
         $request->route->instance = $instance;
         $request->route->parametros = $final_params;
 
-        return $next;
+        return $request;
     }
 
 }

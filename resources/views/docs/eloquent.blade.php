@@ -31,7 +31,7 @@ $flight->save();
 <br>
 <h4># Relationships</h4>
 <h5>Works the same way (but not all features are implemented)</h5>
-<p>Available relationships: <b>hasOne - hasMany - belongsTo - hasOneThrough - hasManyThrough</b></p>
+<p>Available relationships: <br><b>hasOne - hasMany - belongsTo - hasOneThrough - hasManyThrough - belongsToMany - morphOne - morphMany - morphTo - morphToMany - morphedByMany</b></p>
 <br><b>Making relationships:</b>
 <pre><code class="language-php7">public function playlists()
 {
@@ -43,12 +43,19 @@ public function songs()
     return $this->hasManyThrough('PlaylistContent', 'playlists', 'user_id', 'playlist_id', 'id', 'pid');
 }
 </code></pre>
-<br><b>Using with() + whereHas():</b>
-<pre><code class="language-php7">Music::with(array('songs' =>
-    Query::where('artist', 'Ramones')
-))->whereHas('songs', 
-    Query::where('artist', 'Ramones')
-)->get()
+<br><b>Using annonymous functions:</b>
+<pre><code class="language-php7">Product::where( function($query) {
+    $query->where('id', 1);
+    $query->orWhere( function($query) {
+        $query->where('description', 'shirt');
+        $query->whereIn('statues', [1, 2, 3]);
+    });
+})->get();
+
+Product::join('categories', function ($join) {
+    $join->on('categories.id', '=', 'products.category_id')
+         ->where('categories.id', '>', 1);
+})->where('id', '<', 2200)->get();
 </code></pre>
 
 <br><b>Nested relations:</b>
@@ -59,7 +66,7 @@ public function songs()
 <pre><code class="language-php7">public function scopeWithWhereHas($query, $relation, $constraint=null)
 {
     return $query->whereHas($relation, $constraint)
-    ->with(array($relation => $constraint));
+        ->with(array($relation => $constraint));
 }
 </code></pre><br>
 

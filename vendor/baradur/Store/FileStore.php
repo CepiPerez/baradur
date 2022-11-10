@@ -71,6 +71,8 @@ class FileStore implements Store
             $path, $value, true
         );
 
+        $value = null;
+
         if ($result !== false && $result > 0) {
             $this->ensurePermissionsAreCorrect($path);
 
@@ -359,5 +361,21 @@ class FileStore implements Store
     public function getPrefix()
     {
         return '';
+    }
+
+    public function remember($key, $seconds, $callback)
+    {
+        if ($this->has($key))
+        {
+            return $this->get($key);
+        }
+        else
+        {
+            list($class, $method, $params) = getCallbackFromString($callback);
+            array_shift($params);
+            $value = call_user_func_array(array($class, $method), $params);
+            $this->put($key, $value, $seconds);
+            return $value;
+        }
     }
 }

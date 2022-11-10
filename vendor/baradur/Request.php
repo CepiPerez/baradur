@@ -56,7 +56,25 @@ Class Request
         {
             foreach ($_FILES as $key => $val)
             {
-                $this->files[$key] = new StorageFile($val);
+                if (is_array($val['name']))
+                {
+                    for ($i=0; $i<count($val['name']); ++$i)
+                    {
+                        $new = new stdClass;
+                        $new->name = $val['name'][$i];
+                        $new->type = $val['type'][$i];
+                        $new->tmp_name = $val['tmp_name'][$i];
+                        $new->error = $val['error'][$i];
+                        $new->size = $val['size'][$i];
+
+                        if ($new->name && $new->type && $new->error==0)
+                            $this->files[$key][] = new StorageFile($new);
+                    }
+                }
+                else
+                {
+                    $this->files[$key] = new StorageFile($val);
+                }
             }
         }
 
@@ -239,7 +257,7 @@ Class Request
      * Gets a file in array by key
      * 
      * @param string $key
-     * @return StorageFile
+     * @return StorageFile|array
      */
     public function file($key)
     {
@@ -277,7 +295,7 @@ Class Request
 
     public function hasFile($name)
     {
-        return isset($this->files[$name]);
+        return isset($this->files[$name]) && !empty($this->files[$name]);
     }
 
 

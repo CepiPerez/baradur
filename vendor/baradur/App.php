@@ -16,7 +16,23 @@ Class App {
 
     //public static function allErrors() { return self::$errors; }
 
-    public static function start() { return Route::start(); }
+    public static function start() { 
+
+        # Autologin
+        if (!isset($_SESSION['user']))
+        {
+            if (isset($_COOKIE[env('APP_NAME').'_token']) && !Auth::user() && Route::has('login'))
+            {
+                Auth::autoLogin($_COOKIE[env('APP_NAME').'_token']);
+            }
+        }      
+        return Route::start();
+    }
+
+    public function inProduction()
+    {
+        return env('APP_ENV')=='production';
+    }
 
     public function route()
     {
@@ -155,7 +171,7 @@ Class App {
 
         }
 
-        return null;
+        return new $name;
     }
 
 
@@ -199,9 +215,40 @@ Class App {
         {
             echo header('Location: '.$this->result);
         }
-        else
+        elseif (is_object($this->result))
         {
-            echo $this->result;
+            //dd($this->result);
+
+            $view = View::loadTemplate($this->result->template, $this->result->arguments);
+
+            if (env('DEBUG_INFO')==1)
+            {
+                global $debuginfo;
+                $size = memory_get_usage();
+                $debuginfo['memory_usage'] = get_memory_converted($size);
+                $params['debug_info'] = $debuginfo;
+
+                $start = $debuginfo['start'];
+                $end = microtime(true) - $start;
+                $debuginfo['time'] = number_format($end, 2) ." seconds";
+
+                $script = '<script>var debug_info = '."[".json_encode($debuginfo)."]"."\n".
+                    '$(document).ready(function(e) {
+                        console.log("TIME: "+debug_info.map(a => a.time));
+                        console.log("MEMORY USAGE: "+debug_info.map(a => a.memory_usage));
+                        let q = debug_info.map(a => a.queryes);
+                        if (q[0]) {
+                        q[0].forEach(function (item, index) {
+                            console.log("Query #"+(index+1));
+                            console.log(item);
+                        });
+                        }
+                    });</script>';
+                $view = str_replace('</body>', $script."\n".'</body>', $view);
+
+            }
+
+            echo $view;
         }
     }
 

@@ -36,18 +36,18 @@ abstract Class Factory
         Faker::setCounter($this->count);
 
         $count = $this->count;
-        $model = $this->model;
+        $model = new $this->model;
 
         $i = 0;
         $array = new Collection($model);
-        $model::fillableOff();
+        $model->fillableOff();
 
         while ($i++ < $count)
         {
             $array[] = $this->definition();
         }
 
-        return $model::seed($array, true);
+        return $model->seed($array, true);
          
     }
 
@@ -63,18 +63,18 @@ abstract Class Factory
         Faker::setCounter($this->count);
 
         $count = $this->count;
-        $model = $this->model;
+        $model = new $this->model;
 
         $i = 0;
         $array = new Collection($model);
-        $model::fillableOff();
+        $model->fillableOff();
 
         while ($i++ < $count)
         {
             $array[] = $this->definition();
         }
 
-        return $model::seed($array, false);
+        return $model->seed($array, false);
          
     }
 

@@ -39,8 +39,9 @@ class DotEnv
         {
             $envfile .= "\n?>";
 
-            Cache::store('file')->setDirectory($path.'/storage/framework/config')
-                ->plainPut($path.'/storage/framework/config/env.php', $envfile);
+            Cache::store('file')->plainPut($path.'/storage/framework/config/env.php', $envfile);
+
+            unset($envfile);
         }
     }
 }

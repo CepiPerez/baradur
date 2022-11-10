@@ -8,13 +8,8 @@ class RouteServiceProvider extends ServiceProvider
     public function boot()
     {
         Route::resourceVerbs([
-            'index' => 'inicio',
             'create' => 'crear',
-            'store' => 'guardar',
-            'show' => 'mostrar',
             'edit' => 'editar',
-            'update' => 'modificar',
-            'destroy' => 'eliminar'
         ]);
 
 

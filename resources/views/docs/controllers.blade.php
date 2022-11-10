@@ -7,7 +7,7 @@
 <h5>There's two types of Controllers:</h5>
 <br>
 <h4># Controller</h4>
-<p>This controller includes a Token verification wich denies requests based on
+<p>This controller uses <b>VerifyCsrfToken</b> Middleware wich checks tokens based on
 the time it was created, or the times it's used.<br>
 Both of them are defined in <b>.env</b> file:<br>
 <div class="table-container">
@@ -33,9 +33,8 @@ Both of them are defined in <b>.env</b> file:<br>
 <br>
 <br>
 <h4># ApiController</h4>
-<p>This controller includes a Token verification wich denies requests based on
-the time it was created, no matter how many times it's used.<br>
-It's defined <b>.env</b> file:<br></p>
+<p>This controller uses <b>ThrottleRequests</b> Middleware to verify requests tokens.<br>
+Token's lifetime can be defined in <b>.env</b> file:<br></p>
 <div class="table-container">
     <table class="custom-table">
         <tr>
@@ -47,16 +46,6 @@ It's defined <b>.env</b> file:<br></p>
 <br>
 <b>Usage:</b>
 <pre><code class="language-php7">Class MyController extends ApiController {
-
-    // my functions here;
-}
-</code></pre>
-<br><br>
-<h5>If you don't want to use tokenVerification, just don't <b>extend</b> your controller,
-or set tokenVerification to false:</h5>
-<pre><code class="language-php7">Class MyController extends Controller {
-
-    protected $tokenVerification = false;
 
     // my functions here;
 }

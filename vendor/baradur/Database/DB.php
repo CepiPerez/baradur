@@ -16,22 +16,69 @@ class DB extends Model
      * Returns a Query builder
      * 
      * @param string $table
-     * @return QueryBuilder
+     * @return Builder
      */
     public static function table($table)
     {
-        //self::initialize('DB');
-        $res = self::getInstance($table);
-        return $res->getQuery();
+        $res = parent::instance('DB', $table);
+        return $res; //->getQuery();
     }
 
     public static function statement($query)
     {
-        $res = self::getInstance('DB');
-        return $res->getQuery()->query($query);
-        /* return $res; */
+        $res = parent::instance('DB');
+        return $res->runQuery($query);
+        //return $res->getQuery()->query($query);
     }
 
+    /**
+     * Executes the SQL $query
+     * 
+     * @param string $query
+     * @return Collection
+     */
+    public static function query($query)
+    {
+        $res = parent::instance('DB');
+        return $res->runQuery($query);
+    }
+
+    public static function beginTransaction()
+    {
+        return parent::instance('DB')->connector()->beginTransaction();
+    }
+
+    public static function commit()
+    {
+        return parent::instance('DB')->connector()->commit();
+    }
+
+    public static function rollBack()
+    {
+        return parent::instance('DB')->connector()->rollBack();
+    }
+
+    public static function transaction($closure)
+    {
+        list($class, $method, $params) = getCallbackFromString($closure);
+        
+        try
+        {
+            self::beginTransaction();
+
+            call_user_func_array(array($class, $method), $params);
+
+            self::commit();
+
+            return true;
+        }
+        catch(Exception $e)
+        {
+            self::rollBack();
+
+            return false;
+        }
+    }
 
 }
 

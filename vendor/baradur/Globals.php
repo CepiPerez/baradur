@@ -1,7 +1,7 @@
 <?php
 
 function env($val, $default=null) { 
-    return constant($val)? constant($val) : $default;
+    return defined($val)? constant($val) : $default;
 }
 
 $base = '/'. rtrim(env('PUBLIC_FOLDER'), '/');
@@ -10,7 +10,6 @@ $base = '/'. rtrim(env('PUBLIC_FOLDER'), '/');
         "://" . $_SERVER['SERVER_NAME'] . $base; */
 
 $home = rtrim(env('APP_URL'), '/') . $base;
-
 
 #define('_ASSETS', 'assets');
 define('HOME', rtrim($home, '/'));

@@ -3,14 +3,14 @@
 class EventServiceProvider extends ServiceProvider
 {
 
-    /* protected $observers = [
-        Categoria::class => CategoriaObserver::class,
-    ]; */
+    protected $observers = [
+        //Category::class => CategoryObserver::class,
+    ];
 
     public function boot()
     {
         # Observers
-        // Categoria::observe(CategoriaOberver::class);
+        // Category::observe(CategoryOberver::class);
     }
 
 }

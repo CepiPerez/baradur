@@ -3,22 +3,19 @@
 class Str
 {
     protected static $_instance = null;
+    //public static $_macros = array();
 
     private static function getInstance($string = null)
     {
-        /* if (!self::$_instance)
-            self::$_instance = new Stringable($string);
-
-        return self::$_instance; */
         return new Stringable($string);
     }
 
 
-    /* public function __construct($string = null)
+    /* public static function marcro($name, $callback)
     {
-        //$this->value = $string;
-        return new Stringable($string);
+        self::$_macros[$name] = $callback;
     } */
+
 
     public static function of($string)
     {
@@ -29,6 +26,23 @@ class Str
     /* function __toString(){
         return $this->value;
     } */
+
+
+    public static function uuid($data=null)
+    {
+        if (!$data)
+            $data = random_bytes(16);
+
+        assert(strlen($data) == 16);
+
+        // Set version to 0100
+        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+        // Set bits 6-7 to 10
+        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+
+        // Output the 36 character UUID.
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+    }
 
     public static function after($subject, $search)
     {
@@ -91,7 +105,8 @@ class Str
 
         $words = explode(' ', self::replace(array('-', '_'), ' ', $value));
 
-        $studlyWords = array_map(array(self, 'mapCallback'), $words);
+        foreach ($words as $word)
+            $studlyWords[] = self::mapCallback($word);
 
         return implode($studlyWords);
     }
@@ -219,7 +234,7 @@ class Str
 
     public static function snake($value, $delimiter = '_')
     {
-        $key = $value;
+        //$key = $value;
 
         /* if (isset(static::$snakeCache[$key][$delimiter])) {
             return static::$snakeCache[$key][$delimiter];

@@ -2,7 +2,7 @@
 
 return [
 
-    'locale' => 'es',
+    'locale' => 'en',
 
     'fallback_locale' => 'en',
 
@@ -10,7 +10,6 @@ return [
 
         app\providers\AppServiceProvider::class,
         app\providers\AuthServiceProvider::class,
-        // app\providers\BroadcastServiceProvider::class,
         app\providers\EventServiceProvider::class,
         app\providers\RouteServiceProvider::class,
 

@@ -82,18 +82,13 @@ class BladeOne
 
     public function run($view,$variables=array())
     {
-        $mode= env('APP_DEBUG'); // mode=0 automatic: not forced and not run fast.
-        /* if (env('BLADEONE_MODE')) {
-            $mode=BLADEONE_MODE;
-        } */
+        $mode = 0; //env('APP_ENV')=='production'? 0 : 1; // mode=0 automatic: not forced and not run fast.
         $forced = $mode & 1; // mode=1 forced:it recompiles no matter if the compiled file exists or not.
         $runFast = $mode & 2; // mode=2 runfast: the code is not compiled neither checked and it runs directly the compiled
 
         if ($mode==3) {
             $this->showError("run","we can't force and run fast at the same time",true);
         }
-        #$forced = env('APP_DEBUG')==1? true : false;
-        #$runFast = env('APP_DEBUG')==1? false : true;
 
         return $this->runInternal($view,$variables,$forced,true,$runFast);
     }
@@ -120,11 +115,21 @@ class BladeOne
 
         global $artisan;
         if (!$artisan)
-            return $this->evaluatePath($this->getCompiledFile(),$variables);
+            return $this->evaluatePath($this->getCompiledFile(), $variables);
         else
             return file_get_contents($this->getCompiledFile());
     }
 
+
+    /* function callbackReplaceModels($match)
+    {
+        global $_model_list;
+
+        if (in_array($match[1], $_model_list) && $match[2]!='class' && !method_exists($match[1], $match[2]))
+            return "Model::instance('$match[1]')->$match[2]";
+
+        return $match[0];
+    } */
 
     public function compile($fileName = null,$forced=false)
     {
@@ -142,14 +147,16 @@ class BladeOne
             # Remove all HTML comments
             /* $contents = preg_replace('/<!--([\s\S]*?)-->/x', '', $contents); */
 
+            # Replace models functions
+            $contents = preg_replace_callback('/(\w*)::(\w*)/x', 'callbackReplaceModels', $contents);
+
             # compile the original file
             $contents = $this->compileString($contents);
 
 
             if (!is_null($this->compiledPath))
             {
-                Cache::store('file')->setDirectory(_DIR_.'/storage/framework/views')
-                    ->plainPut($compiled, $contents);
+                Cache::store('file')->plainPut($compiled, $contents);
                 //file_put_contents($compiled, $contents);
             }
         }
@@ -254,6 +261,11 @@ class BladeOne
         return $this->phpTag.'echo csrf_field(); ?>';
     }
 
+    protected function compileClass($expression)
+    {
+        $expression = is_null($expression) ? '(array())' : $expression;
+        return "class=\"<?php echo Helpers::toCssClasses{$expression} ?>\"";
+    }
 
     private function parseAttributeBag($attributeString)
     {
@@ -486,39 +498,7 @@ class BladeOne
 
     public function compileSelfClosingComponents($value)
     {
-        /* $pattern = "/
-            <
-                \s*
-                x[-\:]([\w\-\:\.]*)
-                \s*
-                (?<attributes>
-                    (?:
-                        \s+
-                        (?:
-                            (?:
-                                \{\{\s*\\\$attributes(?:[^}]+?)?\s*\}\}
-                            )
-                            |
-                            (?:
-                                [\w\-:.@]+
-                                (
-                                    =
-                                    (?:
-                                        \\\"[^\\\"]*\\\"
-                                        |
-                                        \'[^\']*\'
-                                        |
-                                        [^\'\\\"=<>]+
-                                    )
-                                )?
-                            )
-                        )
-                    )*
-                    \s*
-                )
-            \/>
-        /x"; */
-
+ 
         $pattern = '/<\s*x-([^ ]*)([\s\S]([^>])*?)\/>/x';
 
         return preg_replace_callback($pattern, 
@@ -990,6 +970,17 @@ class BladeOne
         return ' ?>';
     }
 
+    protected function compileEnv($expression)
+    {
+        $expression = $this->stripParentheses($expression);
+        return $this->phpTag."if ( env('APP_ENV')==$expression ): ?>";
+    }
+
+    protected function compileEndEnv()
+    {
+        return $this->phpTag.'endif; ?>';
+    }
+
     protected function compileUnset($expression)
     {
         return $this->phpTag."unset{$expression}; ?>";
@@ -1010,21 +1001,26 @@ class BladeOne
     protected function compileInclude($expression)
     {
         $expression = $this->stripParentheses($expression);
-
-        /* return $replace = $this->phpTag.'echo $this->runChild('.$expression.'); ?>'; */
         return $this->phpTagEcho . '$this->runChild(' . $expression . '); ?>';
     }
 
     protected function compileIncludeIf($expression)
     {
-        $expression = $this->stripParentheses($expression);
-
-        return $replace = $this->phpTag.'if (\$this->exists($expression)) echo $this->runChild('.$expression.'); ?>';
-
-        /*return $this->phpTag."if (\$__env->exists($expression)) echo \$__env->make($expression, array_except(get_defined_vars(), array('__data', '__path')))->render(); ?>";
-        */
+        return $this->phpTag . 'if ($this->templateExist' . $expression . ') echo $this->runChild' . $expression . '; ?>';
     }
 
+    protected function compileIncludeWhen($expression)
+    {
+        $expression = $this->stripParentheses($expression);
+        return $this->phpTagEcho . '$this->includeWhen(' . $expression . '); ?>';
+    }
+
+    protected function compileIncludeFirst($expression)
+    {
+        $expression = $this->stripParentheses($expression);
+        return $this->phpTagEcho . '$this->includeFirst(' . $expression . '); ?>';
+    }
+    
     protected function compileStack($expression)
     {
         return $this->phpTag."echo \$this->yieldPushContent{$expression}; ?>";
@@ -1076,7 +1072,7 @@ class BladeOne
 
     protected function compileElseAuth($guard = null)
     {
-        return "<?php elseif( Auth::check() ): ?>";
+        return "<?php else: ?>";
     }
 
     protected function compileEndAuth()
@@ -1091,7 +1087,7 @@ class BladeOne
 
     protected function compileElseGuest($guard = null)
     {
-        return "<?php elseif( !Auth::check() ): ?>";
+        return "<?php else   : ?>";
     }
 
     protected function compileEndGuest()
@@ -1399,11 +1395,12 @@ class BladeOne
         return $this->compiledPath.'/'.sha1($this->fileName);
     }
 
-    public function getTemplateFile() {
-        $arr=explode('.',$this->fileName);
-        $c=count($arr);
+    public function getTemplateFile($templateName=null) {
+        $templateName = $templateName? $templateName : $this->fileName;
+        $arr = explode('.' , $templateName);
+        $c = count($arr);
         if ($c==1) {
-            return $this->templatePath . '/' . $this->fileName . '.blade.php';
+            return $this->templatePath . '/' . $templateName . '.blade.php';
         } else {
             $file=$arr[$c-1];
             array_splice($arr,$c-1,$c-1); // delete the last element
@@ -1415,7 +1412,7 @@ class BladeOne
     public function isExpired()
     {
         $compiled = $this->getCompiledFile();
-        $template=$this->getTemplateFile();
+        $template = $this->getTemplateFile();
 
         // If the compiled file doesn't exist we will indicate that the view is expired
         // so that it can be re-compiled. Else, we will verify the last modification
@@ -1494,6 +1491,30 @@ class BladeOne
         }
 
         return $array;
+    }
+
+    protected function templateExist($templateName)
+    {
+        $file = $this->getTemplateFile($templateName);
+        return is_file($file);
+    }
+
+    public function includeWhen($bool=false, $view='', $value=array())
+    {
+        if ($bool) {
+            return $this->runChild($view, $value);
+        }
+        return '';
+    }
+
+    public function includeFirst($views=array(), $value=array())
+    {
+        foreach ($views as $view) {
+            if ($this->templateExist($view)) {
+                return $this->runChild($view, $value);
+            }
+        }
+        return '';
     }
 
     public function exists($array, $key)

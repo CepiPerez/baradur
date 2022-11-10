@@ -6,6 +6,8 @@ Class Collection extends arrayObject
     protected static $_parent = 'Model';
     protected static $_hidden = array();
 
+    protected $items = array();
+
     /**
      * Creates a new Collection\
      * Associates it with a classname if defined
@@ -112,13 +114,16 @@ Class Collection extends arrayObject
      * 
      * @return string
      */
-    public function links($bootstrap = false)
+    public function links()
     {
         if (!isset($this->pagination)) return null;
 
-        View::setPagination($this->pagination);
-        if ($bootstrap) return View::loadTemplate('common/pagination');
-        return View::loadTemplate('layouts/pagination');
+        Paginator::setPagination($this->pagination);
+
+        if (Paginator::style()!='tailwind') 
+            return View::loadTemplate('layouts/pagination-bootstrap4', array('paginator' => Paginator::pagination()));
+
+        return View::loadTemplate('layouts/pagination-tailwind', array('paginator' => Paginator::pagination()));
     }
 
     /**
@@ -190,7 +195,7 @@ Class Collection extends arrayObject
     /**
      * Returns the first item from the collection
      * 
-     * @return Model
+     * @return Model|mixed
      */
     public function first()
     {
@@ -310,10 +315,10 @@ Class Collection extends arrayObject
                 //$col[$k] = $this->getObjectItemsForCollect($item);
                 $this[$k] = $this->getObjectItemsForCollect($item);
             }
-            elseif ($k!='__name')
+            elseif ($k!=='__name')
             {
                 //$col[] = $item;
-                $this[$k] = $item;
+                $this[$k] = $item; //is_array($item)? $this->arrayToObject($item) : $item;
             }
         }
         //return $col;
@@ -322,37 +327,263 @@ Class Collection extends arrayObject
 
 
     /**
-     * Returns all elements from the collection
+     * Run a map over each of the items.
+     * Check Laravel documentation
+     *
+     * @param  $callback
+     * @return Collection
+     */
+    public function map($callback)
+    {
+        $res = new Collection(self::$_parent);
+        
+        list($class, $method, $params) = getCallbackFromString($callback);
+
+        foreach ($this as $record)
+        {
+            $res[] = call_user_func_array(array($class, $method), array_merge(array($record), $params));
+        }
+        return $res;
+    }
+
+    /**
+     * Filter items based on callback
+     * Check Laravel documentation
+     *
+     * @param  $callback
+     * @return Collection
+     */
+    public function filter($callback)
+    {
+        $res = new Collection(self::$_parent);
+        
+        list($class, $method, $params) = getCallbackFromString($callback);
+
+        foreach ($this as $record)
+        {
+            if (call_user_func_array(array($class, $method), array_merge(array($record), $params)))
+                $res[] = $record;
+        }
+        return $res;
+    }
+
+    /**
+     * Check if collection contains callback
+     * Check Laravel documentation
+     *
+     * @param  $callback
+     * @return bool
+     */
+    public function contains($callback)
+    {
+        if (strpos($callback, '@')==false)
+        {
+            return in_array($callback, (array)$this);
+        }
+
+        $res = false;
+        
+        list($class, $method, $params) = getCallbackFromString($callback);
+
+        foreach ($this as $record)
+        {
+            if (call_user_func_array(array($class, $method), array_merge(array($record), $params)))
+            {
+                $res = true;
+                break;
+            }
+        }
+
+        return $res;
+    }
+
+
+    /**
+     * Divides the collection based on callback
+     * Check Laravel documentation
+     *
+     * @param  $callback
+     * @return bool
+     */
+    public function partition($callback)
+    {
+        $res1 = new Collection(self::$_parent);
+        $res2 = new Collection(self::$_parent);
+        
+        list($class, $method, $params) = getCallbackFromString($callback);
+
+        foreach ($this as $record)
+        {
+            if (call_user_func_array(array($class, $method), array_merge(array($record), $params)))
+            {
+                $res1[] = $record;
+            }
+            else
+            {
+                $res2[] = $record;
+            }
+        }
+
+        return array($res1, $res2);
+    }
+
+    /**
+     * Chunks the collection
+     * Check Laravel documentation
+     *
+     * @param  $value
+     * @return bool
+     */
+    public function chunk($value)
+    {
+        $arr = array();
+        $res = new Collection(self::$_parent);
+        
+        foreach ($this as $record)
+        {
+            if (count($arr)==$value)
+            {
+                $res[] = $arr;
+                $arr = array();
+            }
+            $arr[] = $record;
+        }
+        if (count($arr)>0)
+        {
+            $res[] = $arr;
+        }
+
+        return $res;
+    }
+
+
+    /**
+     * Run an associative map over each of the items.
+     * Check Laravel documentation
+     *
+     * @param $callback
+     * @return Collection
+     */
+    public function mapWithKeys($callback)
+    {
+        $res = new Collection(self::$_parent);
+
+        list($class, $method, $params) = getCallbackFromString($callback);
+
+        foreach ($this as $record) {
+            $assoc = call_user_func_array(array($class, $method), array_merge(array($record), $params));
+            foreach ($assoc as $mapKey => $mapValue) {
+                $res[$mapKey] = $mapValue;
+            }
+        }
+
+        return $res;
+    }
+
+
+
+
+    /**
+     * Returns the underlying array represented by the collection
      * 
      * @return Collection
      */
     public function all()
     {
-        return $this;
+        $res = array();
+        foreach ($this as $key => $val)
+        {
+            $res[$key] = $val;
+        }
+        return $res;
     }
 
 
     /**
-     * Checks if value exists in collection
+     * Returns a new collection with the keys reset to consecutive integers
      * 
-     * @return bool
+     * @return Collection
      */
-    public function contains($value)
+    public function values()
+    {
+        $res = new Collection(self::$_parent);
+        $count = 0;
+        foreach ($this as $record)
+        {
+            $res[] = $record;
+            ++$count;
+        }
+        return $res;
+    }
+
+
+    
+    /* public function contains($value)
     {
         return in_array($value, (array)$this);
-    }
+    } */
 
     /**
      * Filters the collection by a given key/value pair
      * 
      * @return Collection
      */
-    public function where($key, $value)
+    public function where($key,     $value)
     {
         $res = new Collection(self::$_parent);
         foreach ($this as $record)
         {
             if (isset($record->$key) && $record->$key==$value)
+                $res[] = $record;
+        }
+        return $res;
+    }
+
+    /**
+     * Filters the collection without the given key/value pair
+     * 
+     * @return Collection
+     */
+    public function whereNot($key, $value)
+    {
+        $res = new Collection(self::$_parent);
+        foreach ($this as $record)
+        {
+            if (isset($record->$key) && $record->$key!=$value)
+                $res[] = $record;
+        }
+        return $res;
+    }
+
+    /**
+     * Filters the collection where given key is null
+     * 
+     * @return Collection
+     */
+    public function whereNull($key)
+    {
+        $res = new Collection(self::$_parent);
+        foreach ($this as $record)
+        {
+            //dump($record->$key);
+            if (!isset($record->$key))
+                $res[] = $record;
+        }
+        return $res;
+    }
+
+    /**
+     * Filters the collection where given key exists
+     * 
+     * @return Collection
+     */
+    public function whereNotNull($key)
+    {
+        $res = new Collection(self::$_parent);
+        foreach ($this as $record)
+        {
+            //dump($record->$key);
+            if (isset($record->$key))
                 $res[] = $record;
         }
         return $res;
@@ -424,6 +655,11 @@ Class Collection extends arrayObject
         return $res;
     }
 
+    public function modelKeys()
+    {
+        return $this->pluck(is_array($this->_modelKeys) ? $this->_modelKeys[0] : $this->_modelKeys );
+    }
+
     /**
      * Retrieves all of the values for a given key\
      * You may also specify how you wish the resulting collection to be keyed
@@ -432,16 +668,66 @@ Class Collection extends arrayObject
      */
     public function pluck($value, $key=null)
     {
-        $count = 0;
-        
+
+        $extra = null;
+        if (strpos($value, '.')!==false)
+        {
+            list($value, $extra) = explode('.', $value);
+        }
+
+        $res = array();
+        foreach ($this as $record)
+        {
+            if (is_object($record))
+            {
+                if ($key) $res[$record->$key] = $record->$value;
+                else 
+                {
+                    if (!in_array($record->$value, $res))
+                        $res[] = $extra? $record->$value->$extra : $record->$value;
+                }
+            }
+            else
+            {
+                if ($key) $res[$record[$key]] = $record[$value];
+                else 
+                {
+                    if (!in_array($record[$value], $res))
+                        $res[] = $extra? $record[$value][$extra] : $record[$value];
+                }
+            }
+        }
+        //return $res;
+
+        $final = new Collection(self::$_parent);
+
+        foreach ($res as $key => $val)
+            $final[$key] = $val;
+
+        return $final;
+    }
+
+    /**
+     * Retrieves only specified keys in collection
+     * 
+     * @return Collection
+     */
+    public function keys($keys)
+    {        
         $res = new Collection(self::$_parent);
         foreach ($this as $record)
         {
-            if ($key) $res[$record->$key] = $record->$value;
-            else $res[] = $record->$value;
+            $new = $record;
+            foreach ($new as $key => $val)
+            {
+                if (!in_array($key, $keys))
+                    unset($new->$key);
+            }
+            $res[] = $new;
         }
         return $res;
     }
+
 
     /**
      * Sets the given item in the collection
@@ -525,16 +811,108 @@ Class Collection extends arrayObject
      * Adds records from a sub-query inside the current records\
      * Check Laravel documentation
      * 
-     * @return Model
+     * @return Collection
      */
     public function load($relations)
     {
-        $class = new self::$_parent;
+        /* $res = $this->getParent();
+        $class = new $res;
         $class->getQuery()->_collection = $this;
         $class->load( is_string($relations) ? func_get_args() : $relations );
+        return $this; */
+        $class = Model::instance($this->getParent());
+        $class->_collection = $this;
+        $class->load( is_string($relations) ? func_get_args() : $relations );
+        return $this;
     }
     
 
+    /**
+     * Eager load relation's column aggregations on the model.
+     *
+     * @return Model
+     */
+    public function loadAggregate($relations, $column, $function = null)
+    {
+        //$parent = $this->getParent();
+        //$class = new $parent;
+        $class = new Builder($this->getParent());
+
+        $relations = is_string($relations) ? array($relations) : $relations;
+
+        foreach ($relations as $relation)
+        {
+            //$class->getQuery()->_collection = $this;
+            //$class->getQuery()->loadAggregate($relation, $column, $function)->_collection;
+            $class->_collection = $this;
+            $class->loadAggregate($relation, $column, $function)->_collection;
+        }
+
+        return $this;
+    }
+  
+
+    /**
+     * Eager load relation counts on the model.
+     *
+     * @return Model
+     */
+    public function loadCount($relations)
+    {
+        $relations = is_string($relations) ? func_get_args() : $relations;
+        return $this->loadAggregate($relations, '*', 'count');
+    }
+
+    /**
+     * Eager load relation max column values on the model.
+     *
+     * @return Model
+     */
+    public function loadMax($relations, $column)
+    {
+        return $this->loadAggregate($relations, $column, 'max');
+    }
+
+    /**
+     * Eager load relation min column values on the model.
+     *
+     * @return Model
+     */
+    public function loadMin($relations, $column)
+    {
+        return $this->loadAggregate($relations, $column, 'min');
+    }
+
+    /**
+     * Eager load relation's column summations on the model.
+     *
+     * @return Model
+     */
+    public function loadSum($relations, $column)
+    {
+        return $this->loadAggregate($relations, $column, 'sum');
+    }
+
+    /**
+     * Eager load relation average column values on the model.
+     *
+     * @return Model
+     */
+    public function loadAvg($relations, $column)
+    {
+        return $this->loadAggregate($relations, $column, 'avg');
+    }
+
+    /**
+     * Eager load related model existence values on the model.
+     *
+     * @return Model
+     */
+    public function loadExists($relations)
+    {
+        $relations = is_string($relations) ? func_get_args() : $relations;
+        return $this->loadAggregate($relations, '*', 'exists');
+    }
 
     
 }

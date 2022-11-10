@@ -4,7 +4,8 @@
 
 <h3>Artisan</h3>
 <hr>
-<h5>Available commands</h5>
+<h5>To check all available options run the following command:</h5>
+<pre><code class="language-bash">php artisan</code></pre>
 <br>
 <h4># Migrations</h4>
 <br><b>Creating migrations:</b>

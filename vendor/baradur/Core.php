@@ -9,10 +9,19 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 $routes = array();
 $observers = array();
 $version = '';
+$debuginfo = array();
+
+$preventLazyLoading = false;
+$preventSilentlyDiscardingAttributes = false;
+$preventAccessingMissingAttributes = false;
+
+
+#ini_set('memory_limit', '256M');
 
 ini_set('display_errors', true);
 error_reporting(E_ALL + E_NOTICE);
 #ini_set('display_errors', false);
+#error_reporting(0);
 
 /* if (version_compare(phpversion(), '8.0.0', '>='))
 {
@@ -21,6 +30,73 @@ error_reporting(E_ALL + E_NOTICE);
 } */
 
 define ('_DIR_', dirname(__FILE__));
+
+$_class_list = array();
+$_model_list = array();
+
+global $artisan;
+
+# Load all classes
+if (!file_exists(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'))
+{
+    //echo "CREATING CLASSES<br>";
+    $it = new RecursiveDirectoryIterator(_DIR_.'/../../app');
+    foreach(new RecursiveIteratorIterator($it) as $file)
+    {
+        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
+        {
+            $_class_list[str_replace('.php', '', str_replace('.PHP', '', basename($file)))] = realpath($file);
+            if (strpos(realpath($file), '/app/models/')>0)
+                $_model_list[] = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+        }
+    }
+    $it = new RecursiveDirectoryIterator(_DIR_.'/../../database');
+    foreach(new RecursiveIteratorIterator($it) as $file)
+    {
+        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
+        {
+            $_class_list[str_replace('.php', '', str_replace('.PHP', '', basename($file)))] = realpath($file);
+        }
+    }
+
+    $it = new RecursiveDirectoryIterator(_DIR_.'/../baradur');
+    foreach(new RecursiveIteratorIterator($it) as $file)
+    {
+        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
+        {
+            $_class_list[str_replace('.php', '', str_replace('.PHP', '', basename($file)))] = realpath($file);
+        }
+    }
+
+    $it = new RecursiveDirectoryIterator(_DIR_.'/../faker');
+    foreach(new RecursiveIteratorIterator($it) as $file)
+    {
+        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
+        {
+            $_class_list[str_replace('.php', '', str_replace('.PHP', '', basename($file)))] = realpath($file);
+        }
+    }
+
+    if (file_exists(_DIR_.'/../autoload.php'))
+    {
+        $real = _DIR_;
+        $real = rtrim($real, 'baradur');
+        $extra = include_once(_DIR_.'/../autoload.php');
+        if (count($extra)>0)
+        {
+            foreach ($extra as $key => $val)
+                $_class_list[$key] = $real.$val;
+        }
+    }
+
+    @file_put_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'classes.php', serialize($_class_list));
+    @file_put_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'models.php', serialize($_model_list));
+}
+else
+{
+    $_class_list = unserialize(file_get_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'));
+    $_model_list = unserialize(file_get_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'models.php'));
+}
 
 # Autoload function registration
 spl_autoload_register('custom_autoloader');
@@ -36,10 +112,14 @@ else
     DotEnv::load(_DIR_.'/../../', '.env');
 }
 
-
 # Globals
 require_once('Globals.php');
 
+if (env('DEBUG_INFO')==1)
+{
+    global $debuginfo;
+    $debuginfo['start'] = microtime(true);
+}
 
 # Global functions / Router functions
 require_once('Global_functions.php');
@@ -52,10 +132,19 @@ if (!isset($_SESSION['key']))
     $_SESSION['key'] = bin2hex(random_bytes(32));
 
 
+# MySQL Conector
+$database = array( 
+    'host' => ($artisan? env('DB_LOCAL_HOST') : env('DB_HOST')),
+    'user' => env('DB_USER'), 
+    'password' => env('DB_PASSWORD'), 
+    'database' => env('DB_NAME'), 
+    'port' => env('DB_PORT')
+);
+
 # Instantiating App
 $app = new App();
 
-# Instantiatin Request
+# Instantiating Request
 $app->singleton('request', 'Request');
 
 # Including config file
@@ -66,258 +155,101 @@ $locale = $config['locale'];
 $fallback_locale = $config['fallback_locale'];
 
 # Initializing App cache
-$cache = new FileStore(new Filesystem(), _DIR_.'/../../storage/framework/cache/classes', 0777);
+$cache = new FileStore(new Filesystem(), _DIR_.'/../../storage/framework/classes', 0777);
 
 # Initializing Storage
 Storage::$path = _DIR_.'/../../storage/app/public/';
 
 # Loading Providers
+$_service_providers = array();
 foreach($config['providers'] as $provider)
 {
-    CoreLoader::loadProvider(_DIR_.'/../../app/providers/'.$provider.'.php');
+    CoreLoader::loadClass(_DIR_.'/../../app/providers/'.$provider.'.php');
 }
-
-#dd(Route::routeList()); exit();
+foreach ($_service_providers as $provider)
+{
+    $class = new $provider;
+    $class->register();
+    unset($class);
+}
+foreach ($_service_providers as $provider)
+{
+    $class = new $provider;
+    $class->boot();
+    unset($class);
+}
 
 
 # Autoload function
 function custom_autoloader($class) 
 {
-    global $version, $home;
-
     if (strpos($class, 'PHPExcel_')!==false) return;
 
     //echo "Loading Baradur class: ".$class."<br>";
-    $version = version_compare(phpversion(), '5.3.0', '>=')?'NEW':'OLD';
-
+ 
     $newclass = '';
-    /* if (file_exists(_DIR_.'/../../app/models/'.$class.'.php'))
-        $newclass = _DIR_.'/../../app/models/'.$class.'.php';
-    elseif (file_exists(_DIR_.'/../../app/models/auth/'.$class.'.php'))
-        $newclass = _DIR_.'/../../app/models/auth/'.$class.'.php';
-    elseif (file_exists(_DIR_.'/../../app/http/controllers/'.$class.'.php'))
-        $newclass = _DIR_.'/../../app/http/controllers/'.$class.'.php';
-    elseif (file_exists(_DIR_.'/../../app/controllers/auth/'.$class.'.php'))
-        $newclass = _DIR_.'/../../app/controllers/auth/'.$class.'.php';
-    elseif (file_exists(_DIR_.'/../../app/mddleware/'.$class.'.php'))
-        $newclass = _DIR_.'/../../app/middleware/'.$class.'.php';
-    elseif (file_exists(_DIR_.'/../../app/policies/'.$class.'.php'))
-        $newclass = _DIR_.'/../../app/policies/'.$class.'.php';
-    elseif (file_exists(_DIR_.'/View/'.$class.'.php'))
-        $newclass = _DIR_.'/View/'.$class.'.php';
-    elseif (file_exists(_DIR_.'/Database/'.$class.'.php'))
-        $newclass = _DIR_.'/Database/'.$class.'.php';
-    elseif (file_exists(_DIR_.'/'.$class.'.php'))
-        $newclass = _DIR_.'/'.$class.'.php'; */
 
-    # Recursive search (class is not in predefined folders)
-    if ($newclass=='') {
-        $it = new RecursiveDirectoryIterator(_DIR_.'/../../app');
-        foreach(new RecursiveIteratorIterator($it) as $file)
-        {
-            if (basename($file) == $class.'.php' || basename($file) == $class.'.PHP')
-            {
-                $newclass = $file;
-                break;
-            }
-        }
-    }
+    global $_class_list;
 
-    # Recursive search in database folder
-    if ($newclass=='') {
-        $it = new RecursiveDirectoryIterator(_DIR_.'/../../database');
-        foreach(new RecursiveIteratorIterator($it) as $file)
-        {
-            if (basename($file) == $class.'.php' || basename($file) == $class.'.PHP')
-            {
-                $newclass = $file;
-                break;
-            }
-        }
-    }
+    if (isset($_class_list[$class]))
+        $newclass = $_class_list[$class];
+    else
+        return false;
 
-    # Recursive search in vendor folder
-    if ($newclass=='') {
-        $it = new RecursiveDirectoryIterator(_DIR_.'/../');
-        foreach(new RecursiveIteratorIterator($it) as $file)
-        {
-            if (basename($file) == $class.'.php' || basename($file) == $class.'.PHP')
-            {
-                $newclass = $file;
-                break;
-            }
-        }
-    }
-
-
-    if (file_exists(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php'))
+    if (file_exists(_DIR_.'/../../storage/framework/classes/'.$class.'.php'))
     {
         $date = filemtime($newclass);
-        $cachedate = filemtime(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');
+        $cachedate = filemtime(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
         if ($date < $cachedate && env('APP_DEBUG')==0)
         {
-            //echo "Load cache: $class<br>";
-            require_once(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');
-            $newclass = '';
+            if (file_exists(_DIR_.'/../../storage/framework/classes/baradurClosures_'.$class.'.php'))
+                require_once(_DIR_.'/../../storage/framework/classes/baradurClosures_'.$class.'.php');
+
+            require_once(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
+
+            return;
         } 
         else
         {
-            @unlink(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');
+            @unlink(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
         }
     }
-
-    /* if (file_exists(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php'))
-    {
-        $date = filemtime($newclass);
-        $cachedate = filemtime(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php');
-        if ($date < $cachedate)
-        {
-            require_once(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php');
-            $newclass = '';
-        } 
-        else
-        {
-            @unlink(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php');
-        }
-    } */
-
     
     if ($newclass!='') // && $version=='OLD')
     {
-        //echo "Caching: $newclass<br>";
-
-        $temp = file_get_contents($newclass);
-        //echo $newclass;
-        $temp = str_replace('  ', ' ', $temp);
-        if (strpos($temp, ' extends Model')>0)
+        //echo "Loading class $newclass<br>";
+        if (strpos($newclass, '/vendor/')===false)
         {
-            //echo "Class ".$class." is Model's subclass!<br>";
+            $temp = file_get_contents($newclass);
 
-            $temp2 = file_get_contents(_DIR_.'/Database/Model.php');
-            $temp2 = str_replace('Model', $class.'Model', $temp2);
-            $temp2 = str_replace('myparent', $class, $temp2);
-            $temp2 = rtrim($temp2, '}');
-
-            $temp = str_replace('extends Model', 'extends '.$class.'Model', $temp);
-
-
-            # Get table and query DB to get columns
-            # This way we can create where{COLUMN_NAME} methods
-            if ($class!='DB')
-            {    
-                preg_match('/(protected[\s]*\$table[\s]*=)[\s]*(.*);/', $temp, $table);
-                if (count($table)!=3)
-                    $table = strtolower(Helpers::camelCaseToSnakeCase($class));
-                else
-                    $table = str_replace("'", "", $table[2]);
-    
-                $query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS  
-                        WHERE TABLE_SCHEMA='".env('DB_NAME')."' AND TABLE_NAME = '$table'";
-                $res = DB::table($table)->query($query);
-                
-                $arr = array();
-                if ($res->num_rows>0)
-                {
-                    while ($row = $res->fetch_assoc()){
-                        $arr[] = $row['COLUMN_NAME'];
-                    }
-                }
-    
-                if (count($arr)>0)
-                {
-                    //$temp2 = rtrim($temp2, '}');
-                    foreach ($arr as $column)
-                    {
-                        $colname = Helpers::snakeCaseToCamelCase($column);
-                        $temp2 .= "\n   public static function where".ucfirst($colname). '($val) { return self::getInstance()->getQuery()->where(\''.$column.'\', $val); }'."\n";
-                    }
-                    
-                }
-            }
-            
-
-            # Make custom scopes
-            $pattern = "/scope(.*)\(/i";
-            if (preg_match_all($pattern, $temp, $matches))
+            if (strpos($newclass, 'baradurClosures_')===false)
             {
-                //$temp2 = rtrim($temp2, '}');
-                foreach ($matches[1] as $scope)
-                {
-                    $temp2 .= "\n   public static function ". lcfirst($scope) ."()
-    {
-        return self::getInstance()->getQuery()->callScope('". lcfirst($scope) ."', func_get_args());
-    }";
-                }
-            }
-            $temp2 .= "\n}\n";
-
-
-            /* if (file_exists(_DIR_.'/../../storage/framework/'.$class.'Model.php'))
-                unlink(_DIR_.'/../../storage/framework/'.$class.'Model.php');
-            file_put_contents(_DIR_.'/../../storage/framework/'.$class.'Model.php', $temp2);
-            require_once(_DIR_.'/../../storage/framework/'.$class.'Model.php');
-            unlink(_DIR_.'/../../storage/framework/'.$class.'Model.php'); */
-
-            Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
-                ->plainPut(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php', $temp2);
-            require_once(_DIR_.'/../../storage/framework/cache/classes/'.$class.'Model.php');
-
-
-            /* if (file_exists(_DIR_.'/../../storage/framework/'.$class.'.php'))
-                unlink(_DIR_.'/../../storage/framework/'.$class.'.php');
-            file_put_contents(_DIR_.'/../../storage/framework/'.$class.'.php', $temp);
-            require_once(_DIR_.'/../../storage/framework/'.$class.'.php');
-            unlink(_DIR_.'/../../storage/framework/'.$class.'.php'); */
-            $temp = replaceNewPHPFunctions($temp);
-
-            Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
-                ->plainPut(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php', $temp);
-            require_once(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');
-    
-        }
-        else
-        {
-            //echo "$newclass<br>";
-            if (strpos($newclass, '/app/')!=false)
-            {
-                #echo "Saving $newclass in cache<br>";
-                #var_dump( function_exists('callbackReplaceArrayStart') );
-                #$temp = str_replace('=[', '= [', $temp);
-                #$temp = preg_replace_callback('/([\W][^\]])\[/x', 'callbackReplaceArrayStart', $temp);
-                #$temp = preg_replace_callback('/(array\([^\]|;]*)(\]|;*[\W]*\])/x', 'callbackReplaceArrayEnd', $temp);
-                #$temp = str_replace('::class', '', preg_replace('/\w*::class/x', "'$0'", $temp));
-                $temp = replaceNewPHPFunctions($temp);
-
-                Cache::store('file')->setDirectory(_DIR_.'/storage/framework/cache/classes')
-                    ->plainPut(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php', $temp);
-                require_once(_DIR_.'/../../storage/framework/cache/classes/'.$class.'.php');
-
+                $temp = replaceNewPHPFunctions($temp, $class, _DIR_);
             }
             else
             {
-                require_once($newclass);
+                $temp = preg_replace_callback('/(\w*)::(\w*)/x', 'callbackReplaceModels', $temp);
             }
-        }
 
+            //echo "Saving class $class<br>";
+
+            Cache::store('file')->plainPut(_DIR_.'/../../storage/framework/classes/'.$class.'.php', $temp);
+            $temp = null;
+            
+            require_once(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
+        }
+        else
+        {
+            require_once($newclass);
+        }
     }
-    /* else if ($newclass!='' && $version=='NEW')
-    {
-        require_once($newclass);
-    } */
+    
     
 }
 
-
-# MySQL Conector
-$database = new Connector(env('DB_HOST'), env('DB_USER'), env('DB_PASSWORD'), env('DB_NAME'), env('DB_PORT'));
-
+#dd("HOLA");
 
 # Error handling
-//set_exception_handler(array('ExceptionHandler', 'handleException'));
-
-
-# Autologin
-if (isset($_COOKIE[env('APP_NAME').'_token']) && !Auth::user() && Route::has('login'))
-{
-    Auth::autoLogin($_COOKIE[env('APP_NAME').'_token']);
+if (!$artisan) {
+    set_exception_handler(array('ExceptionHandler', 'handleException'));
 }

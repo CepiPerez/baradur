@@ -26,12 +26,13 @@ Class Cache
         return self::$drivers[$driver];
     }
 
+
     /**
      * Assing cache driver
      * 
      * @return RedisDB|Filestore
      */
-    public static function store($store)
+    public static function store($store=null)
     {
         return self::getDriver($store);
     }
@@ -62,18 +63,10 @@ Class Cache
         return self::getDriver()->flush();
     }
 
-    /* public static function remember($key, $value)
+    public static function remember($key, $seconds, $callback)
     {
-        if (self::has($key))
-        {
-            return self::get($key);
-        }
-        else
-        {
-            self::put($key, $value);
-            return $value;
-        }
-    } */
+        return self::getDriver()->remember($key, $seconds, $callback);
+    }
 
     public static function pull($key)
     {

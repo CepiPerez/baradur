@@ -5,15 +5,28 @@ Class Connector
     protected $connection;
     public $error;
 
+    protected $inTransaction = false;
+
     public function __construct($host, $user, $password, $database, $port=3306)
     {
-        $this->connection = new mysqli($host, $user, $password, $database, $port);
+        /* $this->connection = new mysqli($host, $user, $password, $database, $port);
         $this->connection->set_charset("utf8");
         mysqli_query($this->connection, "SET NAMES 'utf8'");
         mysqli_report(MYSQLI_REPORT_OFF);
         if (!$this->connection) {
             throw new Exception("Error trying to connect to database");
+        } */
+        try
+        {
+            $this->connection = new PDO("mysql:host=$host; dbname=$database", $user, $password,
+                array(PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8"));
+            $this->connection->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
         }
+        catch(PDOException $e)
+        {
+            throw new Exception($e->getMessage());
+        }
+
     }
 
 
@@ -21,6 +34,25 @@ Class Connector
     {
         return $this->error;
     }
+
+    public function beginTransaction()
+    {
+        $this->inTransaction = true;
+        $this->connection->beginTransaction();
+    }
+
+    public function commit()
+    {
+        $this->connection->commit();
+        $this->inTransaction = false;
+    }
+    
+    public function rollBack()
+    {
+        $this->connection->rollBack();
+        $this->inTransaction = false;
+    }
+
 
     public function query($sql)
     {
@@ -30,7 +62,7 @@ Class Connector
         }
         catch (Exception $e) 
         {
-            if (env('APP_DEBUG')==true) throw new Exception($e->getMessage());
+            if (env('APP_DEBUG')==1 || $this->inTransaction) throw new Exception($e->getMessage(), 100);
 
             return false;
         }
@@ -41,19 +73,28 @@ Class Connector
         //echo "SQL VIEJO: ".$sql;
         //$sql = str_replace("'NOW()'", "NOW()", $sql);
         
-        $query = $this->connection->query($sql);
+        if (env('DEBUG_INFO')==1)
+        {
+            global $debuginfo;
+            $debuginfo['queryes'][] = preg_replace('/\s\s+/', ' ', str_replace("'", "`", $sql));
+        }
 
+        $query = $this->connection->query($sql);
+        
         //dd($this->connection->insert_id); 
 
+        $this->error = $this->connection->errorInfo();
+
         if (!$query) {
-            throw new Exception($this->connection->error);
+            throw new Exception($this->error[2]);
         }
+        
         return $query;
     }
 
     public function getLastId()
     {
-        return $this->connection->insert_id;
+        return $this->connection->lastInsertId();
     }
 
     public function execSQL($sql, $wherevals=array(), $collection=null)
@@ -68,7 +109,7 @@ Class Connector
         }
         catch (Exception $e) 
         {
-            if (env('APP_DEBUG')==true) throw new Exception($e->getMessage());
+            if (env('APP_DEBUG')==1) throw new Exception($e->getMessage(), 100);
 
             return false;
         }
@@ -91,20 +132,28 @@ Class Connector
 
         //$sql = str_replace("'NOW()'", "NOW()", $sql);
         
-        
         //echo "SQL:".$sql."<br>";
-        $query = $this->connection->query($sql);
 
-        $this->error = $this->connection->error;
+        if (env('DEBUG_INFO')==1)
+        {
+            global $debuginfo;
+            $debuginfo['queryes'][] = preg_replace('/\s\s+/', ' ', str_replace("'", "`", $sql));
+        }
+
+
+        $query = $this->connection->query($sql);
+        //dump($query);
+
+        $this->error = $this->connection->errorInfo();
 
         if (!$query) {
-            throw new Exception($this->connection->error);
+            throw new Exception($this->error[2]);
         }
 
         
         if (!is_bool($query))
         {
-            while( $r = $query->fetch_object() )
+            while( $r = $query->fetchObject() )
             {
                 $c = $collection->getParent();
 

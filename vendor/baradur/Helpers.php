@@ -65,10 +65,10 @@ Class Helpers
     {
         global $locale, $fallback_locale, $artisan;
 
-        $filepath = _DIR_.($artisan? '':'/../..').'/lang/'.$locale.'/plurals.php';
+        $filepath = _DIR_.($artisan? '':'/../../').'lang/'.$locale.'/plurals.php';
         
         if (!file_exists($filepath))
-            $filepath = _DIR_.($artisan? '':'/../..').'/lang/'.$fallback_locale.'/plurals.php';
+            $filepath = _DIR_.($artisan? '':'/../../').'lang/'.$fallback_locale.'/plurals.php';
 
         
         $lang = CoreLoader::loadConfigFile($filepath);
@@ -223,13 +223,15 @@ Class Helpers
 
     public static function config($val)
     {
+        global $artisan;
+
         $array = explode('.', $val);
         $file = array_shift($array);
 
-        if (!file_exists(_DIR_.'/../../config/'.$file.'.php'))
+        if (!file_exists(_DIR_.($artisan? '/' : '/../../').'config/'.$file.'.php'))
             throw new Exception("File not found: $file.php");
 
-        $config = CoreLoader::loadConfigFile(_DIR_.'/../../config/'.$file.'.php');
+        $config = CoreLoader::loadConfigFile(_DIR_.($artisan? '/' : '/../../').'config/'.$file.'.php');
 
         $value = array_shift($array);
         $result = $config[$value] ? $config[$value] : $value;
@@ -271,6 +273,22 @@ Class Helpers
             }
         }
         return $new;
+    }
+
+    public static function toCssClasses($array)
+    {
+        $classList = $array;
+        $classes = array();
+
+        foreach ($classList as $class => $constraint) {
+            if (is_numeric($class)) {
+                $classes[] = $constraint;
+            } elseif ($constraint) {
+                $classes[] = $class;
+            }
+        }
+
+        return implode(' ', $classes);
     }
 
 

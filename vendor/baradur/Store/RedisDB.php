@@ -14,25 +14,25 @@ Class RedisDB
     }
 
 
-    public static function getInstance()
+    /* public static function getInstance()
     {
         if (!self::$_instance)
             self::$_instance = new RedisDB();
 
         return self::$_instance->redis;
+    } */
+
+
+    public function has($name)
+    {
+        return $this->redis->exists($name) > 0;
     }
 
-
-    public static function has($name)
+    public function get($name)
     {
-        return self::getInstance()->exists($name) > 0;
-    }
+        $cached = $this->redis->lrange($name, 0, 1);
 
-    public static function get($name)
-    {
-        $cached = self::getInstance()->lrange($name, 0, 1);
-
-        if (count($cached) > 0)
+        /* if (count($cached) > 0)
         {
             $data = json_decode($cached[0], true);
             $data = Helpers::arrayToObject($data);
@@ -40,14 +40,15 @@ Class RedisDB
             $col->collect($data);
             return $col;
         }
-        return null;
+        return null; */
+        return unserialize($cached[0]);
 
     }
 
 
-    public static function put($name, $data)
+    public function put($name, $data)
     {
-        if (get_class($data) == 'Collection')
+        /* if (get_class($data) == 'Collection')
         {
             $collection = $data->duplicate();
             
@@ -60,21 +61,35 @@ Class RedisDB
                     'fourth' => $data->pagination->fourth
                 ));
     
-        }
+        } */
         
-        self::getInstance()->lpush($name, json_encode($collection));
+        $this->redis->lpush($name, serialize($data));
     }
 
-    public static function forget($name)
+    public function forget($name)
     {
-        self::getInstance()->del($name);
+        $this->redis->del($name);
     }
 
-    public static function flush()
+    public function flush()
     {
-        self::getInstance()->flushAll();
+        $this->redis->flushAll();
     }
 
-
+    public function remember($key, $seconds, $callback)
+    {
+        if ($this->has($key))
+        {
+            return $this->get($key);
+        }
+        else
+        {
+            list($class, $method, $params) = getCallbackFromString($callback);
+            array_shift($params);
+            $value = call_user_func_array(array($class, $method), $params);
+            $this->put($key, $value, $seconds);
+            return $value;
+        }
+    }
 
 }

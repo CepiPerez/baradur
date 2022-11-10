@@ -182,7 +182,7 @@ class Table extends ArrayObject
 
     public function integer($name, $increments=false, $unsigned=false, $length=null)
     {
-        return $this->newColumn($name, 'int', $increments, $length, null, null, null, null, null,);
+        return $this->newColumn($name, 'int', $increments, $length, null, null, null, null, null, false);
     }
 
     public function bigInteger($name)

@@ -1,18 +1,14 @@
 <?php
 
+
 class Auth extends Controller
 {
-    protected $tokenVerification = false;
-    protected $primaryKey = 'username';
     protected static $useAuth = false;
 
     protected static $_currentUser = null;
 
     public static function user()
     {
-        //dd($_SESSION['user']);
-        
-        #unset($_SESSION['user']);
         if (!isset(self::$_currentUser) && isset($_SESSION['user']))
             self::$_currentUser = $_SESSION['user'];
 
@@ -28,45 +24,30 @@ class Auth extends Controller
         return isset(self::$_currentUser);
     }
 
-    public function handle($request, $next)
+    public function id()
     {
-        if (!Auth::check())
-        {
-            $history = isset($_SESSION['url_history']) ? $_SESSION['url_history'] : array();
-            array_unshift($history, $request->fullUrl());
-            $_SESSION['url_history'] = $history;
-            
-            $_SESSION['_requestedRoute'] = $request->fullUrl();
-            return redirect(HOME.'/login');
-        }
-
-        return $next;
+        $obj = new User;
+        $key = $obj->getQuery()->_primary[0];
+        return Auth::user()->$key;
     }
 
     public function login($referer = null)
     {
-        #if (isset($_SESSION['url_history'][1]) && !isset($_SESSION['_requestedRoute']))
-        #    $_SESSION['_requestedRoute'] = $_SESSION['url_history'][1];
-        #echo $_SESSION['url_history'][1] ." :: ". $_SESSION['_requestedRoute'];
-
         if (isset($_SESSION['url_history'][1]) && isset($_SESSION['_requestedRoute']) && $_SESSION['url_history'][1]!=$_SESSION['_requestedRoute'])
             $_SESSION['_requestedRoute'] = $_SESSION['url_history'][1];
 
-        //$title = __('login.login');
+        $title = __('login.login');
 
-        /* $breadcrumb = array(
-            __('login.home') => '/',
-            __('login.login') => '#'
-        ); */
-
-        return view('auth/login'); //, compact('title', 'breadcrumb'));
+        return view('auth/login', compact('title'));
     }
 
     public function send_login(Request $request)
     {
-        $user = User::where('Usuario', $request->username)->first();
+        $user = User::where('email', $request->username)
+                    ->orWhere('username', $request->username)->first();
 
-        if (strcmp($user->Password, $request->password) || !$user)
+
+        if (strcmp($user->password, md5($request->password)) || !$user)
         {
             return back()->with("error", __("login.invalid"));
         }
@@ -74,20 +55,16 @@ class Auth extends Controller
         {
             return back()->with("error", __("login.validation_required"));
         }
-        else if ($user->activo==0)
-        {
-            return back()->with("error", __("login.invalid"));
-        }
         else
         {
-            $token = md5($user->Usuario.'_'.$user->Password);
+            $token = md5($user->username.'_'.$user->password);
             $user->token = $token;
             $user->save();
 
             
-            $domain = $_SERVER["APP_URL"];
-            setcookie(env('APP_NAME').'_token', $token, time()+86400, '/'.env('PUBLIC_FOLDER'), $domain, false, true);
-            unset($user->Password);
+            $domain = $_SERVER["HTTP_HOST"];
+            setcookie(env('APP_NAME').'_token', $token, time()+86400, '/'.env('APP_FOLDER'), $domain, false, true);
+            unset($user->password);
             unset($user->validation);
             $_SESSION['user'] = $user;
             self::$_currentUser = $user;
@@ -107,26 +84,12 @@ class Auth extends Controller
 
     public function logout()
     {
-        global $version;
-
-        //dd($_SESSION['user']);
-        //dd(self::user());
-        //self::user()->token = null;
-        //self::user()->save();
-        $user = User::find(self::user()->idT);
+        $user = User::find(self::user()->id);
         $user->token = null;
         $user->save();
 
         $domain = $_SERVER["HTTP_HOST"];
-        setcookie(env('APP_NAME').'_token', '', time() - 3600, '/'.env('PUBLIC_FOLDER'), $domain);
-
-        /* if ($version == 'NEW') {
-            if (session_status() === PHP_SESSION_ACTIVE)
-                session_destroy();
-        } else {
-            if (isset($_SESSION['user']))
-                unset($_SESSION['user']);
-        } */
+        setcookie(env('APP_NAME').'_token', '', time() - 3600, '/'.env('APP_FOLDER'), $domain);
         
         unset($_SESSION['user']);
         unset($_SESSION['tokens']);
@@ -142,17 +105,11 @@ class Auth extends Controller
 
         $title = __('login.registration');
 
-        $breadcrumb = array(
-            __('login.home') => '/',
-            __('login.registration') => '#'
-        );
-
-        return view('auth/register', compact('title', 'breadcrumb'));
+        return view('auth/register', compact('title'));
     }
 
     public function send_register($request)
     {
-
         $title = __('login.message_sent');
 
         $random = substr(md5(rand()), 0, 10);
@@ -174,38 +131,23 @@ class Auth extends Controller
 
         $res = $user->save();
 
-        $breadcrumb = array(
-            __('login.home') => '/',
-            __('login.registration') => '#'
-        );
-
         $reg_message = __('login.follow_registration').'<br><br>'.
                         __('login.thanks').'<br>';
 
-        return view('auth/message', compact('title', 'breadcrumb', 'reg_message'));
+        return view('auth/message', compact('title', 'reg_message'));
     }
 
     public function reset()
     {
         $title = __('login.restore');
 
-        $breadcrumb = array(
-            __('login.home') => '/',
-            __('login.registration') => '#'
-        );
-
-        return view('auth/reset', compact('title', 'breadcrumb'));
+        return view('auth/reset', compact('title'));
     }
 
     public function restore(Request $request)
     {
         $title = __('login.message_sent');
         
-        $breadcrumb = array(
-            __('login.home') => '/',
-            __('login.registration') => '#'
-        );
-
         $user = User::where('username', $request->username)
                 ->orWhere('email', $request->username)->first();
 
@@ -226,7 +168,7 @@ class Auth extends Controller
             $reg_message = __('login.follow_reset').'<br><br>'.
                         __('login.thanks').'<br>';
 
-            return view('auth/message', compact('title', 'breadcrumb', 'reg_message'));
+            return view('auth/message', compact('title', 'reg_message'));
         }
         else
         {            
@@ -238,12 +180,6 @@ class Auth extends Controller
     public function confirm($email, $token)
     {
         $title = __('login.registration');
-
-        $breadcrumb = array(
-            __('login.home') => '/',
-            __('login.registration') => '#'
-        );
-
 
         $user = User::where('email', $email)
                     ->where('validacion', $token)->first();
@@ -258,20 +194,17 @@ class Auth extends Controller
                         ->update(array('validacion'=>null));
         }
 
-        return view('auth/completed', compact('title', 'breadcrumb'));
+        return view('auth/completed', compact('title'));
     }
 
     public static function autoLogin($token)
     {
-        //dd("AUTOLOGIN: $token");
         $user = User::where('token', $token)->first();
-
-        //dd($user);
 
         if ($user)
         {
             $domain = $_SERVER["HTTP_HOST"];
-            setcookie(env('APP_NAME').'_token', $user->token, time()+86400, '/'.env('PUBLIC_FOLDER'), $domain, false, true);
+            setcookie(env('APP_NAME').'_token', $user->token, time()+86400, '/'.env('APP_FOLDER'), $domain, false, true);
             unset($user->password);
             unset($user->validation);
             self::$_currentUser = $user;

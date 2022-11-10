@@ -1,11 +1,14 @@
 <?php
 
 # Default Home controller
-Route::get('/', 'HomeController@showHome');
+Route::get('/', [HomeController::class, 'showHome']);
 
 # Documentation routes
 Route::view('docs', 'docs/index');
-Route::view('docs/{page}', 'docs/{page}');
+
+Route::get('docs/{page}', function() use($page) {
+    return view("docs.$page"); 
+});
 
 # Auth routes
 Auth::routes();

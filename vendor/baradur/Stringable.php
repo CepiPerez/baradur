@@ -9,9 +9,21 @@ class Stringable
         $this->value = (string) $value;
     }
 
-    function __toString(){
+    public function __toString(){
         return $this->value;
     }
+
+    /* public function __call($method, $arguments)
+    {
+        if (isset(Str::$_macros[$method]))
+        {
+            list($class, $method, $params) = getCallbackFromString(Str::$_macros[$method]);
+            return call_user_func_array(array($class, $method), $arguments? $arguments : $this->value);
+        }
+        return null;
+    } */
+
+
 
     public function append($values)
     {

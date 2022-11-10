@@ -4,19 +4,12 @@
 <div class="w-full pt-4 grid place-items-center">
 
   <div class="bg-white dark:bg-zinc-800 border dark:border-zinc-700 pt-2 pb-4 px-5 rounded shadow w-full max-w-xl">
-    <h1 class="text-2xl mt-2 dark:text-gray-100">{{$title}}</h1>
+    <h1 class="text-2xl mt-2 dark:text-gray-100">{{ __('login.registration') }}</h1>
     <hr class="mt-2 mb-3">
 
     <form action="{{ route('confirm_reset_password') }}" method="post">
         @csrf
-        <!-- <div class="form-group">
-          <label for="username">{{ __('login.user_email') }}</label>
-          <input type="text" autofocus name="username" class="form-control" value="{{$old->username}}">
-        </div>
-        <div class="form-group">
-          <label for="password">{{ __('login.new_password') }}</label>
-          <input type="password" autofocus name="password" class="form-control" value="">
-        </div> -->
+        
 
         <div class="mb-4">
           <label class="block text-slate-700 dark:text-zinc-400 font-bold mb-2" for="username">{{ __('login.user_email') }}</label>

@@ -15,6 +15,7 @@
     <link href="{{ asset('assets/css/app.css') }}" rel="stylesheet">
     <!-- <script src="https://cdn.tailwindcss.com"></script> -->
 
+    <script src="{{ asset('assets/js/jquery-3.5.1.min.js') }}"></script>
     <script src="{{ asset('assets/js/alpine-3.10.2.js') }}" defer></script>
 
     @verbatim
@@ -47,16 +48,16 @@
     <main class="mb-6">
 
       <!-- Success toast -->
-      @if ( session('message') )
+      @if ( $message )
       <x-toast-success>
-        {{ session('message') }}
+        {{ $message }}
       </x-toast-success>
       @endif
 
       <!-- Error toast -->
-      @if ( session('error') )
+      @if ( $error )
       <x-toast-danger>
-        {{ session('error') }}
+        {{ $error }}
       </x-toast-danger>
       @endif
 
@@ -75,10 +76,12 @@
 
           <div class="relative flex items-center justify-between h-14 ">
 
-              <div class="flex justify-start">
-                <img class="block h-8 w-auto ml-1 pt-1.5" src="{{asset('assets/logo.ico')}}" alt="">
-                <p class="text-2xl text-white py-1 px-3">{{$app_name}}</p>
-              </div>
+              <a href="{{ env('HOME') }}">
+                <div class="flex justify-start">
+                  <img class="block h-8 w-auto ml-1 pt-1.5" src="{{asset('assets/logo.png')}}" alt="">
+                  <p class="text-2xl text-white py-1 px-3">{{$app_name}}</p>
+                </div>
+              </a>
               
               <div class="flex justify-end mx-0 px-0">
                 
@@ -109,17 +112,17 @@
                         </button>
                         <div x-show="dropdown" x-on:click.away="dropdown=false" :class="{'hidden':!dropdown}" 
                             class="hidden origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white 
-                            dark:bg-zinc-600 ring-1 ring-black ring-opacity-5 focus:outline-none overflow-hidden" 
+                            dark:bg-zinc-600 ring-1 ring-black ring-opacity-5 focus:outline-none overflow-hidden"
                             role="menu" aria-orientation="vertical" aria-labelledby="user-menu-button" tabindex="-1">
 
                             <!-- Active: "bg-slate-100", Not Active: "" -->
                             <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-sky-100 hover:text-sky-600 
                             dark:text-zinc-200 hover:dark:text-zinc-100 dark:hover:bg-zinc-500" 
-                            role="menuitem" tabindex="-1" id="user-menu-item-0">Your Profile</a>
+                            role="menuitem" tabindex="-1" id="user-menu-item-0">@lang('login.profile')</a>
 
                             <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-sky-100 hover:text-sky-600 
                             dark:text-zinc-200 hover:dark:text-zinc-100 dark:hover:bg-zinc-500" 
-                            role="menuitem" tabindex="-1" id="user-menu-item-1">Settings</a>
+                            role="menuitem" tabindex="-1" id="user-menu-item-1">@lang('login.settings')</a>
 
                             <a href="{{ route('logout') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-sky-100 hover:text-sky-600 
                             dark:text-zinc-200 hover:dark:text-zinc-100 dark:hover:bg-zinc-500" 
@@ -145,24 +148,6 @@
           
       </nav>
 
-      <!-- Breadcrumb -->
-      @if ($breadcrumb)
-      <ol class="flex h-9 items-center bg-slate-200 px-3 md:px-5 dark:bg-zinc-700 text-sm">
-        @foreach ($breadcrumb as $key => $value)
-          @if (!$loop->first)
-          <svg class="w-6 h-6 text-slate-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
-          @endif
-          @if ($value == '#')
-          <li class="breadcrumb-item dark:text-gray-200">{{$key}}</li>
-          @else
-          <li class="breadcrumb-item active">
-            <a class="text-sky-700 dark:text-cyan-500 hover:no-underline" href="{{HOME.$value}}">{{$key}}</a>
-          </li>
-          @endif
-        @endforeach
-      </ol>
-      @endif
-
       <!-- Main content -->
       <div class="mx-2 pr-0.5 md:mx-5">
 
@@ -173,7 +158,7 @@
       
     </main>
     
-    <footer class="bg-gray-600 dark:bg-zinc-800 w-full absolute bottom-0 pt-2 pb-3 px-5">
+    {{-- <footer class="bg-gray-600 dark:bg-zinc-800 w-full absolute bottom-0 pt-2 pb-3 px-5">
       <div class="flex justify-center md:justify-between text-gray-400 dark:text-zinc-500">
         <div class="hidden md:flex my-1">
           <span>© 2022 Matias Perez - cepiperez@gmail.com</span>
@@ -198,7 +183,7 @@
 
         </div>
       </div>
-    </footer>
+    </footer> --}}
 
     @stack('js')
 

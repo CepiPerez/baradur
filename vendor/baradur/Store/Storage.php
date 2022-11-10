@@ -17,7 +17,7 @@ Class Storage
 
     public static function exists($file)
     {
-        //dd(self::$path.$file); exit();
+        #dd(self::$path.$file);
         return file_exists(self::$path.$file);
     }
 
