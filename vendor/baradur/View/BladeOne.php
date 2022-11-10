@@ -408,34 +408,19 @@ class BladeOne
 
         $this->component_slots = array();
 
-        /* $props = $reflect->getProperties(ReflectionProperty::IS_PUBLIC);
-        foreach ($props as $prop)
+        $back_action = $app->action;
+        $result = $instance->render()->result;
+        $app->action = $back_action;
+
+        if (!file_exists(_DIR_.'/../../resources/views/'.
+            str_replace('.', '/', $app->result->template) . '.blade.php'))
         {
-            echo "PROP: ".$prop->name."::".$instance->{$prop->name}."<br>";
-            $temp_params[$prop->name] = $instance->{$prop->name};
-        } */
+            throw new Exception('Component [' . str_replace('.', '/', $app->result->template) .
+                '] is missing'); die();
+        }
 
-
-       // dd($reflect->getMethods(ReflectionMethod::IS_PUBLIC));
-        //dd($temp_params);
-        
-        //return $this->runChild('components.'.$component, $temp_params, true);
-        /* $this->variables = array_merge($this->variables, $temp_params);
-        return '@include("components.'.$component.'")'; */
-
-        /* global $artisan;
-        if (!$artisan)
-        { */
-            $back_action = $app->action;
-            $result = $instance->render()->result;
-            $app->action = $back_action;
-            $temp_params = null;
-            return $result;
-        /* }
-        else
-        {
-            return $instance->render();
-        } */
+        $temp_params = null;
+        return $result;
 
     }
 
