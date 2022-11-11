@@ -63,6 +63,7 @@ class BladeOne
     protected $componentData = array();
     protected $slots = array();
     protected $slotStack = array();
+    protected $slotOnce = array();
 
     protected $firstCaseInSwitch = true;
 
@@ -279,14 +280,18 @@ class BladeOne
 
     private function parseBindAttributes($attributeString)
     {
-        $pattern = "/
-            (?:^|\s+)
-            :(?!:)
-            ([\w\-:.@]+)
-            =
-        /xm";
+        $pattern = '/(?:^|\s+):(?!:)([\w\-:.@]+)=/xm';
 
         return preg_replace($pattern, ' bind:$1=', $attributeString);
+    }
+
+    private function parseNewBindAttributes($attributeString)
+    {
+        $pattern = '/(?:^|\s+):(?!:)([\$\w\-:.@]+)/xm';
+
+        $result = preg_replace($pattern, ' bind:$1="$1"', $attributeString);
+
+        return str_replace(' bind:$', ' bind:', $result);
     }
 
     private function getAttributesFromAttributeString($attributeString)
@@ -294,6 +299,8 @@ class BladeOne
         $attributeString = $this->parseAttributeBag($attributeString);
 
         $attributeString = $this->parseBindAttributes($attributeString);
+
+        $attributeString = $this->parseNewBindAttributes($attributeString);
 
         return $attributeString;
     }
@@ -305,8 +312,12 @@ class BladeOne
         preg_match_all("/(?P<keys>\w+)=(?P<values>\"[^\"]*+\")/", $attributeString, $m);
     
         $values = array();
-        foreach ($m["values"] as $val)
-            $values[] = str_replace("'", '', str_replace('"', '', $val));
+        foreach ($m["values"] as $val) {
+            $val = str_replace("'", '', str_replace('"', '', $val));
+            if (substr($val, 0, 1)=='$')
+                $val = '{{'.$val.'}}';
+            $values[] = $val;
+        }
 
         if (count($m)>0 && count($values)>0)
             return array_combine($m["keys"], $values);
@@ -324,10 +335,9 @@ class BladeOne
         $component = $matches[1];
 
         $attributes = $this->getArrayAttributesFromAttributeString(trim($match[1]));        
-        
+
         $this->compileSlots($match[0]);
         
-        //dd($this->component_slots);
         $content = isset($match[2])? $match[2] : null;
 
         foreach ($this->component_slots as $slot)
@@ -355,7 +365,6 @@ class BladeOne
             $ReflectionMethod = new \ReflectionMethod($c, '__construct');
             $params = $ReflectionMethod->getParameters();
 
-            //var_dump($params);
             $params_to_send = array();
             foreach ($params as $param)
             {
@@ -411,6 +420,12 @@ class BladeOne
         $back_action = $app->action;
         $result = $instance->render()->result;
         $app->action = $back_action;
+
+        if (!file_exists(_DIR_.'/../../resources/views/'.
+            str_replace('.', '/', $app->result->template) . '.blade.php'))
+        { 
+            $app->result->template .= '.index';
+        }
 
         if (!file_exists(_DIR_.'/../../resources/views/'.
             str_replace('.', '/', $app->result->template) . '.blade.php'))
@@ -966,6 +981,17 @@ class BladeOne
         return $this->phpTag.'endif; ?>';
     }
 
+    protected function compileProduction()
+    {
+        return $this->phpTag."if ( env('APP_ENV')=='production' ): ?>";
+    }
+
+    protected function compileEndproduction()
+    {
+        return $this->phpTag.'endif; ?>';
+    }
+
+
     protected function compileUnset($expression)
     {
         return $this->phpTag."unset{$expression}; ?>";
@@ -1021,6 +1047,30 @@ class BladeOne
         return $this->phpTag.'$this->stopPush(); ?>';
     }
 
+    protected function compilePrepend($expression)
+    {
+        return $this->phpTag."\$this->startPrepend{$expression}; ?>";
+    }
+
+    protected function compileEndprepend()
+    {
+        return $this->phpTag.'$this->stopPrepend(); ?>';
+    }
+
+    protected function compileOnce()
+    {
+        return $this->phpTag."\$this->startPushOnce(); ?>";
+    }
+
+    protected function compileEndonce()
+    {
+        return $this->phpTag.'$this->stopPushOnce(); ?>';
+    }
+
+    protected function compileJson($expression)
+    {
+        return $this->phpTag."echo json_encode{$expression}; ?>";
+    }
 
     protected function compileSwitch($expression)
     {
@@ -1103,7 +1153,44 @@ class BladeOne
         return $last;
     }
 
-    protected function extendPush($section, $content)
+    public function startPrepend($section, $content = '')
+    {
+        if ($content === '') {
+            if (ob_start()) {
+                $this->pushStack[] = $section;
+            }
+        } else {
+            $this->extendPush($section, $content, true);
+        }
+    }
+
+    public function stopPrepend()
+    {
+        if (empty($this->pushStack)) {
+            $this->showError('stopPrepend','Cannot end a section without first starting one',true);
+        }
+
+        $last = array_pop($this->pushStack);
+        $this->extendPush($last, ob_get_clean(), true);
+        return $last;
+    }
+
+    public function startPushOnce()
+    {
+        ob_start();
+    }
+
+    public function stopPushOnce()
+    {
+        $result = ob_get_clean();
+        if (!in_array($result, $this->slotOnce))
+        {
+            $this->slotOnce[] = $result;
+            echo $result;
+        }
+    }
+
+    protected function extendPush($section, $content, $prepend=false)
     {
         if (! isset($this->pushes[$section])) {
             $this->pushes[$section] = array();
@@ -1111,7 +1198,10 @@ class BladeOne
         if (! isset($this->pushes[$section][$this->renderCount])) {
             $this->pushes[$section][$this->renderCount] = $content;
         } else {
-            $this->pushes[$section][$this->renderCount] .= $content;
+            //if (!$prepend)
+                $this->pushes[$section][$this->renderCount] .= $content;
+            //else
+            //    $this->pushes[$section][$this->renderCount] = $content . $this->pushes[$section][$this->renderCount];
         }
     }
 
