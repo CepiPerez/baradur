@@ -49,8 +49,8 @@
  * @method static Builder has(string $relation, string $comparator=null, string $value=null)
  * @method static Builder whereHas(string $relation, Query $filter=null, string $comparator=null, string $value=null)
  * @method static Builder withWhereHas(string $relation, Query $filter=null)
+ * @method static Builder withoutGlobalScope(Scope|string $scope)
  * @method static Builder withoutGlobalScopes()
- * @method static Builder query()
  * @method static Builder query()
  * @method static Factory factory()
  */
@@ -122,9 +122,9 @@ class Model
     protected function addGlobalScope($scope, $callback=null)
     {
         if (is_object($scope))
-            $scope = get_class($scope);
-        
-        $this->global_scopes[$scope] = $callback;
+            $this->global_scopes[get_class($scope)] = $scope;
+        else
+            $this->global_scopes[$scope] = $callback;
     }
 
     public function getRouteKeyName()

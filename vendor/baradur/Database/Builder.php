@@ -2598,15 +2598,13 @@ Class Builder
         {
             if (class_exists($scope))
             {
-                $class = new $scope;
-                $class->apply($this, $this->_model);
+                $callback->apply($this, $this->_model);
             }
             else
             {
                 list($class, $method, $params) = getCallbackFromString($callback);
                 array_shift($params);
                 call_user_func_array(array($class, $method), array_merge(array($this), $params));
-    
             }
         }
     }
