@@ -4,6 +4,7 @@ class Stringable
 {
     protected $value;
 
+
     public function __construct($value = '')
     {
         $this->value = (string) $value;
@@ -23,7 +24,31 @@ class Stringable
         return null;
     } */
 
+    public function value()
+    {
+        return $this->value;
+    }
 
+    public function toInteger()
+    {
+        return intval($this->value);
+    }
+
+    public function toFloat()
+    {
+        return floatval($this->value);
+    }
+
+    public function toBoolean()
+    {
+        if (in_array(strtolower($this->value), array('on', 'yes', 'true', '1', 1), true))
+            return true;
+
+        if (in_array(strtolower($this->value), array('off', 'no', 'false', '0', 0), true))
+            return false;
+            
+        return null;
+    }
 
     public function append($values)
     {
