@@ -3800,4 +3800,91 @@ Class Builder
         return call_user_func_array(array($res, $func), array_merge(array($this), $args));
     }
 
+
+    /**
+     * Chunk the results of the query.
+     *
+     * @param  int  $count
+     * @param  callable  $callback
+     * @return bool
+     */
+    public function chunk($count, $callback)
+    {
+        $this->_order = 'ORDER BY '.$this->_primary[0]." ASC";
+
+        $actual = 0;
+
+        do
+        {
+            $results = $this->limit($count)->offset($actual)->get();
+
+            $countResults = $results->count();
+
+            if ($countResults==0)
+                break;
+
+            list($class, $method, $params) = getCallbackFromString($callback);
+            call_user_func_array(array($class, $method), array_merge(array($results), $params));
+
+            unset($results);
+            unset($this->_collection);
+
+            $this->_collection = new Collection($this->_parent, $this->_model->getHidden());
+
+            $actual += $count;
+        }
+        while ($countResults == $count);
+
+        return true;
+    }
+
+    /**
+     * Chunk the results of a query by comparing IDs.
+     *
+     * @param  int  $count
+     * @param  callable  $callback
+     * @param  string|null  $column
+     * @param  string|null  $alias
+     * @return bool
+     */
+    public function chunkById($count, $callback, $column=null, $alias=null)
+    {
+        if (!$column)
+            $column = $this->_primary[0];
+
+        if (!$alias)
+            $alias = $column;
+        
+        $lastId = null;
+
+        $this->_order = 'ORDER BY '.$column." ASC";
+        
+        do
+        {
+            if ($lastId)
+                $this->where($alias, '>', $lastId);
+
+            $results = $this->limit($count)->get();
+
+            $countResults = $results->count();
+
+            if ($countResults==0)
+                break;
+
+            $lastId = $results->last()->$alias;
+
+            list($class, $method, $params) = getCallbackFromString($callback);
+            call_user_func_array(array($class, $method), array_merge(array($results), $params));
+
+            unset($results);
+            unset($this->_collection);
+
+            $this->_collection = new Collection($this->_parent, $this->_model->getHidden());
+
+        }
+        while ($countResults == $count);
+
+        return true;
+    }
+
 }
