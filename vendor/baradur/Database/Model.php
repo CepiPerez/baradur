@@ -49,6 +49,8 @@
  * @method static Builder has(string $relation, string $comparator=null, string $value=null)
  * @method static Builder whereHas(string $relation, Query $filter=null, string $comparator=null, string $value=null)
  * @method static Builder withWhereHas(string $relation, Query $filter=null)
+ * @method static Builder withoutGlobalScopes()
+ * @method static Builder query()
  * @method static Builder query()
  * @method static Factory factory()
  */
@@ -59,7 +61,6 @@ class Model
     protected $_original = array();
     protected $_relations = array();
     
-
     /**
      * Sets database table used in model\
      * Default value is Model' name in lowercase and plural
@@ -108,6 +109,8 @@ class Model
      */
     protected $connector = null;
 
+    public $global_scopes = array();
+
     public function __construct()
     {
         if (!isset($this->table))
@@ -116,6 +119,13 @@ class Model
         }
     }
 
+    protected function addGlobalScope($scope, $callback=null)
+    {
+        if (is_object($scope))
+            $scope = get_class($scope);
+        
+        $this->global_scopes[$scope] = $callback;
+    }
 
     public function getRouteKeyName()
     {

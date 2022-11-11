@@ -9,7 +9,7 @@ trait SoftDeletes
     public function _setTrashed($val)
     {
         if (!$this->useSoftDeletes)
-            throw new Exception('Tryin to use softDelete method on a non-softDelete Model');
+            throw new Exception('Trying to use softDelete method on a non-softDelete Model');
 
         $this->_trashed = $val;
     }
@@ -17,7 +17,7 @@ trait SoftDeletes
     public function trashed()
     {
         if (!$this->useSoftDeletes)
-            throw new Exception('Tryin to use softDelete method on a non-softDelete Model');
+            throw new Exception('Trying to use softDelete method on a non-softDelete Model');
 
         return isset($this->_trashed);
     }
@@ -31,7 +31,7 @@ trait SoftDeletes
     public function softDeletes()
     {
         if (!$this->useSoftDeletes)
-            throw new Exception('Tryin to use softDelete method on a non-softDelete Model');
+            throw new Exception('Trying to use softDelete method on a non-softDelete Model');
 
         /* if( isset($this) && $this instanceof self )
         { */
@@ -50,7 +50,7 @@ trait SoftDeletes
     public function restore()
     {
         if (!$this->useSoftDeletes)
-            throw new Exception('Tryin to use softDelete method on a non-softDelete Model');
+            throw new Exception('Trying to use softDelete method on a non-softDelete Model');
 
         if( isset($this) && $this instanceof self )
         {
@@ -69,7 +69,7 @@ trait SoftDeletes
     public function forceDelete()
     {
         if (!$this->useSoftDeletes)
-            throw new Exception('Tryin to use softDelete method on a non-softDelete Model');
+            throw new Exception('Trying to use softDelete method on a non-softDelete Model');
 
         if( isset($this) && $this instanceof self )
         {

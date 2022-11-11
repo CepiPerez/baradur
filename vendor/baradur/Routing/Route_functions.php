@@ -362,6 +362,9 @@ function replaceNewPHPFunctions($text, $classname=null, $dir=null)
     # Someclass::class to 'Someclass' and \Path\To\SomeClass::class to 'SomeClass"
     $text = str_replace('::class', '', preg_replace('/(?:[\\\|\w].*?[$\\\])?(\w*)(::class)/x', "'$1'", $text));
 
+    # static:: to self::
+    $text = preg_replace('/protected[\s]*static[\s]*function[\s]*booted/x', 'public function booted', $text);
+    $text = str_replace('static::', '$this->', $text);
 
     # Convert [] to array()
     // this one doesn't work on PHP 5.1.6

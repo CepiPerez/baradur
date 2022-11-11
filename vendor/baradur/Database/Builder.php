@@ -47,6 +47,8 @@ Class Builder
 
     public $_model = null;
 
+    private $_scopes = array();
+
     /* public function __construct($connector, $table, $primary, $parent, $fillable, $guarded, $hidden, $routeKey='id', $soft=false)
     {
 
@@ -77,6 +79,8 @@ Class Builder
         $this->_routeKey = $this->_model->getRouteKeyName();
         $this->_softDelete = $this->_model->getUseSoftDeletes()? 1 : 0;
         $this->_collection = new Collection($model, $this->_model->getHidden());
+
+        $this->addGlobalScopes();
 
         if ($model=='DB')
         {
@@ -1378,7 +1382,7 @@ Class Builder
         if ($this->_order == '')
             $this->_order = "ORDER BY $column $order";
         else
-            $this->_order .= " ORDER BY $column $order";
+            $this->_order .= ", $column $order";
 
         return $this;
     }
@@ -2168,7 +2172,7 @@ Class Builder
     public function withTrashed()
     {
         if (!$this->_softDelete)
-            throw new Exception('Tryin to use softDelete method on a non-softDelete Model');
+            throw new Exception('Trying to use softDelete method on a non-softDelete Model');
 
         $this->_withTrashed = true;
         return $this;
@@ -2181,6 +2185,9 @@ Class Builder
      */
     public function softDeletes($record)
     {
+        if (!$this->_softDelete)
+            throw new Exception('Trying to use softDelete method on a non-softDelete Model');
+        
         $date = date("Y-m-d H:i:s");
 
         foreach ($this->_primary as $primary)
@@ -2207,6 +2214,8 @@ Class Builder
      */
     public function restore($record=null)
     {
+        if (!$this->_softDelete)
+            throw new Exception('Trying to use softDelete method on a non-softDelete Model');
 
         if (isset($record))
         {
@@ -2287,35 +2296,6 @@ Class Builder
             abort(404);
     }
 
-
-    /**
-     * Returns the first record from query
-     * 
-     * @return Model
-     */
-    public function first()
-    {
-        if ($this->_softDelete && !$this->_withTrashed)
-            $this->whereNull('deleted_at');
-
-
-        $this->limit(1);
-
-        $sql = $this->buildQuery();
-
-        //echo $sql."<br>";
-        $this->connector()->execSQL($sql, $this->_wherevals, $this->_collection);
-
-        if ($this->_collection->count()>0)
-            $this->processEagerLoad();
-
-        //$this->clear();
-
-        if ($this->_collection->count()==0)
-            return NULL;
-
-        return $this->insertUnique($this->_collection[0]);
-    }
 
 
     /**
@@ -2601,6 +2581,94 @@ Class Builder
         return $this->get();
     }
 
+    private function addGlobalScopes()
+    {
+        if (method_exists($this->_model, 'booted')) 
+            $this->_model->booted();
+
+        foreach($this->_model->global_scopes as $scope => $callback)
+        {
+            $this->_scopes[$scope] = $callback;
+        }
+    }
+
+    private function applyGlobalScopes()
+    {
+        foreach($this->_scopes as $scope => $callback)
+        {
+            if (class_exists($scope))
+            {
+                $class = new $scope;
+                $class->apply($this, $this->_model);
+            }
+            else
+            {
+                list($class, $method, $params) = getCallbackFromString($callback);
+                array_shift($params);
+                call_user_func_array(array($class, $method), array_merge(array($this), $params));
+    
+            }
+        }
+    }
+
+    /**
+     * Remove a registered global scope.
+     *
+     * @param  Scope|string  $scope
+     * @return $this
+     */
+    public function withoutGlobalScope($scope)
+    {
+        if (is_object($scope)) {
+            $scope = get_class($scope);
+        }
+
+        unset($this->_scopes[$scope]);
+
+        return $this;
+    }
+
+    /**
+     * Remove all or passed registered global scopes.
+     *
+     * @return $this
+     */
+    public function withoutGlobalScopes()
+    {
+        $this->_scopes = array();
+
+        return $this;
+    }
+
+
+    /**
+     * Returns the first record from query
+     * 
+     * @return Model
+     */
+    public function first()
+    {
+        if ($this->_softDelete && !$this->_withTrashed)
+            $this->whereNull('deleted_at');
+
+        $this->applyGlobalScopes();
+
+        $this->limit(1);
+
+        $sql = $this->buildQuery();
+
+        $this->connector()->execSQL($sql, $this->_wherevals, $this->_collection);
+
+        if ($this->_collection->count()==0)
+            return NULL;
+
+        $this->processEagerLoad();
+
+        $this->clear();
+
+        return $this->insertUnique($this->_collection[0]);
+    }
+
     /**
      * Return all records from current query
      * 
@@ -2611,16 +2679,14 @@ Class Builder
         if ($this->_softDelete && !$this->_withTrashed)
             $this->whereNull('deleted_at');
 
-        $sql = $this->buildQuery();
+        $this->applyGlobalScopes();
 
-        //echo $sql."<br>"; var_dump($this->_wherevals);
+        $sql = $this->buildQuery();
 
         $this->connector()->execSQL($sql, $this->_wherevals, $this->_collection);
 
         if ($this->_collection->count()==0)
             return $this->_collection;
-
-        //dump($this);
 
         $this->processEagerLoad();
 
@@ -2640,7 +2706,6 @@ Class Builder
      */
     public function paginate($cant = 10)
     {
-
         $filtros = $_GET;
 
         $pagina = $filtros['p']>0? $filtros['p'] : 1;
@@ -2652,14 +2717,14 @@ Class Builder
         $this->_limit = null;
         $this->_offset = null;
 
+        $this->applyGlobalScopes();
+            
         $sql = $this->buildQuery() . " LIMIT $cant OFFSET $offset";
         
-
         $this->connector()->execSQL($sql, $this->_wherevals, $this->_collection);
 
         if ($this->_collection->count()==0)
         {
-            //View::setPagination(null);
             return $this->_collection;
         }
         
@@ -2681,16 +2746,13 @@ Class Builder
             $pagination->second = $pagina<=1? null : 'p='.($pagina-1);
             $pagination->third = $pagina==$pages? null : 'p='.($pagina+1);
             $pagination->fourth = $pagina==$pages? null : 'p='.$pages;
-            //View::setPagination($pagination);
             $this->_collection->pagination = $pagination;
         }
-
 
         $this->processEagerLoad();
         
         $this->clear();
 
-        //return $this->_collection;
         return $this->insertData($this->_collection);
 
     }
