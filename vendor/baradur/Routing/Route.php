@@ -38,6 +38,12 @@ Class RouteItem
         return $this;
     }
 
+    public function withTrashed()
+    {
+        $this->with_trashed = true;
+        return $this;
+    }
+
 }
 
 Class RouteGroup 
@@ -129,6 +135,14 @@ Class RouteGroup
         return $this;
     }
 
+    public function withTrashed()
+    {
+        foreach ($this->added as $route)
+        {
+            $route->with_trashed = true;
+        }
+        return $this;
+    }
 
 }
 
@@ -393,22 +407,59 @@ class Route
      * Creates a controller's resources for APIs\
      * Example: apiResource('products', 'ApiProductsController')
      * 
-     * @param string $url
+     * @param string $name
      * @param string $controller
      */
-    public static function apiResource($url, $controller)
+    public static function apiResource($name, $controller)
     {
-        $item = Helpers::getSingular($url);
+        $item = Helpers::getSingular($name);
 
         $instance = self::getInstance();
         $group = new RouteGroup($instance);
         $group->added = array();
 
-        $group->added[] =  self::addRoute('GET', $url, $controller, 'index')->name($url.'.index');
-        $group->added[] =  self::addRoute('GET', $url.'/{'.$item.'}', $controller, 'show')->name($url.'.show');
-        $group->added[] =  self::addRoute('POST', $url, $controller, 'store')->name($url.'.store');
-        $group->added[] =  self::addRoute('PUT', $url.'/{'.$item.'}', $controller, 'update')->name($url.'.update');
-        $group->added[] =  self::addRoute('DELETE', $url.'/{'.$item.'}', $controller, 'destroy')->name($url.'.destroy');
+        $group->added[] =  self::addRoute('GET', $name, $controller, 'index')->name($name.'.index');
+        $group->added[] =  self::addRoute('GET', $name.'/{'.$item.'}', $controller, 'show')->name($name.'.show');
+        $group->added[] =  self::addRoute('POST', $name, $controller, 'store')->name($name.'.store');
+        $group->added[] =  self::addRoute('PUT', $name.'/{'.$item.'}', $controller, 'update')->name($name.'.update');
+        $group->added[] =  self::addRoute('DELETE', $name.'/{'.$item.'}', $controller, 'destroy')->name($name.'.destroy');
+
+        return $group;
+    }
+
+
+    /**
+     * Route a singleton resource to a controller.\
+     * Example: resources('profile', 'ProfileController')
+     * 
+     * @param string $name
+     * @param string $controller
+     */
+    public static function singleton($name, $controller)
+    {
+        $instance = self::getInstance();
+        $group = new RouteGroup($instance);
+        $group->added = array();
+
+        if (strpos($name, '.')!==false)
+        {
+            $array = explode('.', $name);
+            $parent = array_shift($array);
+            $name = array_pop($array);
+            $item = Helpers::getSingular($parent);
+
+            $group->added[] = self::addRoute('GET', $parent.'/{'.$item.'}/'.$name, $controller, 'show')->name($parent.'.'.$name.'.show');
+            $group->added[] = self::addRoute('GET', $parent.'/{'.$item.'}/'.$name.'/'.Route::getVerbName('edit'), $controller, 'edit')->name($parent.'.'.$name.'.edit');
+            $group->added[] = self::addRoute('PUT', $parent.'/{'.$item.'}/'.$name, $controller, 'update')->name($parent.'.'.$name.'.update');
+            $group->added[] = self::addRoute('DELETE', $parent.'/{'.$item.'}/'.$name, $controller, 'destroy')->name($parent.'.'.$name.'.destroy');
+    
+            return $group;
+        }
+
+        $group->added[] = self::addRoute('GET', $name, $controller, 'show')->name($name.'.show');
+        $group->added[] = self::addRoute('GET', $name.'/'.Route::getVerbName('edit'), $controller, 'edit')->name($name.'.edit');
+        $group->added[] = self::addRoute('PUT', $name, $controller, 'update')->name($name.'.update');
+        $group->added[] = self::addRoute('DELETE', $name, $controller, 'destroy')->name($name.'.destroy');
 
         return $group;
     }
@@ -613,6 +664,18 @@ class Route
     }
 
     /**
+     * Check if current route name equals value
+     * 
+     * @param string $name
+     * @return bool
+     */
+    public static function is($name)
+    {
+        return self::getCurrentRoute()->name == $name;
+    }
+
+
+    /**
      * Get the current route from its name
      * 
      * @param string $name
@@ -633,6 +696,26 @@ class Route
 
     private static function convertCodesFromParams($route, $args)
     {
+        /* if (is_array($args))
+        {
+            $args = $args[0];
+            preg_match_all('/\{[^}]*\}/', $route, $matches);
+            foreach ($matches[0] as $match) {
+                $clean = ltrim(rtrim($match, '}'), '{');
+                $arg = $args[$clean];
+                unset($args[$clean]);
+                $route = str_replace($match, $arg, $route);
+            }
+            if (count($args)>0) {
+                $params = array();
+                foreach ($args as $key => $val) {
+                    $params[] = "$key=$val";
+                }
+                $route .= '?' . implode('&', $params);
+            }
+            return $route;
+        } */
+
         foreach ($args as $value)
         {
             if (is_object($value))
@@ -721,15 +804,19 @@ class Route
         
         self::setCurrentRoute($ruta);
 
+        /* if (isset($ruta->middleware))
+        {
+            $res = self::checkMiddleware($request);
 
-        $list = self::getMiddlewareList($request);
+        } */
 
-        $res = app(Pipeline::class)
+        $list = MiddlewareHelper::getMiddlewareList($request->route->middleware);
+
+        $res = app('Pipeline')
             ->send($request)
             ->through($list)
             ->thenReturn();
-
-
+        
         if ($res instanceof Request)
         {
             # Save URL history
@@ -749,35 +836,39 @@ class Route
             }
         }
         
-
         # Show results
         if (is_object($res) && !method_exists(get_class($res), 'showFinalResult'))
             response($res)->json()->showFinalResult();
         elseif (is_string($res))
             echo $res;
         elseif (is_array($res))
-            response($res)->json()->showFinalResult();
+            response()->json($res)->showFinalResult();
         elseif (isset($res))
             $res->showFinalResult();
 
     }
 
-    private static function getMiddlewareList($request)
+
+    /* private static function checkMiddleware($request)
     {
+        //dd(Route::routeList());exit();
+
         MiddlewareHelper::bootKernel();
         $middlewares = MiddlewareHelper::getMiddlewaresList();
         $middleware_groups = MiddlewareHelper::getMiddlewareGroup();
 
-        $midd_list = array();
+        $result = true;
 
         foreach ($request->route->middleware as $midd)
         {
-
             list($midd, $params) = explode(':', $midd);
-            
+
             if (isset($middlewares[$midd]))
             {
-                $midd_list[] = $middlewares[$midd] . ($params? ':'.$params : '');
+                $result = self::invokeMiddleware($middlewares[$midd], $request);
+
+                if (!($result instanceof Request))
+                    return $result;
             }
             elseif (isset($middleware_groups[$midd]))
             {
@@ -789,23 +880,37 @@ class Route
                         $midd = $middlewares[$midd];
                     }
 
-                    $midd_list[] = $midd . ($params? ':'.$params : '');
+                    $result = self::invokeMiddleware($midd, $request);
+
+                    if (!($result instanceof Request))
+                        return $result;
                 }
-            }
-            elseif (class_exists($midd))
-            {
-                $midd_list[] = $midd . ($params? ':'.$params : '');
-                //$midd_list[] = array('middleware' => $midd, 'params' => array());
             }
             else
             {
-                throw new Exception("Error: Middleware $midd not found");
+                try {
+                    $result = self::invokeMiddleware($midd, $request);
+
+                    if (!($result instanceof Request))
+                        return $result;
+                }
+                catch (Exception $e)
+                {
+                    throw new Exception("Error: Middleware $midd not found");
+                }
             }
 
         }
 
-        return $midd_list;
+        return $result;
 
-    }
+    } */
+
+    /* private static function invokeMiddleware($middleware, $request)
+    {
+        //echo "Calling middleware: $middleware<br>";
+        $controller = new $middleware;
+        return $controller->handle($request, true);
+    } */
 
 }

@@ -29,6 +29,11 @@ class Stringable
         return $this->value;
     }
 
+    public function toString()
+    {
+        return (string)$this->value;
+    }
+
     public function toInteger()
     {
         return intval($this->value);

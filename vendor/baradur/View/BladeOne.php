@@ -4,8 +4,6 @@
  * BladeOne - A Blade Template implementation in a single file
  * Copyright (c) 2016 Jorge Patricio Castro Castillo MIT License. Don't delete this comment, its part of the license.
  * Part of this code is based in the work of Laravel PHP Components.
- *
- *
  */
 
 /**
@@ -16,9 +14,6 @@
  * @link https://github.com/EFTEC/BladeOne
  */
 
-#namespace eftec\bladeone;
-
-#use Exception;
 
 class BladeOne
 {
@@ -122,16 +117,6 @@ class BladeOne
     }
 
 
-    /* function callbackReplaceModels($match)
-    {
-        global $_model_list;
-
-        if (in_array($match[1], $_model_list) && $match[2]!='class' && !method_exists($match[1], $match[2]))
-            return "Model::instance('$match[1]')->$match[2]";
-
-        return $match[0];
-    } */
-
     public function compile($fileName = null,$forced=false)
     {
         if ($fileName) {
@@ -149,7 +134,7 @@ class BladeOne
             /* $contents = preg_replace('/<!--([\s\S]*?)-->/x', '', $contents); */
 
             # Replace models functions
-            $contents = preg_replace_callback('/(\w*)::(\w*)/x', 'callbackReplaceModels', $contents);
+            $contents = preg_replace_callback('/(\w*)::(\w*)/x', 'callbackReplaceStatics', $contents);
 
             # compile the original file
             $contents = $this->compileString($contents);
@@ -382,7 +367,9 @@ class BladeOne
             $reflect  = new ReflectionClass('Component');
             $instance = $reflect->newInstance();
             $instance->setComponent($component);
+            $instance->setAttributes($attributes);
             $instance->slot = $content;
+            //ddd($instance);
         }
         
 
@@ -435,7 +422,7 @@ class BladeOne
         }
 
         $temp_params = null;
-        return $result;
+        return $result->__toString();
 
     }
 
@@ -487,10 +474,17 @@ class BladeOne
 
     function callbackCompileSelfClosingComponents($match) {
         
-        //dd($match[1]);
         $component = $match[1];
 
-        $attributes = $this->getArrayAttributesFromAttributeString(trim($match[2]));        
+        $attributes = $this->getArrayAttributesFromAttributeString(trim($match[2]));
+        
+        if ($component=='dynamic-component' && isset($attributes['component']))
+        {
+            $val = $attributes['component'];
+            $val = ltrim(str_replace('{{', '', str_replace('}}', '', $val)), '$');
+            $component = $this->variables[$val];
+            unset($attributes['component']);
+        }
                 
         return $this->createComponent($component, $attributes);
 

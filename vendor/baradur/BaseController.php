@@ -4,10 +4,10 @@ class BaseController
 {
     public $middleware = array();
 
-    /** @return ControllerMiddleware **/
+    /** @return RouteMiddleware **/
     public function middleware($middleware)
     {
-        $new = new ControllerMiddleware;
+        $new = new RouteMiddleware;
         $new->middleware = $middleware;
         $this->middleware[] = $new;
 
@@ -17,7 +17,8 @@ class BaseController
 
     public function authorize($function, $param=null)
     {
-        call_user_func_array(array('Authorize', 'verify'), array($function, $param));
+        //call_user_func_array(array('Authorize', 'verify'), array($function, $param));
+        Gate::authorize($function, $param);
     }
 
 

@@ -54,11 +54,13 @@ Class Connector
     }
 
 
+    /** @return int|bool */
     public function query($sql)
     {
         try
         {
-            return $this->_query($sql);
+            $this->_query($sql);
+            return true;
         }
         catch (Exception $e) 
         {
@@ -70,7 +72,7 @@ Class Connector
 
     public function _query($sql)
     {
-        //echo "SQL VIEJO: ".$sql;
+        //echo "SQL VIEJO: ".$sql."<br>";
         //$sql = str_replace("'NOW()'", "NOW()", $sql);
         
         if (env('DEBUG_INFO')==1)

@@ -8,6 +8,8 @@ Class App {
     public $type;
     public $filename;
     public $arguments;
+    public $inline;
+    public $headers;
     //public static $errors = array();
     public static $messages = array();
     public static $localization = null;
@@ -177,12 +179,16 @@ Class App {
 
     public function showFinalResult()
     {
-
         if ($this->action == 'response')
         {
             #dd($this);exit();
             header('HTTP/1.1 '.$this->code);
 
+            if ($this->result instanceof ResourceCollection)
+            {
+                $this->result = $this->result->getResult();
+            }
+    
             if ($this->type == 'application/json')
             {
                 header('Content-Type: application/json');

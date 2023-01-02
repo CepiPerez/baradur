@@ -27,21 +27,29 @@ class Str
         return $this->value;
     } */
 
+    public static function orderedUuid($data=null)
+    {
+        return self::getInstance(Uuid::uuid_generate_time());
+    }
 
     public static function uuid($data=null)
     {
-        if (!$data)
-            $data = random_bytes(16);
+        return self::getInstance(Uuid::uuid_generate_random());
+    }
 
-        assert(strlen($data) == 16);
+    public static function isUuid($uuid)
+    {
+        return UUid::isValid($uuid);
+    }
 
-        // Set version to 0100
-        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
-        // Set bits 6-7 to 10
-        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+    public static function ulid()
+    {
+        return self::getInstance(Ulid::generate());
+    }
 
-        // Output the 36 character UUID.
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+    public static function isUlid($uuid)
+    {
+        return Ulid::isValid($uuid);
     }
 
     public static function after($subject, $search)
@@ -122,9 +130,9 @@ class Str
         return rtrim($matches[0]).$end;
     }
 
-    public static function plural($value) //, $count = 2)
+    public static function plural($value, $count = 2)
     {
-        return Helpers::getPlural($value); //, $count);
+        return $count>1? Helpers::getPlural($value) : $value;
     }
 
     public static function random($length = 16)
@@ -327,6 +335,6 @@ class Str
         return str_word_count($string, 0, $characters);
     }
 
-    
+
 
 }

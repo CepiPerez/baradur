@@ -65,7 +65,7 @@ Class PrettyDump
             if (get_class($subject)=='Collection')
             {
                 if ($subject->pagination)
-                $res .= "<i style='margin-left:".($depth * 2)."rem;color:gray;'>&lt;has pagination&gt;</i><br>";
+                    $res .= "<i style='margin-left:".($depth * 2)."rem;color:gray;'>&lt;has pagination&gt;</i><br>";
             }
             
             $subject = (array) $subject;
@@ -126,7 +126,12 @@ Class PrettyDump
 
         } else
         {
-            $res .=  ($subject!==0? $subject : '<i style="color:gray;font-size:.85rem;">(null)</i>') . "<br>";
+            $res .=  ($subject===null 
+                ? '<i style="color:gray;font-size:.85rem;">(null)</i>'
+                : (is_bool($subject)
+                    ? '<i style="color:gray;font-size:.85rem;">(' . ($subject? 'true' : 'false') . ')</i>'
+                    : $subject
+                )) . "<br>";
         }
 
         return $res;

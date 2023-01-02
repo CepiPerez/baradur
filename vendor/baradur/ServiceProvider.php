@@ -35,8 +35,8 @@ abstract Class ServiceProvider
     {
 
         list($c, $m, $p) = getCallbackFromString($param);
-        call_user_func_array(array($c, $m), $p);
-        
+        executeCallback($c, $m, $p, $this);
+        //call_user_func_array(array($c, $m), $p);
     }
 
 

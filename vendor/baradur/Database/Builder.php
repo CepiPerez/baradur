@@ -2,25 +2,34 @@
 
 Class Builder
 {
-    public $_parent = null;
+    protected static $_macros = array();
+
+
+    public $_model = null;
     public $_table;
     public $_primary;
-    public $_foreign;
+    public $_parent = null;
     public $_fillable;
     public $_guarded;
     public $_hidden;
+    public $_appends;
     public $_routeKey;
+    public $_softDelete;
+    public $_collection = array();
+    public $_timestamps;
+    public $_timestamp_created;
+    public $_timestamp_updated;
     
+    public $_foreign;
     public $_fillableOff = false;
 
     public $_factory = null;
 
     public $_relationship;
-    public $_rparent = null;
 
     public $_method = '';
     public $_where = '';
-    public $_wherevals = array();
+    public $bindings = array();
     public $_join = '';
     public $_limit = null;
     public $_offset = null;
@@ -34,36 +43,17 @@ Class Builder
 
     public $_eagerLoad = array();
 
-    public $_collection = array();
     public $_connector;
     public $_extraquery = null;
     public $_original = null;
 
-    public $_softDelete;
     public $_withTrashed = false;
 
     public $_relationVars = null;
     public $_loadedRelations = array();
 
-    public $_model = null;
-
     private $_scopes = array();
 
-    /* public function __construct($connector, $table, $primary, $parent, $fillable, $guarded, $hidden, $routeKey='id', $soft=false)
-    {
-
-        $this->connector() = $connector;
-        $this->_table = $table;
-        $this->_primary = is_array($primary)? $primary : array($primary);
-        $this->_parent = $parent;
-        $this->_fillable = $fillable;
-        $this->_guarded = $guarded;
-        $this->_hidden = $hidden;
-        $this->_routeKey = $routeKey;
-        $this->_softDelete = $soft? 1 : 0;
-        $this->_collection = new Collection($parent, $hidden);
-
-    } */
 
 
     public function __construct($model, $table = null)
@@ -76,11 +66,14 @@ Class Builder
         $this->_fillable = $this->_model->getFillable();
         $this->_guarded = $this->_model->getGuarded();
         $this->_hidden = $this->_model->getHidden();
+        $this->_appends = $this->_model->getAppends();
         $this->_routeKey = $this->_model->getRouteKeyName();
-        $this->_softDelete = $this->_model->getUseSoftDeletes()? 1 : 0;
+        $this->_softDelete = $this->_model->usesSoftDeletes()? 1 : 0;
         $this->_collection = new Collection($model, $this->_model->getHidden());
-
-        $this->addGlobalScopes();
+        $this->_timestamps = $this->_model->getTimestamps();
+        
+        $this->_timestamp_created = $this->_model->getCreatedAt();
+        $this->_timestamp_updated = $this->_model->getUpdatedAt();
 
         if ($model=='DB')
         {
@@ -94,10 +87,19 @@ Class Builder
 
     public function __call($method, $parameters)
     {
+
         if (method_exists($this->_parent, 'scope'.lcfirst($method)))
         {
             //return Model::instance($this->_parent)->callScope(lcfirst($method), $parameters);
             return $this->callScope(lcfirst($method), $parameters); 
+        }
+
+        if (isset(self::$_macros[$method]))
+        {
+            list($c, $m, $p) = getCallbackFromString(self::$_macros[$method]);
+            $class = new $c($this->_parent);
+            return executeCallback($class, $m, $parameters, $this);
+            //return call_user_func_array(array($class, $m), array_merge($parameters, array($this)));
         }
 
         if (Str::startsWith($method, 'where'))
@@ -114,7 +116,50 @@ Class Builder
         throw new Exception("Method $method does not exist");
     }
 
-    public function clear()
+    public function _clone()
+    {
+        $cloned = new Builder($this->_parent, $this->_table);
+
+        $cloned->_foreign = $this->_foreign; 
+        $cloned->_fillableOff = $this->_fillableOff; 
+        $cloned->_factory = $this->_factory; 
+        $cloned->_relationship = $this->_relationship; 
+        $cloned->_method = $this->_method; 
+        $cloned->_where = $this->_where; 
+        $cloned->bindings = $this->bindings; 
+        $cloned->_join = $this->_join; 
+        $cloned->_limit = $this->_limit; 
+        $cloned->_offset = $this->_offset; 
+        $cloned->_order = $this->_order; 
+        $cloned->_group = $this->_group; 
+        $cloned->_having = $this->_having; 
+        $cloned->_union = $this->_union; 
+        $cloned->_fromSub = $this->_fromSub; 
+        $cloned->_keys = $this->_keys; 
+        $cloned->_values = $this->_values; 
+        $cloned->_eagerLoad = $this->_eagerLoad; 
+        $cloned->_connector = $this->_connector; 
+        $cloned->_extraquery = $this->_extraquery; 
+        $cloned->_original = $this->_original; 
+        $cloned->_withTrashed = $this->_withTrashed; 
+        $cloned->_relationVars = $this->_relationVars; 
+        $cloned->_loadedRelations = $this->_loadedRelations; 
+        $cloned->_scopes = $this->_scopes; 
+        $cloned->_timestamps = $this->_timestamps;
+        $cloned->_timestamp_created = $this->_timestamp_created;
+        $cloned->_timestamp_updated = $this->_timestamp_updated;
+
+        return $cloned;
+    }
+
+    /* public function __clone()
+    {
+        die("HOLA");
+        $cloned = new Builder($this->_parent, $this->_table);
+        return $cloned;
+    }  */
+
+    private function clear()
     {
         $this->_method = "SELECT `$this->_table`.*";
         $this->_where = '';
@@ -128,7 +173,7 @@ Class Builder
         $this->_fromSub = '';
         $this->_keys = array();
         $this->_values = array();
-        $this->_wherevals = array();
+        $this->bindings = array();
     }
 
     private $sql_connector = null;
@@ -138,31 +183,44 @@ Class Builder
      */
     public function connector()
     {
-        //dump($this->_connector);
         if (!$this->sql_connector)
         {
+            $config = CoreLoader::loadConfigFile(_DIR_.'/../../config/database.php');
+            
             if ($this->_connector)
             {
+                $config = $config['connections'][$this->_connector];
+
                 $this->sql_connector = new Connector(
-                    $this->_connector['host'],
-                    $this->_connector['user'], 
-                    $this->_connector['password'], 
-                    $this->_connector['database'],
-                    $this->_connector['port']
+                    $config['host'],
+                    $config['username'], 
+                    $config['password'], 
+                    $config['database'],
+                    $config['port']
                 );
             }
             else
             {
                 global $database;
-                $this->sql_connector = new Connector(
-                    $database['host'],
-                    $database['user'], 
-                    $database['password'], 
-                    $database['database'],
-                    $database['port']
-                );
+
+                if (!isset($database))
+                {
+                    $default = $config['default'];
+                    $conn_values = $config['connections'][$default];
+    
+                    $database = new Connector(
+                        $conn_values['host'],
+                        $conn_values['username'], 
+                        $conn_values['password'], 
+                        $conn_values['database'],
+                        $conn_values['port']
+                    );
+                }
+
+                $this->sql_connector = $database;
             }
         }
+        
         return $this->sql_connector;
     }
 
@@ -251,7 +309,7 @@ Class Builder
     {
         $res = $this->buildQuery();
 
-        foreach ($this->_wherevals as $val)
+        foreach ($this->bindings as $val)
         {
             foreach ($val as $k => $v)
                 $res = preg_replace('/\?/', $v, $res, 1);
@@ -278,7 +336,7 @@ Class Builder
             {
                 $vtype = 's';   
             }    
-            $this->_wherevals[] = array($vtype => $v); */
+            $this->bindings[] = array($vtype => $v); */
 
             $val = preg_replace('/\?/', $v, $val, 1);
         }
@@ -378,7 +436,7 @@ Class Builder
             {
                 $vtype = 's';   
             }    
-            $this->_wherevals[] = array($vtype => $v); */
+            $this->bindings[] = array($vtype => $v); */
 
             $where = preg_replace('/\?/', $v, $where, 1);
         }
@@ -486,7 +544,7 @@ Class Builder
             $vtype = 's';   
         }
 
-        $this->_wherevals[] = array($vtype => $val); */
+        $this->bindings[] = array($vtype => $val); */
 
         if (is_string($val))
         {
@@ -529,7 +587,7 @@ Class Builder
 
 
     /**
-     * Specifies the WHERE clause\
+     * Adds a basic WHERE clause\
      * Returns the Query builder
      * 
      * @param string $column 
@@ -545,6 +603,23 @@ Class Builder
     }
 
     /**
+     * Adds a basice WHERE NOT clause\
+     * Returns the Query builder
+     * 
+     * @param string $column 
+     * @param string $condition Can be ommited for '='
+     * @param string $value
+     * @return Builder
+     */
+    public function whereNot($column, $cond='', $val='', $boolean='AND')
+    {
+        $this->addWhere($column, $cond, $val, $boolean);
+        $this->_where = str_replace('WHERE ', 'WHERE NOT ', $this->_where);
+
+        return $this;
+    }
+
+    /**
      * Specifies OR in WHERE clause\
      * Returns the Query builder
      * 
@@ -553,40 +628,41 @@ Class Builder
      * @param string $value
      * @return Builder
      */
-    public function orWhere($column, $cond, $val='')
+    public function orWhere($column, $cond='', $val='')
     {
         $this->addWhere($column, $cond, $val, 'OR');
 
         return $this;
     }
 
-    /**
-     * Specifies the WHERE IN clause\
-     * Returns the Query builder
-     * 
-     * @param string $column 
-     * @param string $values
-     * @return Builder
-     */
-    public function whereIn($column, $values)
+
+    private function splitStringIntoArray($string)
     {
-        $win = array();
-        if (!is_array($values))
+        $array = array();
+
+        foreach (explode(',', $string) as $value)
         {
-            foreach (explode(',', $values) as $val)
-            {
-                //$val = trim($val);
-                if (is_string($val)) $val = "'".$val."'";
-                array_push($win, $val);
-            }
+            $array[] = trim($value);
         }
-        else
+
+        return $array;
+    }
+
+    private function addWhereIn($column, $values, $boolean, $not=null)
+    {
+        $final_array = array();
+
+        if (is_string($values))
         {
-            foreach ($values as $val)
-            {
-                if (is_string($val)) $val = "'".$val."'";
-                array_push($win, $val);
-            }
+            $values = $this->splitStringIntoArray($values);
+        }
+
+        foreach ($values as $val)
+        {
+            if (is_string($val))
+                $val = "'".$val."'";
+            
+            $final_array[] = $val;
         }
 
         list ($table, $col) = explode('.', $column);
@@ -594,11 +670,25 @@ Class Builder
         else $column = '`'.$table.'`';
 
         if ($this->_where == '')
-            $this->_where = 'WHERE ' . $column . ' IN ('. implode(',', $win) .')';
+            $this->_where = 'WHERE ' . $column . ($not? ' NOT' : '') . ' IN ('. implode(',', $final_array) .')';
         else
-            $this->_where .= ' AND ' . $column . ' IN ('. implode(',', $win) .')';
+            $this->_where .= ' ' . $boolean . ' ' . $column . ($not? ' NOT' : '') . ' IN ('. implode(',', $final_array) .')';
 
         return $this;
+    }
+
+
+    /**
+     * Specifies the WHERE IN clause\
+     * Returns the Query builder
+     * 
+     * @param string $column 
+     * @param string|array $values
+     * @return Builder
+     */
+    public function whereIn($column, $values)
+    {
+        return $this->addWhereIn($column, $values, 'AND', null);
     }
 
     /**
@@ -611,31 +701,7 @@ Class Builder
      */
     public function orWhereIn($column, $values)
     {
-        $win = array();
-        if (!is_array($values))
-        {
-            foreach (explode(',', $values) as $val)
-            {
-                //$val = trim($val);
-                if (is_string($val)) $val = "'".$val."'";
-                array_push($win, $val);
-            }
-        }
-        else
-        {
-            $win = $values;
-        }
-
-        list ($table, $col) = explode('.', $column);
-        if ($col) $column = '`'.$table.'`.`'.$col.'`';
-        else $column = '`'.$table.'`';
-
-        if ($this->_where == '')
-            $this->_where = 'WHERE ' . $column . ' IN ('. implode(',', $win) .')';
-        else
-            $this->_where .= ' OR ' . $column . ' IN ('. implode(',', $win) .')';
-
-        return $this;
+        return $this->addWhereIn($column, $values, 'OR', null);
     }
 
     /**
@@ -648,26 +714,55 @@ Class Builder
      */
     public function whereNotIn($column, $values)
     {
-        $win = array();
-        
+        return $this->addWhereIn($column, $values, 'AND', true);
+    }
+
+    /**
+     * Specifies the WHERE NOT IT clause\
+     * Returns the Query builder
+     * 
+     * @param string $column 
+     * @param string $values
+     * @return Builder
+     */
+    public function orWhereNotIn($column, $values)
+    {
+        return $this->addWhereIn($column, $values, 'OR', true);
+    }
+
+
+    private function addWhereBetween($column, $values, $boolean)
+    {
+        $final_array = array();
+
         if (is_string($values))
-            $values = explode(',', $values);
+        {
+            $values = $this->splitStringIntoArray($values);
+        }
 
         foreach ($values as $val)
         {
-            //$val = trim($val);
-            if (is_string($val)) $val = "'".$val."'";
-            array_push($win, $val);
+            if ($val instanceof Carbon)
+            {
+                $val = $val->toDateTimeString();
+            }
+
+            elseif (is_string($val))
+            {
+                $val = "'".$val."'";
+            }
+            
+            $final_array[] = $val;
         }
 
         list ($table, $col) = explode('.', $column);
         if ($col) $column = '`'.$table.'`.`'.$col.'`';
         else $column = '`'.$table.'`';
-
+        
         if ($this->_where == '')
-            $this->_where = 'WHERE ' . $column . ' NOT IN ('. implode(',', $win) .')';
+            $this->_where = "WHERE $column BETWEEN '$final_array[0]' AND '$final_array[1]'";
         else
-            $this->_where .= ' AND ' . $column . ' NOT IN ('. implode(',', $win) .')';
+            $this->_where .= " $boolean $column BETWEEN '$final_array[0]' AND '$final_array[1]'";
 
         return $this;
     }
@@ -682,23 +777,7 @@ Class Builder
      */
     public function whereBetween($column, $values)
     {
-        $win = array();
-        foreach ($values as $val)
-        {
-            if (is_string($val)) $val = "'".$val."'";
-            array_push($win, $val);
-        }
-
-        list ($table, $col) = explode('.', $column);
-        if ($col) $column = '`'.$table.'`.`'.$col.'`';
-        else $column = '`'.$table.'`';
-
-        if ($this->_where == '')
-            $this->_where = 'WHERE ' . $column . ' BETWEEN '. $win[0] . ' AND ' . $win[1];
-        else
-            $this->_where .= ' AND ' . $column . ' BETWEEN '. $win[0] . ' AND ' . $win[1];
-
-        return $this;
+        return $this->addWhereBetween($column, $values, 'AND');
     }
 
     /**
@@ -711,23 +790,7 @@ Class Builder
      */
     public function orWhereBetween($column, $values)
     {
-        $win = array();
-        foreach ($values as $val)
-        {
-            if (is_string($val)) $val = "'".$val."'";
-            array_push($win, $val);
-        }
-
-        list ($table, $col) = explode('.', $column);
-        if ($col) $column = '`'.$table.'`.`'.$col.'`';
-        else $column = '`'.$table.'`';
-
-        if ($this->_where == '')
-            $this->_where = 'WHERE ' . $column . ' BETWEEN '. $win[0] . ' AND ' . $win[1];
-        else
-            $this->_where .= ' OR ' . $column . ' BETWEEN '. $win[0] . ' AND ' . $win[1];
-
-        return $this;
+        return $this->addWhereBetween($column, $values, 'OR');
     }
 
     /**
@@ -822,6 +885,102 @@ Class Builder
         return $this;
     }
 
+    private function addWhereDate($first, $operator, $second, $chain, $type)
+    {
+        if (!isset($value))
+        {
+            $second = $operator;
+            $operator = '=';
+        }
+        if (!($second instanceof Carbon))
+        {
+            $second = Carbon::parse($second);
+        }
+
+        if ($type=='date')
+        {
+            $second = $second->toDateString();
+        }
+        elseif ($type=='year')
+        {
+            $first = "YEAR($first)";
+            $second = $second->year;
+        }
+        elseif ($type=='month')
+        {
+            $first = "MONTH($first)";
+            $second = $second->month;
+        }
+        elseif ($type=='day')
+        {
+            $first = "DAY($first)";
+            $second = $second->day;
+        }
+        elseif ($type=='time')
+        {
+            $first = "TIME($first)";
+            $second = $second->rawFormat('H:i:s');
+        }
+
+        if ($this->_where == '')
+            $this->_where = "WHERE $first $operator $second";
+        else
+            $this->_where .= " $chain $first $operator $second";
+
+        return $this;
+
+    }
+
+    public function whereDate($column, $cond, $value=null, $boolean='AND')
+    {
+        return $this->addWhereDate($column, $cond, $value, $boolean, 'date');
+    }
+
+    public function orWhereDate($column, $cond, $value=null, $boolean='OR')
+    {
+        return $this->addWhereDate($column, $cond, $value, $boolean, 'date');
+    }
+
+    public function whereYear($column, $cond, $value=null, $boolean='AND')
+    {
+        return $this->addWhereDate($column, $cond, $value, $boolean, 'year');
+    }
+
+    public function orWhereYear($column, $cond, $value=null, $boolean='OR')
+    {
+        return $this->addWhereDate($column, $cond, $value, $boolean, 'year');
+    }
+
+    public function whereMonth($column, $cond, $value=null, $boolean='AND')
+    {
+        return $this->addWhereDate($column, $cond, $value, $boolean, 'month');
+    }
+
+    public function orWhereMonth($column, $cond, $value=null, $boolean='OR')
+    {
+        return $this->addWhereDate($column, $cond, $value, $boolean, 'month');
+    }
+
+    public function whereDay($column, $cond, $value=null, $boolean='AND')
+    {
+        return $this->addWhereDate($column, $cond, $value, $boolean, 'day');
+    }
+
+    public function orWhereDay($column, $cond, $value=null, $boolean='OR')
+    {
+        return $this->addWhereDate($column, $cond, $value, $boolean, 'day');
+    }
+
+    public function whereTime($column, $cond, $value=null, $boolean='AND')
+    {
+        return $this->addWhereDate($column, $cond, $value, $boolean, 'time');
+    }
+
+    public function orWhereTime($column, $cond, $value=null, $boolean='OR')
+    {
+        return $this->addWhereDate($column, $cond, $value, $boolean, 'time');
+    }
+
 
     private function getHaving($reference, $operator, $value)
     {
@@ -852,7 +1011,7 @@ Class Builder
             $vtype = 's';   
         }
 
-        $this->_wherevals[] = array($vtype => $value); */
+        $this->bindings[] = array($vtype => $value); */
 
 
         if (is_string($value)) $value = "'$value'";
@@ -970,9 +1129,9 @@ Class Builder
         else $reference = '`'.$table.'`';
 
         if ($this->_having == '')
-            $this->_having = 'HAVING ' . $reference . ' BETWEEN '. $win[0] . ' AND ' . $win[1];
+            $this->_having = "HAVING $reference BETWEEN '$win[0]' AND '$win[1]'";
         else
-            $this->_having = ' AND ' . $reference . ' BETWEEN '. $win[0] . ' AND ' . $win[1];
+            $this->_having = " AND $reference BETWEEN '$win[0]' AND '$win[1]'";
 
         return $this;
     }
@@ -994,7 +1153,7 @@ Class Builder
             {
                 $vtype = 's';   
             }    
-            $this->_wherevals[] = array($vtype => $v); */
+            $this->bindings[] = array($vtype => $v); */
 
             $val = preg_replace('/\?/', $v, $sql, 1);
         }
@@ -1020,14 +1179,14 @@ Class Builder
     }
 
 
-
     private function getCallback($callback, $query)
     {
         if (strpos($callback, '@')!==false)
         {
             list($class, $method, $params) = getCallbackFromString($callback);
             array_shift($params);
-            call_user_func_array(array($class, $method), array_merge(array($query), $params));
+            executeCallback($class, $method, array_merge(array($query), $params), $this);
+            //call_user_func_array(array($class, $method), array_merge(array($query), $params));
         }
     }
 
@@ -1282,14 +1441,9 @@ Class Builder
      * @param string $value
      * @return $array
      */
-    public function search($var, $val)
+    /* public function search($var, $val)
     {
         $var = str_replace(',','," ",',$var);
-
-        /* if ($this->_where == '')
-            $this->_where = 'WHERE FIELD LIKE "%' . $val . '%" IN (' . $var . ')';
-        else
-            $this->_where .= ' OR FIELD LIKE "%' . $val . '%" IN (' . $var . ')'; */
 
         if ($this->_where == '')
             $this->_where = 'WHERE CONCAT(' . $var . ') LIKE "%'.$val.'%"';
@@ -1297,7 +1451,7 @@ Class Builder
             $this->_where .= ' OR CONCAT(' . $var . ') LIKE "%'.$val.'%"';
             
         return $this;
-    }
+    } */
 
     /**
      * Specifies the GROUP BY clause\
@@ -1468,33 +1622,7 @@ Class Builder
         {
             foreach ($key as $k => $v)
             {
-                array_push($this->_keys, $k);
-
-                $camel = Helpers::snakeCaseToCamelCase($key);
-                    
-                if (method_exists($this->_parent, 'set'.ucfirst($camel).'Attribute'))
-                {
-                    //$cl = $this->_parent;
-                    $fn = 'get'.ucfirst($camel).'Attribute';
-                    //$v = call_user_func_array(array($cl, $fn), array($v));
-                    $newmodel = new $this->_parent;
-                    $v = $newmodel->$fn($v);
-                }
-
-                if (method_exists($this->_parent, $camel.'Attribute'))
-                {
-                    #echo "Value:$v<br>";
-                    $fn = $camel.'Attribute';
-                    $newmodel = new $this->_parent;
-                    $nval = $newmodel->$fn($v, (array)$newmodel);
-                    if (isset($nval['set'])) $v = $nval['set'];
-                    #echo "NEW value:$v<br>";
-                }
-
-                if (is_string($v))
-                    $v = "'".$v."'";
-
-                array_push($this->_values, $v? $v : "NULL");
+                $this->set($k, $v);
             }
         }
         else
@@ -1521,8 +1649,15 @@ Class Builder
                 #echo "NEW value:$val<br>";
             }
 
+            /* if ($val instanceof Carbon)
+            {
+                $val = $val->toDateTimeString();
+            } */
+            
             if (is_string($val)) 
+            {
                 $val = "'".$val."'";
+            }
 
             array_push($this->_values, isset($val)? $val : "NULL");
         }
@@ -1530,194 +1665,6 @@ Class Builder
         return $this;
     }
 
-    /**
-     * Saves the model in database
-     * 
-     * @return bool
-     */
-    // This should be only in Model
-    /* public function save($values)
-    {
-        //dd($values); dd($this);
-        //exit();
-
-        if(!$values)
-            throw new Exception('No values asigned');
-
-
-        $final_vals = array();
-        if (is_object($values) && class_exists(get_class($values)) && isset($this->_relationVars['relation_current']))
-        {
-            //dd($values); exit();
-            $vals = array();
-            foreach ($values as $key => $val)
-                $vals[$key] = $val;
-
-            $where = array($this->_relationVars['foreign'] => $this->_relationVars['relation_current']);
-
-            return $this->updateOrCreate($where, $vals);
-
-        }
-        else
-        {
-            foreach ($values as $key => $val)
-            {
-                if (!(is_object($val) && class_exists(get_class($val))))
-                {
-                    $final_vals[$key] = $val;
-                }
-            }
-            
-            if (!$this->_collection->first())
-            {
-                //die("CREATE");
-                return $this->_insert($final_vals);
-            }
-            else
-            {
-                //dd($final_vals);
-                //dd($this);
-                die("UPDATE");
-                $this->_fillableOff = true;
-                //dd($this->_where);
-
-                $p_key = is_array($this->_primary)? $this->_primary[0] : $this->_primary;
-                $pkeyval = $this->_collection->pluck($p_key)->first();
-                //dd($pkeyval);exit();
-
-                if (strpos($this->_where, $pkeyval)===false)
-                {
-                    //echo "NO HAY WHERE<br>";
-                    $this->where($p_key, $pkeyval);
-                }
-
-                $res = $this->update($final_vals);
-
-                $this->_fillableOff = false;
-                return $res;
-            }
-        }
-
-
-    } */
-
-    /**
-     * Save the model and all of its relationships
-     * 
-     * @return bool
-     */
-    public function push($values, $new)
-    {
-        /* dd($values); dd($this);
-        exit(); */
-        
-        $relations = array();
-
-        if(!$values)
-            throw new Exception('No values asigned');
-
-        $final_vals = array();
-
-        //dump($values);
-        foreach ($values as $key => $val)
-        {
-            if (is_object($val) && class_exists(get_class($val)) && $key!='_query')
-            {
-                $relation = array();
-                foreach ($val as $k => $v)
-                    $relation[$k] = $v;
-
-                $class = get_class($values);
-                $class = new $class;
-                $class->getQuery($this);
-                $class->getQuery()->varsOnly = true;
-                $_key = $class->getRouteKeyName();
-                $data = $class->$key();
-                $relation[$data->_relationVars['foreign']] = $values->$_key;
-                $relation['__key'] = $data->_relationVars['foreign'];
-
-                $relations[get_class($val)] = $relation;
-
-            }
-            else
-            {
-                $final_vals[$key] = $val;
-            }
-        }
-
-        /* dd($final_vals);
-        dd($relations);
-        dd($this);
-        dd($this->_primary);
-        exit(); */
-
-        /* $key = $this->_primary;
-        //unset($final_vals[$key]);
-        if ( !$this->updateOrCreate(array($key => $final_vals[$key]), $final_vals)) return false;
-            
-        foreach ($relations as $model => $values)
-        {
-            $key = $values['__key'];
-            unset($values['__key']);
-            //dd($model); dd($key); dd($values[$key]); dd($values); exit();
-            if (! $model::updateOrCreate(array($key => $values[$key]), $values))
-                return false;
-        }
-        return true; */
-
-        if ($new)
-        {
-            //return $this->_insert($final_vals);
-            //die("CREATE");
-
-            if ( !$this->create($final_vals)) return false;
-            //dd($relations);
-            foreach ($relations as $model => $values)
-            {
-                $key = $values['__key'];
-                unset($values['__key']);
-                //dd($model); dd($key); dd($values[$key]); dd($values); exit();
-                //$m = new $model;
-
-                //dd($values);
-                //dd($m);exit();
-
-
-                if (! Model::instance($model)->updateOrCreate(array($key => $values[$key]), $values))
-                    return false;
-                /* if (! $model::updateOrCreate(array($key => $values[$key]), $values))
-                    return false; */
-            }
-            return true;
-        }
-        else
-        {
-            //$this->_fillableOff = true;
-            $p_key = is_array($this->_primary)? $this->_primary[0] : $this->_primary;
-            $this->where($p_key, $this->_collection->pluck($p_key)->first());
-            //dd($this);            
-            //die("UPDATE");
-
-
-            if ( !$this->update($final_vals)) return false;
-            
-            foreach ($relations as $model => $values)
-            {
-                $key = $values['__key'];
-                unset($values['__key']);
-                //dd($model); dd($key); dd($values[$key]); dd($values); exit();
-                //$m = new $model;
-                if (! Model::instance($model)->updateOrCreate(array($key => $values[$key]), $values))
-                    return false;
-                /* if (! $model::updateOrCreate(array($key => $values[$key]), $values))
-                    return false; */
-            }
-
-            //$this->_fillableOff = false;
-            return true;
-        }
-
-    }
 
     /**
      * INSERT a record or an array of records in database
@@ -1725,36 +1672,71 @@ Class Builder
      * @param array $record
      * @return bool
      */
-    public function insert($record)
+    public function insert($values)
     {
-        $isarray = false;
-        foreach ($record as $key => $val)
-        {
-            if (!is_array($val))
-            {
-                $this->set($key, $val);
-            }
-            else
-            {
-                $isarray = true;
-                return $this->_insert($val);
-            }
-        }
-        if (!$isarray)
-            return $this->_insert(array());
 
+        if (!is_array(reset($values)))
+        {    
+            $this->clear();
+            return $this->_insert($values);
+        }
+
+        foreach ($values as $value)
+        {
+            $this->clear();
+            $res = $this->_insert($value);
+        }
+
+        return $res;
     }
 
-    private function _insert($record)
+    /**
+     * UPSERT a record or an array of records in database
+     * 
+     * @param array $record
+     * @return bool
+     */
+    public function upsert($records, $keys, $values)
     {
+        foreach ($records as $record)
+        {
+            $attributes = array();
+            foreach ($keys as $key)
+            {
+                $attributes[$key] = $record[$key];
+            }
+
+            $update = array();
+            foreach ($values as $value)
+            {
+                $update[$value] = $record[$value];
+            }
+            
+            $res = $this->updateOrInsert($attributes, $update);
+
+        }
+        return $res;
+    }
+
+    private function _insert($record, $ignore=false)
+    {
+        $record = CastHelper::processCastsBack(
+            $record,
+            $this->_model
+        );
         
         foreach ($record as $key => $val)
-            $this->set($key, $val);
+            $this->setValues($key, $val);
 
-        $sql = 'INSERT INTO `' . $this->_table . '` (' . implode(', ', $this->_keys) . ')'
+        if (count($this->_values)==0)
+            throw new Exception ("Error setting values for new model");
+
+        if ($this->_timestamps && !isset($this->_values[$this->_timestamp_created]) && $this->_parent!='DB')
+            $this->set($this->_timestamp_created, now()->toDateTimeString());
+
+        $sql = 'INSERT ' . ($ignore? 'IGNORE ' : '') . 'INTO `' . $this->_table . '` (' . implode(', ', $this->_keys) . ')'
                 . ' VALUES (' . implode(', ', $this->_values) . ')';
 
-        //echo $sql."<br>";
         $query = $this->connector()->query($sql);
     
         $last = array();
@@ -1763,7 +1745,6 @@ Class Builder
             $last[$this->_keys[$i]] = $this->_values[$i];
         }
         $this->_lastInsert = $last;
-        //dump($last);
 
         $this->clear();
         
@@ -1777,40 +1758,21 @@ Class Builder
      * @param array $record
      * @return bool
      */
-    public function insertOrIgnore($record)
+    public function insertOrIgnore($values)
     {
-        $isarray = false;
-        foreach ($record as $key => $val)
-        {
-            if (!is_array($val))
-            {
-                $this->set($key, $val);
-            }
-            else
-            {
-                $isarray = true;
-                $this->_insertIgnore($val);
-            }
+        if (!is_array(reset($values)))
+        {    
+            $this->clear();
+            return $this->_insert($values, true);
         }
-        if (!$isarray)
-            $this->_insertIgnore(array());
-    }
 
-    private function _insertIgnore($record)
-    {
-        
-        foreach ($record as $key => $val)
-            $this->set($key, $val);
+        foreach ($values as $value)
+        {
+            $this->clear();
+            $res = $this->_insert($value, true);
+        }
 
-        $sql = 'INSERT INTO `' . $this->_table . '` (' . implode(', ', $this->_keys) . ')'
-                . ' VALUES (' . implode(', ', $this->_values) . ')';
-
-        //echo $sql."<br>";
-        $query = $this->connector()->query($sql);
-    
-        $this->clear();
-        
-        return $query; 
+        return $res;
     }
 
 
@@ -1818,11 +1780,14 @@ Class Builder
     {
         global $preventSilentlyDiscardingAttributes;
 
+        if ($key=='_global_scopes' || $key=='_query' || $key=='timestamps')
+            return $this;
+
         if (in_array($key, $this->_fillable) || $this->_fillableOff)
         {
             $this->set($key, $val);
         }
-        else if (isset($this->_guarded) && !in_array($key, $this->_guarded))
+        elseif (isset($this->_guarded) && !in_array($key, $this->_guarded))
         {
             $this->set($key, $val);
         }
@@ -1835,8 +1800,8 @@ Class Builder
                 throw new Exception("Add fillable property [$key] to allow mass assignment on [$this->_parent]");
 
         }
-        if ($return)
-            return $this; 
+        
+        return $this; 
     }
 
 
@@ -1849,51 +1814,112 @@ Class Builder
      */
     public function create($record = null)
     {
-        #echo "CREATE<br>";
-        #dump($record);
-        if (is_object($record))
-        {
-            $arr = array();
-            foreach ($record as $key => $val)
-                $arr[$key] = $val;
-
-            $record = $arr;
-        }
-        
-        foreach ($record as $key => $val)
-        {
-            if (!is_object($val))
-            {
-                /* if (in_array($key, $this->_fillable) || $this->_fillableOff)
-                    $this->set($key, $val, false);
-                else if (isset($this->_guarded) && !in_array($key, $this->_guarded))
-                    $this->set($key, $val, false);
-                else
-                    unset($record[$key]); */
-                $this->setValues($key, $val, true, false);
-            }
-        }
-
         if (isset($this->_relationVars) && $this->_relationVars['relationship']=='morphOne'
             && isset($this->_relationVars['current_id']))
         {
-            $this->set($this->_relationVars['foreign'], $this->_relationVars['current_id']);
-            $this->set($this->_relationVars['relation_type'], $this->_relationVars['current_type']);
+            $record[$this->_relationVars['foreign']] = $this->_relationVars['current_id'];
+            $record[$this->_relationVars['relation_type']] = $this->_relationVars['current_type'];
         }
 
-        if(count($this->_values) == 0)
-            return null;
+        elseif (isset($this->_relationVars['foreign']) && count($this->_relationVars['where_in'])>0)
+        {
+            if (!isset($record[$this->_relationVars['foreign']]))
+               $record[$this->_relationVars['foreign']] = $this->_relationVars['where_in'][0];
+        }
         
         $this->checkObserver('creating', $record);
 
-        if ($this->_insert(array()))
+        if ($this->_insert($record))
         {
             $this->checkObserver('created', $record);
             return $this->insertNewItem();
         }
-        else
-            return null;
+        
+        return null;
 
+    }
+
+    /**
+     * Creates the new records in database\
+     * 
+     * @param array $record
+     * @return Model
+     */
+    public function createMany($records=array())
+    {
+        //dump($this);
+        if (!isset($this->_relationVars['foreign']) || count($this->_relationVars['where_in'])==0)
+        {
+            throw new Exception('Parent relation is missing');
+        }
+
+        foreach($records as $record)
+        {
+            $record[$this->_relationVars['foreign']] = $this->_relationVars['where_in'][0];
+            $this->_clone()->create($record);
+        }
+        
+        return true;
+
+    }
+
+    /**
+     * Saves the model in database
+     * 
+     * @return bool
+     */
+    public function save($model)
+    {
+        if(!($model instanceof Model)) {
+            throw new Exception('No model asigned');
+        }
+
+        if(!isset($this->_relationVars['foreign'])) {
+            throw new Exception('Parent relation is missing');
+        }
+
+        $res = Model::instance(get_class($model));
+
+        $res = $res->updateOrCreate(
+            array($this->_relationVars['foreign'] => $this->_relationVars['where_in'][0]), 
+            $model->attributes
+        );
+
+        return true;
+    }
+
+    /**
+     * Saves multiple models in database
+     * 
+     * @return bool
+     */
+    public function saveMany($models)
+    {
+        $models = is_array($models)? $models : array($models);
+
+        if(!isset($this->_relationVars['foreign'])) {
+            throw new Exception('Parent relation is missing');
+        }
+
+        foreach ($models as $val)
+        {
+            if(!($models[0] instanceof Model)) {
+                throw new Exception('No model asigned');
+            }
+
+            $res = Model::instance(get_class($val));
+    
+            $res = $res->updateOrCreate(
+                array($this->_relationVars['foreign'] => $this->_relationVars['where_in'][0]), 
+                $val->attributes
+            );
+
+            if (!$res) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -1902,73 +1928,58 @@ Class Builder
      * @param array|object $record
      * @return bool
      */
-    public function update($record, $attributes=null)
+    public function update($attributes)
     {
-        //echo "UPDATE<br>";
-        //dd($record); dd($attributes); dd($this); exit();
-
-        if (isset($attributes))
+        if ($this->_where=='')
         {
             foreach ($this->_primary as $primary)
             {
-                if (!isset($attributes[$primary]))
+                $val = is_object($attributes) ? $attributes->$primary : $attributes[$primary];
+
+                if (!isset($val))
                     throw new Exception("Error in model's primary key");
                     
-                $this->where($primary, $attributes[$primary]);
+                $this->where($primary, $val);
             }
-            //$key = $this->_primary;
-            //if (isset($attributes->$key))
-            //else throw new Exception("Error updating existent model");
         }
 
-        foreach ($record as $key => $val)
+        $attributes = CastHelper::processCastsBack(
+            $attributes,
+            $this->_model
+        );
+
+        $values = array();
+        foreach ($attributes as $key => $val)
         {
-            /* if ($record->$key != $attributes[$key] || !isset($attributes[$key]))
-            { */
-            if (!is_object($val))
+            if (!is_object($val) && !in_array($key, $this->_appends))
             {
-                /* if (in_array($key, $this->_fillable) || $this->_fillableOff)
-                    $this->set($key, $val, false);
-                else if (isset($this->_guarded) && !in_array($key, $this->_guarded))
-                    $this->set($key, $val, false); */
-                $this->setValues($key, $val, false, false);
+                if (is_bool($val)) {
+                    $val = $val==true? 1 : 0;
+                }
+                $values[$key] = "`$key` = ". ($val!==null ? "'".$val."'" : 'NULL');
             }
-
         }
-
-        //dd($this); exit();
-        /* foreach ($record as $key => $val)
-            $this->set($key, $val, false); */
     
         if ($this->_where == '')
-            throw new Exception('WHERE not assigned. Use updateAll() if you want to update all records');
+            throw new Exception('WHERE not assigned.');
 
-        if (!$this->_values)
+        if (count($values)==0)
            throw new Exception('No values assigned for update');
 
 
-        $values = array();
-        
-        for ($i=0; $i < count($this->_keys); $i++) {
-            array_push($values, $this->_keys[$i] . "=" . $this->_values[$i]);
-        }
+        /* if ($this->_softDelete && !$this->_withTrashed)
+            $this->whereNull('deleted_at'); */
 
-        if ($this->_softDelete && !$this->_withTrashed)
-            $this->whereNull('deleted_at');
+        
 
         $sql = 'UPDATE `' . $this->_table . '` SET ' . implode(', ', $values) . ' ' . $this->_where;
 
-        //dd($sql); exit();
-        #var_dump($this->_wherevals);
-        #echo $sql."::";var_dump($this->_wherevals);echo "<br>";
-        #exit();
+        $this->checkObserver('updating', $attributes);
 
-        $this->checkObserver('updating', $record);
-
-        $query = $this->connector()->query($sql); //, $this->_where, $this->_wherevals);
+        $query = $this->connector()->query($sql); //, $this->_where, $this->bindings);
 
         if ($query)
-            $this->checkObserver('updated', $record);
+            $this->checkObserver('updated', $attributes);
 
         $this->clear();
         
@@ -1985,24 +1996,23 @@ Class Builder
     public function updateOrInsert($attributes, $values)
     {
 
-        $this->clear();
         foreach ($attributes as $key => $val)
         {
            $this->where($key, $val);
         }
         
         $sql = 'SELECT * FROM `' . $this->_table . '` '. $this->_where . ' LIMIT 0, 1';
-        $res = $this->connector()->execSQL($sql, $this->_wherevals);
-        $res = $res[0];
+        
+        $res = $this->connector()->execSQL($sql, $this->bindings);
 
-        if ($res)
+        if ($res->count()>0)
         {
             return $this->update($values);
         }
         else
         {
             $new = array_merge($attributes, $values);
-            return $this->insert($new);
+            return $this->_insert($new);
         }
 
     }
@@ -2017,20 +2027,6 @@ Class Builder
      */
     public function updateOrCreate($attributes, $values)
     {
-
-        $this->clear();
-        foreach ($values as $key => $val)
-        {
-            /* if (in_array($key, $this->_fillable) || $this->_fillableOff)
-                $this->set($key, $val, false);
-            else if (isset($this->_guarded) && !in_array($key, $this->_guarded))
-                $this->set($key, $val, false);
-            else
-                unset($values[$key]); */
-            $this->setValues($key, $val, true, false);
-        }
-        //var_dump($values);
-
         $this->clear();
         foreach ($attributes as $key => $val)
         {
@@ -2038,29 +2034,23 @@ Class Builder
         }
         
         $sql = 'SELECT * FROM `' . $this->_table . '` '. $this->_where . ' LIMIT 0, 1';
-        //echo $sql;
-        $res = $this->connector()->execSQL($sql, $this->_wherevals);
-        $res = $res[0];
+        
+        $res = $this->connector()->execSQL($sql, $this->bindings);
 
-        if ($res)
+        if ($res->count()>0)
         {
-            //dd($res);dd($values);
-            if ($this->update($values))
-            {
-                foreach($values as $key => $val)
-                    $res->$key = $val;
+            $item = $res[0];
+            
+            $this->update($values);
 
-                return $this->insertUnique($res);
-            }
-            else
-                return null;
+            foreach($values as $key => $val)
+                $item->$key = $val;
 
+            return $this->insertUnique($item);
         }
-        else
-        {
-            $new = array_merge($attributes, $values);
-            return $this->create($new);
-        }
+
+        $new = array_merge($attributes, $values);
+        return $this->create($new);
 
     }
 
@@ -2074,32 +2064,24 @@ Class Builder
      */
     public function insertReplace($record)
     {
-        $isarray = false;
-        #$where = $this->_where;
-        #$wherevals = $this->_wherevals;
-
-        foreach ($record as $key => $val)
-        {
-            if (!is_array($val))
-            {
-                $this->set($key, $val);
-            }
-            else
-            {
-                #$this->_where = $where;
-                #$this->_wherevals = $wherevals;
-
-                $isarray = true;
-                $this->_insertReplace($val);
-            }
+        if (!is_array(reset($values)))
+        {    
+            $this->clear();
+            return $this->_insertReplace($values, true);
         }
-        if (!$isarray)
-            $this->_insertReplace(array());
+
+        foreach ($values as $value)
+        {
+            $this->clear();
+            $res = $this->_insertReplace($value, true);
+        }
+
+        return $res;
     }
 
     private function _insertReplace($record)
     {
-
+        
         foreach ($record as $key => $val)
             $this->set($key, $val);
         
@@ -2107,36 +2089,7 @@ Class Builder
                 . ' VALUES (' . implode(', ', $this->_values) . ')';
 
         //echo $sql;
-        $query = $this->connector()->execSQL($sql, $this->_wherevals);
-
-        $this->clear();
-        
-        return $query;
-    }
-
-
-
-    /**
-     * UDPATE the current records in database
-     * 
-     * @param array $values
-     * @return bool
-     */
-    public function updateAll($values)
-    {
-
-        foreach ($values as $key => $val)
-            $this->set($key, $val);
-
-        $valores = array();
-
-        for ($i=0; $i < count($this->_keys); $i++) {
-            array_push($valores, $this->_keys[$i] . "=" . $this->_values[$i]);
-        }
-
-        $sql = 'UPDATE `' . $this->_table . '` SET ' . implode(', ', $valores);
-
-        $query = $this->connector()->query($sql);
+        $query = $this->connector()->execSQL($sql, $this->bindings);
 
         $this->clear();
         
@@ -2156,11 +2109,33 @@ Class Builder
 
         $sql = 'DELETE FROM `' . $this->_table . '` ' . $this->_where;
 
-        $query = $this->connector()->query($sql); //, $this->_wherevals);
+        $query = $this->connector()->query($sql); //, $this->bindings);
 
         $this->clear();
         
         return $query;
+    }
+
+
+    public function destroy()
+    {
+        $models = func_get_args();
+        $_delete = array();
+
+        foreach ($models as $model)
+        {
+            $_delete = array_merge($_delete, is_array($model)? $model : array($model));
+        }
+
+        $result = $this->whereIn($this->_primary[0], $_delete)->get();
+
+        $res = 0;
+        foreach ($result as $model)
+        {
+            $res += $model->delete();
+        }
+        
+        return $res;
     }
 
 
@@ -2232,7 +2207,7 @@ Class Builder
 
         //dd($sql); exit();
 
-        $query = $this->connector()->query($sql); //, $this->_where, $this->_wherevals);
+        $query = $this->connector()->query($sql); //, $this->_where, $this->bindings);
 
         $this->clear();
         
@@ -2256,7 +2231,7 @@ Class Builder
         
         $sql = 'DELETE FROM `' . $this->_table . '` ' . $this->_where;
 
-        $query = $this->connector()->query($sql); //, $this->_wherevals);
+        $query = $this->connector()->query($sql); //, $this->bindings);
 
         $this->clear();
         
@@ -2282,6 +2257,63 @@ Class Builder
 
 
     /**
+     * Associate the model instance to the given parent.
+     *
+     * @param Model $model
+     * @return Model
+     */
+    public function associate($model)
+    {
+        if (!($model instanceof Model))
+        {
+            throw new Exception("Model not found");
+        }
+
+        if ($this->_relationVars['relationship'] != 'belongsTo')
+        {
+            throw new Exception("Associate method only works for belongsTo relations");
+        }
+
+
+        $item = $this->_relationVars['collection'];
+        $item = $item->first();
+
+        $primary = $this->_relationVars['primary'];
+        $foreign = $this->_relationVars['foreign'];
+
+        $item->$primary = $model->$foreign;
+        //$item->setRelation($this->_relationVars['relationship'], $model);
+
+        $item->_query = null;
+
+        return $item;
+
+    }
+
+    public function dissociate()
+    {
+        //return $this->child->setRelation($this->relationName, null);
+
+        if ($this->_relationVars['relationship'] != 'belongsTo')
+        {
+            throw new Exception("Associate method only works for belongsTo relations");
+        }
+
+        $item = $this->_relationVars['collection'];
+        $item = $item->first();
+
+        $primary = $this->_relationVars['primary'];
+
+        $item->$primary = null;
+        //$item->setRelation($this->_relationVars['relationship'], $model);
+
+        $item->_query = null;
+
+        return $item;
+    }
+
+
+    /**
      * Returns the first record from query\
      * Returns 404 if not found
      * 
@@ -2289,11 +2321,12 @@ Class Builder
      */
     public function firstOrFail()
     {        
-        if ($this->first())
-            return $this->first();
+        $model = $this->first();
 
-        else
+        if (!$model)
             abort(404);
+
+        return $model;
     }
 
 
@@ -2316,32 +2349,26 @@ Class Builder
             $this->where($key, $val);
         }
 
-        $sql = $this->_method . ' FROM `' . $this->_table . '` ' . $this->_join . ' ' . $this->_where 
-                . $this->_union . ' LIMIT 0, 1';
+        $sql = $this->_method . ' FROM `' . $this->_table . '` ' . $this->_where . ' LIMIT 0, 1';
 
-        $this->connector()->execSQL($sql, $this->_wherevals, $this->_collection);
+        $this->connector()->execSQL($sql, $this->bindings, $this->_collection);
 
         if ($this->_collection->count()>0)
+        {
             $this->processEagerLoad();
 
-        $item = null;
-
-        if (!isset($this->_collection[0]))
-        {
-            $item = new $this->_parent; //stdClass();
-            $this->clear();
-            foreach ($attributes as $key => $val)
-                $item->$key = $val;
-        }
-        else
-        {
-            $item = $this->_collection[0];
+            return $this->insertUnique($this->_collection->first(), true);
         }
 
+        $item = new $this->_parent;
+
+        foreach ($attributes as $key => $val)
+            $item->$key = $val;
+            
         foreach ($values as $key => $val)
             $item->$key = $val;
 
-        return $this->insertUnique($item, $this->_collection->count()==0);
+        return $this->insertUnique($item, true);
     }
 
 
@@ -2361,40 +2388,36 @@ Class Builder
             $this->where($key, $val);
         }
 
-        $sql = $this->_method . ' FROM `' . $this->_table . '` ' . $this->_join . ' ' . $this->_where 
-                . $this->_union . ' LIMIT 0, 1';
-
-        $this->connector()->execSQL($sql, $this->_wherevals, $this->_collection);
+        $sql = $this->_method . ' FROM `' . $this->_table . '` ' . $this->_where . ' LIMIT 0, 1';
+        
+        $this->connector()->execSQL($sql, $this->bindings, $this->_collection);
 
         if ($this->_collection->count()>0)
+        {
             $this->processEagerLoad();
 
-        $item = null;
+            return $this->insertUnique($this->_collection->first(), true);
+        }
 
-        if (!isset($this->_collection[0]))
-        {
-            $item = new $this->_parent; //stdClass();
-            $item = $this->create(array_merge($attributes, $values));
-            $item->_setRecentlyCreated(true);
-        }
-        else
-        {
-            $item = $this->insertUnique($this->_collection[0]);
-            foreach ($values as $key => $val)
-                $item->$key = $val;
-        }
+        $item = new $this->_parent;
+        $item = $this->create(array_merge($attributes, $values));
+        if ($item) $item->_setRecentlyCreated(true);
 
         return $item;
 
     }
 
+    /**
+     * Find a record or an array of records based on primary key
 
+     * @return Model|Collection
+     */
     public function find($val)
     {
         //$this->_where = 'WHERE ' . $this->_primary . ' = "' . $val . '"';
         //$value = is_array($val)? $val : array($val);
 
-        $this->_where = '';
+        //$this->_where = '';
         if (is_array($val))
         {
             $this->whereIn($this->_primary[0], $val);
@@ -2411,7 +2434,7 @@ Class Builder
     {
         //$this->_where = 'WHERE ' . $this->_primary . ' = "' . $val . '"';
         $val = is_array($val)? $val : array($val);
-        $this->_where = '';
+        //$this->_where = '';
         $i = 0;
         foreach ($this->_primary as $primary)
         {
@@ -2423,9 +2446,8 @@ Class Builder
 
         if ($res)
             return $res;
-
-        else
-            abort(404);
+            
+        abort(404);
     }
 
 
@@ -2443,32 +2465,20 @@ Class Builder
             {
                 $this->where($key, $this->_lastInsert[$key]);
             }
-            //dump($this);
-            $new = $this->first();
 
+            return $this->insertUnique($this->first());
         }
-        else
-        {
-            $new = $this->find($last);
-        }
-        
-        return $this->insertUnique($new);
+
+        return $this->insertUnique($this->find($last));
     }
 
+
+    
 
     private function insertUnique($data, $new=false)
     {
         $class = $this->_parent;
         $item = new $class;
-
-        //dump($data);
-
-        /* $itemKey = $item->getRouteKeyName();
-
-        if (!isset($data->$itemKey) && isset($new))
-        {
-            $data = $this->find($this->connector()->getLastId());
-        } */
 
         foreach ($data as $key => $val)
         {
@@ -2489,9 +2499,7 @@ Class Builder
             if ($key!='deleted_at' || ($key=='deleted_at' && !$this->_softDelete))
                 $item->$key = $val;
 
-            //if (in_array($key, is_array($this->_primary)? $this->_primary : array($this->_primary)))
-
-            if (!is_object($val))
+            /* if (!is_object($val))
             {
                 if ($key!='deleted_at' && !$new)
                     $item->_setOriginalKey($key, $val);
@@ -2501,67 +2509,45 @@ Class Builder
 
                 elseif ($key=='deleted_at' && $this->_softDelete)
                     $item->_setTrashed($val);
+            } */
+
+            foreach ($this->_appends as $append)
+            {
+                $item->setAppendAttribute($append, $item->$append);
             }
 
+
         }
+
         $this->__new = false;
         $item->_setOriginalRelations($this->_eagerLoad);
 
-        //ddd($item);
+        unset($item->_global_scopes);
+        unset($item->timestamps);
+
+        $item->attributes = CastHelper::processCasts(
+            $item->attributes,
+            $this->_model,
+            false
+        );
+
+        foreach ($item->getAttributes() as $key => $val)
+        {
+            $item->_setOriginalKey($key, $val);
+        }
 
         return $item;
+
     }
 
     private function insertData($data)
     {
         $col = new Collection($this->_parent, $this->_hidden); //get_class($this->_parent));
         $col->_modelKeys = $this->_primary;
-        $class = $this->_parent; //get_class($this->_parent);
 
-        foreach ($data as $arr)
-        {
-            
-            $item = new $class(true);
-            foreach ($arr as $key => $val)
-            {
-                $camel = Helpers::snakeCaseToCamelCase($key);
-
-                if (method_exists($this->_parent, 'get'.ucfirst($camel).'Attribute'))
-                {
-                    $fn = 'get'.ucfirst($camel).'Attribute';
-                    /* $newmodel = new $this->_parent;
-                    $val = $newmodel->$fn($val); */
-                    $val = $item->$fn($val);
-                }
-
-                if (method_exists($this->_parent, $camel.'Attribute'))
-                {
-                    $fn = $camel.'Attribute';
-                    $nval = $item->$fn($val, (array)$arr);
-                    if (isset($nval['get'])) $val = $nval['get'];
-                }
-
-                if ($key!='deleted_at' || ($key=='deleted_at' && !$this->_softDelete))
-                    $item->$key = $val;
-
-                //dump($key); dump($val);
-
-                if (!is_object($val))
-                {
-                    if ($key!='deleted_at')
-                        $item->_setOriginalKey($key, $val);
-    
-                    elseif ($key=='deleted_at' && !$this->_softDelete)
-                        $item->_setOriginalKey($key, $val);
-    
-                    elseif ($key=='deleted_at' && $this->_softDelete)
-                        $item->_setTrashed($val);
-                }
-    
-                $item->_setOriginalRelations($this->_eagerLoad);
-            }
-    
-            $col[] = $item;
+        foreach ($data as $item)
+        {    
+            $col[] = $this->insertUnique($item);
         }
 
         if (isset($data->pagination))
@@ -2586,7 +2572,7 @@ Class Builder
         if (method_exists($this->_model, 'booted')) 
             $this->_model->booted();
 
-        foreach($this->_model->global_scopes as $scope => $callback)
+        foreach($this->_model->_global_scopes as $scope => $callback)
         {
             $this->_scopes[$scope] = $callback;
         }
@@ -2594,6 +2580,8 @@ Class Builder
 
     private function applyGlobalScopes()
     {
+        $this->addGlobalScopes();
+
         foreach($this->_scopes as $scope => $callback)
         {
             if (class_exists($scope))
@@ -2604,7 +2592,8 @@ Class Builder
             {
                 list($class, $method, $params) = getCallbackFromString($callback);
                 array_shift($params);
-                call_user_func_array(array($class, $method), array_merge(array($this), $params));
+                executeCallback($class, $method, array_merge(array($this), $params), $this);
+                //call_user_func_array(array($class, $method), array_merge(array($this), $params));
             }
         }
     }
@@ -2655,7 +2644,7 @@ Class Builder
 
         $sql = $this->buildQuery();
 
-        $this->connector()->execSQL($sql, $this->_wherevals, $this->_collection);
+        $this->connector()->execSQL($sql, $this->bindings, $this->_collection);
 
         if ($this->_collection->count()==0)
             return NULL;
@@ -2672,16 +2661,21 @@ Class Builder
      * 
      * @return Collection
      */
-    public function get()
+    public function get($columns=null)
     {
         if ($this->_softDelete && !$this->_withTrashed)
             $this->whereNull('deleted_at');
 
         $this->applyGlobalScopes();
 
+        if (isset($columns))
+        {
+            $this->select($columns);
+        }
+
         $sql = $this->buildQuery();
 
-        $this->connector()->execSQL($sql, $this->_wherevals, $this->_collection);
+        $this->connector()->execSQL($sql, $this->bindings, $this->_collection);
 
         if ($this->_collection->count()==0)
             return $this->_collection;
@@ -2718,8 +2712,9 @@ Class Builder
         $this->applyGlobalScopes();
             
         $sql = $this->buildQuery() . " LIMIT $cant OFFSET $offset";
+
         
-        $this->connector()->execSQL($sql, $this->_wherevals, $this->_collection);
+        $this->connector()->execSQL($sql, $this->bindings, $this->_collection);
 
         if ($this->_collection->count()==0)
         {
@@ -2728,24 +2723,34 @@ Class Builder
         
         $records = 'select count(*) AS total from (' . $this->buildQuery() .') final';
         
-        $query = $this->connector()->execSQL($records, $this->_wherevals);
+        $query = $this->connector()->execSQL($records, $this->bindings);
 
-        $pages = isset($query[0])? $query[0]->total : 0;
+        $total = isset($query[0])? (int)$query[0]->total : 0;
 
-        $pages = ceil($pages / $cant);
+        $pages = ceil($total / $cant);
 
         $pagina = (int)$pagina;
         $pages = (int)$pages;
         
-        if ($pages>1)
-        {
-            $pagination = new arrayObject();
-            $pagination->first = $pagina<=1? null : 'p=1';
-            $pagination->second = $pagina<=1? null : 'p='.($pagina-1);
-            $pagination->third = $pagina==$pages? null : 'p='.($pagina+1);
-            $pagination->fourth = $pagina==$pages? null : 'p='.$pages;
-            $this->_collection->pagination = $pagination;
-        }
+        $pagination = new stdClass;
+
+        $pagination->first = $pagina<=1? null : 'p=1';
+        $pagination->last = $pagina==$pages? null : 'p='.$pages;
+        $pagination->previous = $pagina<=1? null : 'p='.($pagina-1);
+        $pagination->next = $pagina==$pages? null : 'p='.($pagina+1);
+
+        $meta = array();
+        $meta['current'] = $pagina;
+        $meta['from'] = $offset +1;
+        $meta['last_page'] = $pages;
+        $meta['path'] = env('APP_URL') . '/' . request()->route->url;
+        $meta['per_page'] = $cant;
+        $meta['to'] = $total < ($cant*$pagina)? $total : ($cant*$pagina);
+        $meta['total'] = $total;
+
+        $pagination->meta = $meta;
+        
+        $this->_collection->setPaginator($pagination);
 
         $this->processEagerLoad();
         
@@ -2755,29 +2760,60 @@ Class Builder
 
     }
 
-
-    public function fresh($original, $relations=null)
+    /**
+     * Get a single column's value from the first result of a query.
+     *
+     * @param  string  $column
+     * @return mixed
+     */
+    public function value($column)
     {
-        $keys = is_array($this->_primary) ? $this->_primary : array($this->_primary);
-        $this->_where = '';
-        
-        foreach ($keys as $key)
+        $result = $this->first();
+
+        if (!isset($result) || !isset($result->$column))
         {
-            $this->where($key, $original[$key]);
+            return null;
         }
 
-        $this->_eagerLoad = $relations;
-
-        return $this->first();
+        return $result->$column;
     }
 
+    /**
+     * Execute the query and get the first result if it's the sole matching record.
+     *
+     * @param  array|string  $columns
+     */
+    public function sole($columns=null)
+    {
+        $result = $this->take(2)->get($columns);
+
+        $count = $result->count();
+
+        if ($count === 0) {
+            throw new Exception('Record not found');
+        }
+
+        if ($count > 1) {
+            throw new Exception('Multiple records found');
+        }
+
+        return $result->first();
+    }
 
     /**
-     * Re-hydrate the existing model using fresh data from the database
-     * 
-     * @return Model
+     * Get a single column's value from the first result of a query if it's the sole matching record.
+     *
+     * @param  string  $column
+     * @return mixed
      */
-    public function refresh($original, $relations=null)
+    public function soleValue($column)
+    {
+        $result = $this->sole();
+
+        return $result->$column;
+    }
+
+    public function _fresh($original, $relations=null)
     {
         $keys = is_array($this->_primary) ? $this->_primary : array($this->_primary);
         $this->_where = '';
@@ -2949,41 +2985,29 @@ Class Builder
 
         foreach ($this->_eagerLoad as $key => $val)
         {
-            //echo "RELATION $key: ";var_dump($val); echo "<br>";
-            /* $class = new $this->_parent;
-            $class->setQuery($this);
-
-            $class->getQuery()->_relationName = $key;
-            $class->getQuery()->_relationColumns = '*';
-            $class->getQuery()->_extraQuery = isset($val['_constraints']) ? $val['_constraints'] : null;
-            $class->getQuery()->_nextRelation = $val;
+            $q = $this->_model->getQuery();
+            $q->_collection = $this->_collection;
+            $q->_relationName = $key;
+            $q->_relationColumns = '*';
+            $q->_extraQuery = isset($val['_constraints']) ? $val['_constraints'] : null;
+            $q->_nextRelation = $val;
+            //dump($key);dump($val);
+            //dump($this->_hasConstraints);
+            
+            if (!isset($val['_constraints']))
+            {
+                $q->_hasConstraints = $this->_hasConstraints;
+            }
 
             if (strpos($key, ':')>0) {
                 list($key, $columns) = explode(':', $key);
-                $class->getQuery()->_relationColumns = explode(',', $columns);
-                $class->getQuery()->_relationName = $key;
+                $q->_relationColumns = explode(',', $columns);
+                $q->_relationName = $key;
             }
 
-            $res = $class->$key(); */
+            $res = $this->_model->$key();
 
-            $this->_model->getQuery();
-            $this->_model->getQuery()->_collection = $this->_collection;
-            $this->_model->getQuery()->_relationName = $key;
-            $this->_model->getQuery()->_relationColumns = '*';
-            $this->_model->getQuery()->_extraQuery = isset($val['_constraints']) ? $val['_constraints'] : null;
-            $this->_model->getQuery()->_nextRelation = $val;
-
-            if (strpos($key, ':')>0) {
-                list($key, $columns) = explode(':', $key);
-                $this->_model->getQuery()->_relationColumns = explode(',', $columns);
-                $this->_model->getQuery()->_relationName = $key;
-            }
-
-            $res = $this->_model->$key();            
-
-            Relations::insertRelation($this->_model->getQuery(), $res, $key);
-
-            unset($this->_model->_query);
+            Relations::insertRelation($q, $res, $key);
         }
 
     }
@@ -2995,8 +3019,6 @@ Class Builder
         
         $this->with($relations);
         $this->processEagerLoad();
-
-        
 
         return $this->_collection;
     }
@@ -3024,7 +3046,12 @@ Class Builder
             $relation = array_pop($data);
             $parent_relation = array_shift($data);
         }
-        
+
+        if (strpos($relation, ':')>0)
+        {
+            $data = explode(':', $relation);
+            $relation = reset($data);
+        }
         
         $newparent->getQuery()->varsOnly = true;
         //$newparent->$relation();
@@ -3067,7 +3094,7 @@ Class Builder
         }  */
 
         //if (isset($constraints) && strpos($constraints, '@')!==false)
-        //    $this->_wherevals = $constraints->_wherevals;
+        //    $this->bindings = $constraints->bindings;
 
 
         if (!$comparator)
@@ -3537,7 +3564,7 @@ Class Builder
             $this->whereIn($p_key, $this->_collection->pluck($this->_primary[0])->toArray());
 
             $temp = new Collection('stdClass');
-            $temp = $this->connector()->execSQL($this->toSql(), $this->_wherevals, $temp);
+            $temp = $this->connector()->execSQL($this->toSql(), $this->bindings, $temp);
 
             foreach ($temp as $t)
             {
@@ -3554,6 +3581,16 @@ Class Builder
         return $this;
     }
 
+
+    /**
+     * Determine if any rows exist for the current query.
+     *
+     * @return bool
+     */
+    public function exists()
+    {
+        return $this->count() > 0;
+    }
 
     /**
      * Retrieve the "count" result of the query.
@@ -3635,7 +3672,7 @@ Class Builder
         $this->_method = "SELECT $function($columns) as aggregate";
         $sql = $this->buildQuery();
 
-        return $this->connector()->query($sql)->fetchObject()->aggregate;
+        return $this->connector()->execSQL($sql)->first()->aggregate;
     }
 
 
@@ -3645,22 +3682,31 @@ Class Builder
      * 
      * @return Factory
      */
-    public function factory()
+    /* public function factory()
     {
+        if (!$this->_model->usesHasFactory())
+        {
+            throw new Exception('Model '.$this->_parent.' has no Factory');
+        }
+
+
+        global $_class_list;
+
         $class = $this->_parent.'Factory';
+
+        if (!isset($_class_list[$class]))
+        {
+            throw new Exception('Class '.$class.' not found');
+        }
+
+
         $this->_factory = new $class;
         //$factory = call_user_func_array(array($class, 'newFactory'), array());
         //$factory = $class::newFactory();
 
-        if (!$this->_factory)
-        {
-            if (env('APP_DEBUG')==1) throw new Exception('Error looking for '.$this->_parent);
-            else return null;
-        }
-
         return $this->_factory;
 
-    }
+    } */
 
 
     public function seed($data, $persist)
@@ -3688,13 +3734,26 @@ Class Builder
 
     }
     
-    public function attach($value)
+    public function attach($value, $extra=array())
     {
-        //dd($this);
+        //dump($value);
         if (is_array($value))
         {
-            foreach ($value as $val)
-                $this->attach($val);
+            if (is_array(reset($value)))
+            {
+                foreach ($value as $key => $val)
+                {
+                    if (is_array($val))
+                       $this->attach($key, $val);
+                    else
+                        $this->attach($val);
+                }
+            }
+            else
+            {
+                foreach ($value as $val)
+                    $this->attach($val);
+            }
         }
         else
         {
@@ -3718,14 +3777,18 @@ Class Builder
                 return false;
             }
 
+            foreach ($extra as $key => $value)
+            {
+                $record[$key] = $value;
+            }
+
             DB::table($this->_relationVars['classthrough'])
                 ->insertOrIgnore($record);
-
         }
     }
 
 
-    public function dettach($value)
+    public function dettach($value, $extra=array())
     {
         //dd($this);
         if (is_array($value))
@@ -3758,10 +3821,8 @@ Class Builder
     
     }
 
-    public function sync($value)
+    private function detachAll()
     {
-        //dd($this->_relationVars); dd($roles);
-
         if ($this->_relationVars['relationship']=='belongsToMany')
         {
             DB::table($this->_relationVars['classthrough'])
@@ -3775,9 +3836,29 @@ Class Builder
                 ->where($this->_relationVars['relation_type'], $this->_relationVars['current_type'])
                 ->delete();
         }
+    }
 
-        $this->attach($value);
-        
+    public function syncWithoutDetaching($value, $extra=array())
+    {
+        $this->attach($value, $extra);
+    }
+
+    public function syncWithPivotValues($value, $extra=array())
+    {
+        if (!is_array($value)) $value = array($value);
+
+        $this->detachAll();
+
+        foreach ($value as $val)
+        {
+            $this->attach($val, $extra);
+        }
+    }
+
+    public function sync($value, $extra=array())
+    {
+        $this->detachAll();
+        $this->attach($value, $extra);        
     }
 
 
@@ -3792,7 +3873,7 @@ Class Builder
         }
     }
 
-    public function callScope($scope, $args)
+    private function callScope($scope, $args)
     {
         //echo "<br>SCOPE: ".$this->_parent."::scope".ucfirst($scope)."<br>";
         $func = 'scope'.ucfirst($scope);
@@ -3824,7 +3905,8 @@ Class Builder
                 break;
 
             list($class, $method, $params) = getCallbackFromString($callback);
-            call_user_func_array(array($class, $method), array_merge(array($results), $params));
+            executeCallback($class, $method, array_merge(array($results), $params), $this);
+            //call_user_func_array(array($class, $method), array_merge(array($results), $params));
 
             unset($results);
             unset($this->_collection);
@@ -3874,7 +3956,8 @@ Class Builder
             $lastId = $results->last()->$alias;
 
             list($class, $method, $params) = getCallbackFromString($callback);
-            call_user_func_array(array($class, $method), array_merge(array($results), $params));
+            executeCallback($class, $method, array_merge(array($results), $params), $this);
+            //call_user_func_array(array($class, $method), array_merge(array($results), $params));
 
             unset($results);
             unset($this->_collection);
@@ -3885,6 +3968,16 @@ Class Builder
         while ($countResults == $count);
 
         return true;
+    }
+
+    public static function macro($name, $function)
+    {
+        self::$_macros[$name] = $function;
+    }
+
+    public static function getMacros()
+    {
+        return self::$_macros;
     }
 
 }

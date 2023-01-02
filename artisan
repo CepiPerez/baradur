@@ -54,8 +54,10 @@ function migrate()
             printf("\033[33mMigrating:\033[m " .$name."\n");
 
             if (!class_exists($converted))
-                include (_DIR_.'/../../database/migrations/'.$file);
-            Schema::init($name);
+            {
+                CoreLoader::loadClass(_DIR_.'/../../database/migrations/'.$file, false, $converted);
+            }
+
             $class = new $converted;
             $class->up();
 
@@ -91,10 +93,14 @@ function rollback($rollback, $output = true)
 
                 if ($output) printf("\033[33mRolling back:\033[m ".$short."\n");
     
-                require (realpath($file));
-                Schema::init($name);
+
+                if (!class_exists($converted))
+                {
+                    CoreLoader::loadClass($file, false, $converted);
+                }
+
+
                 $class = new $converted;
-                
                 $class->down();
 
                 DB::table('migrations')->where('migration', $name)->delete();
@@ -114,7 +120,7 @@ function seed()
     printf("\033[32mDatabase seeding completed successfully.\033[m\n");
 }
 
-function makeController($controller, $resource, $api=false)
+function makeController($controller, $resource=false, $api=false, $singleton=false)
 {
     /* $config = new Config;
     $config->boot(); */
@@ -131,26 +137,27 @@ function makeController($controller, $resource, $api=false)
     
     if ($resource)
     {
-        $name = Route::$_strings['index'] ? Route::$_strings['index'] : 'index';
-        $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
+        $class .= "\tpublic function index()\n\t{\n\t\t//\n\t}\n\n";
         if ($api==false)
         {
-            $name = Route::$_strings['create'] ? Route::$_strings['create'] : 'create';
-            $class .= "\tpublic function ".$name."()\n\t{\n\t\t//\n\t}\n\n";
+            $class .= "\tpublic function create()\n\t{\n\t\t//\n\t}\n\n";
         }
-        $name = Route::$_strings['store'] ? Route::$_strings['store'] : 'store';
-        $class .= "\tpublic function ".$name."(".'$request'.")\n\t{\n\t\t//\n\t}\n\n";
-        $name = Route::$_strings['show'] ? Route::$_strings['show'] : 'show';
-        $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
+        $class .= "\tpublic function store(".'$request'.")\n\t{\n\t\t//\n\t}\n\n";
+        $class .= "\tpublic function show(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
         if ($api==false)
         {
-            $name = Route::$_strings['edit'] ? Route::$_strings['edit'] : 'edit';
-            $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
+            $class .= "\tpublic function edit(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
         }
-        $name = Route::$_strings['update'] ? Route::$_strings['update'] : 'update';
-        $class .= "\tpublic function ".$name."(".'$request, $id'.")\n\t{\n\t\t//\n\t}\n\n";
-        $name = Route::$_strings['destroy'] ? Route::$_strings['destroy'] : 'destroy';
-        $class .= "\tpublic function ".$name."(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";        
+        $class .= "\tpublic function update(".'$request, $id'.")\n\t{\n\t\t//\n\t}\n\n";
+        $class .= "\tpublic function destroy(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";        
+    }
+
+    if ($singleton)
+    {
+        $class .= "\tpublic function show(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
+        $class .= "\tpublic function edit(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
+        $class .= "\tpublic function update(".'$request, $id'.")\n\t{\n\t\t//\n\t}\n\n";
+        $class .= "\tpublic function destroy(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";        
     }
         
     $class .= "\n}";
@@ -346,6 +353,7 @@ elseif ($action == 'make:controller' && count($argv)>0)
     $controller = null;
     $model = null;
     $resource = false;
+    $singleton = false;
     $api = false;
 
     foreach ($argv as $arg)
@@ -355,6 +363,9 @@ elseif ($action == 'make:controller' && count($argv)>0)
 
         elseif ($arg=='--resource')
             $resource = true;
+
+        elseif ($arg=='--singleton')
+            $singleton = true;
 
         elseif ($arg=='--api')
         {
@@ -369,7 +380,7 @@ elseif ($action == 'make:controller' && count($argv)>0)
     if (file_exists('app/http/controllers/'.$controller.'.php'))
         die ("Error: controller ".$controller." already exists\n");
 
-    makeController($controller, $resource, $api);
+    makeController($controller, $resource, $api, $singleton);
 
     if (isset($model) && !file_exists('app/models/'.ucfirst($model).'.php'))
     {
@@ -942,7 +953,8 @@ elseif ($action == 'queue:stop')
         if (strpos($p, 'ps -fax')===false && strpos($p, 'php artisan queue:work')!==false && strpos($p, $mypid)===false)
         {
             $running = true;
-            $id = explode(' ', trim($p))[0];
+            $id = explode(' ', trim($p));
+            $id = $id[0];
             exec("kill $id");
             break;
         }

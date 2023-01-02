@@ -7,12 +7,23 @@ class Authorize
         self::verify($function, $param);
 
         return $request;
-
     }
 
 
     public static function verify($function, $param=null)
     {
+        preg_match_all('/\{[^}]*\}/', request()->route->url, $matches);
+        
+        if (count($matches)>0 && count($matches[0])>0)
+        {
+            for($i=0; $i<count($matches[0]); $i++)
+            {
+                if (is_string($param) && '{'.$param.'}'==$matches[0][$i]) {
+                    $param = request()->route->parametros[$i];
+                }
+            }
+        }
+
         if (!Auth::user())
             abort(403);
 
@@ -23,8 +34,12 @@ class Authorize
 
         if (isset($callable))
         {
-            //list($cont, $func) = explode('@', $callable);
-            list($cont, $func, $params) = getCallbackFromString($callable);            
+            if (!is_array($callable))
+                list($cont, $func, $params) = getCallbackFromString($callable);
+            else {
+                $cont = $callable[0];
+                $func = $callable[1];
+            }
         }
         else
         {

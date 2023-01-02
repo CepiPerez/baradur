@@ -1,6 +1,6 @@
 <?php
 
-Class ControllerMiddleware
+Class RouteMiddleware
 {
     public $middleware;
     public $only;
@@ -16,11 +16,11 @@ Class ControllerMiddleware
         $this->only = $method;
     }
 
-    public function findMiddlewareClass($value)
+    /* public function findMiddlewareClass($value)
     {
         MiddlewareHelper::bootKernel();
-        $middlewares = MiddlewareHelper::getMiddlewaresList();
-        $middleware_groups = MiddlewareHelper::getMiddlewareGroup();
+        $middlewares = MiddlewareHelper::getMiddlewareList();
+        $middleware_groups = MiddlewareHelper::getMiddlewareList();
 
         if (isset($middlewares[$value]))
         {
@@ -30,14 +30,11 @@ Class ControllerMiddleware
         {
             foreach ($middleware_groups[$value] as $midd)
             {
-                if (!class_exists($midd))
+                list($midd, $params) = explode(':', $midd);
+                
+                if (isset($middlewares[$midd]))
                 {
-                    list($midd, $params) = explode(':', $midd);
-                    
-                    if (isset($middlewares[$midd]))
-                    {
-                        return $middlewares[$midd];
-                    }
+                    return $middlewares[$midd];
                 }
             }
         }
@@ -47,6 +44,6 @@ Class ControllerMiddleware
         }
 
         throw new Exception("Error: Middleware $value not found");
-    }
+    } */
 
 }

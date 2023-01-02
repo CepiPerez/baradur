@@ -15,6 +15,7 @@ class SubstituteBindings
         $class = $request->route->controller;
         $method = $request->route->func;
         $bindings = $request->route->scope_binding==1;
+        $trashed = isset($request->route->with_trashed);
 
         $reflectionClass = new \ReflectionClass($class);
 
@@ -58,6 +59,7 @@ class SubstituteBindings
         $scope_bindings = array();
         $final_params = array();
 
+
         # Binding parameters
 
         if (count($paramNames)>0)
@@ -96,7 +98,8 @@ class SubstituteBindings
                         {
                             $model = new $iclass;
                             $key = isset($data['index']) ? $data['index'] : $model->getRouteKeyName();
-                            $record = Model::instance($iclass)->where($key, $val)->first();
+                            $query = Model::instance($iclass)->where($key, $val);
+                            $record = $trashed? $query->withTrashed()->first() : $query->first();
                         }
                         else
                         {
@@ -130,7 +133,7 @@ class SubstituteBindings
             if (isset($formRequest) && isset($record))
             {
                 $formRequest->authorize($record);
-                request()->validate($formRequest->rules());
+                $formRequest->validateRules($formRequest->rules());
             }
 
         }

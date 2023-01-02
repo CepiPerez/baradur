@@ -2,8 +2,6 @@
 
 //session_destroy();
 
-# This might be only necessary for local development using Docker
-date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 # Global variables
 $routes = array();
@@ -33,6 +31,9 @@ define ('_DIR_', dirname(__FILE__));
 
 $_class_list = array();
 $_model_list = array();
+$_resource_list = array();
+$_enum_list = array();
+$_builder_methods = array();
 
 global $artisan;
 
@@ -48,6 +49,8 @@ if (!file_exists(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':
             $_class_list[str_replace('.php', '', str_replace('.PHP', '', basename($file)))] = realpath($file);
             if (strpos(realpath($file), '/app/models/')>0)
                 $_model_list[] = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+            if (strpos(realpath($file), '/app/resources/')>0)
+                $_resource_list[] = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
         }
     }
     $it = new RecursiveDirectoryIterator(_DIR_.'/../../database');
@@ -91,15 +94,19 @@ if (!file_exists(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':
 
     @file_put_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'classes.php', serialize($_class_list));
     @file_put_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'models.php', serialize($_model_list));
+    @file_put_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'resources.php', serialize($_resource_list));
 }
 else
 {
     $_class_list = unserialize(file_get_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'));
     $_model_list = unserialize(file_get_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'models.php'));
+    $_resource_list = unserialize(file_get_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'resources.php'));
 }
+
 
 # Autoload function registration
 spl_autoload_register('custom_autoloader');
+
 
 # Environment variables
 if (file_exists(_DIR_.'/../../storage/framework/config/env.php'))
@@ -124,6 +131,7 @@ if (env('DEBUG_INFO')==1)
 # Global functions / Router functions
 require_once('Global_functions.php');
 require_once('Routing/Route_functions.php');
+require_once('CoreLoader.php');
 
 
 # Generating Application KEY (for Tokens usage)
@@ -133,13 +141,7 @@ if (!isset($_SESSION['key']))
 
 
 # MySQL Conector
-$database = array( 
-    'host' => ($artisan? env('DB_LOCAL_HOST') : env('DB_HOST')),
-    'user' => env('DB_USER'), 
-    'password' => env('DB_PASSWORD'), 
-    'database' => env('DB_NAME'), 
-    'port' => env('DB_PORT')
-);
+$database = null;
 
 # Instantiating App
 $app = new App();
@@ -154,11 +156,18 @@ $config = CoreLoader::loadConfigFile(_DIR_.'/../../config/app.php');
 $locale = $config['locale'];
 $fallback_locale = $config['fallback_locale'];
 
+# Initializing timezone
+setlocale(LC_ALL, $config['locale']);
+date_default_timezone_set($config['timezone']);
+
 # Initializing App cache
 $cache = new FileStore(new Filesystem(), _DIR_.'/../../storage/framework/classes', 0777);
 
 # Initializing Storage
 Storage::$path = _DIR_.'/../../storage/app/public/';
+
+# Caching all classes
+loadClassesInCache($_class_list);
 
 # Loading Providers
 $_service_providers = array();
@@ -181,7 +190,7 @@ foreach ($_service_providers as $provider)
 
 
 # Autoload function
-function custom_autoloader($class) 
+function custom_autoloader($class, $require=true) 
 {
     if (strpos($class, 'PHPExcel_')!==false) return;
 
@@ -200,12 +209,15 @@ function custom_autoloader($class)
     {
         $date = filemtime($newclass);
         $cachedate = filemtime(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
-        if ($date < $cachedate && env('APP_DEBUG')==0)
+        //echo($class.":::".$date ."::".$cachedate."<br>");
+
+        if ($date < $cachedate) // && env('APP_DEBUG')==0)
         {
-            if (file_exists(_DIR_.'/../../storage/framework/classes/baradurClosures_'.$class.'.php'))
+            if (file_exists(_DIR_.'/../../storage/framework/classes/baradurClosures_'.$class.'.php') && $require)
                 require_once(_DIR_.'/../../storage/framework/classes/baradurClosures_'.$class.'.php');
 
-            require_once(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
+            if ($require)
+                require_once(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
 
             return;
         } 
@@ -217,9 +229,9 @@ function custom_autoloader($class)
     
     if ($newclass!='') // && $version=='OLD')
     {
-        //echo "Loading class $newclass<br>";
         if (strpos($newclass, '/vendor/')===false)
         {
+            //echo "Caching class $newclass<br>";
             $temp = file_get_contents($newclass);
 
             if (strpos($newclass, 'baradurClosures_')===false)
@@ -228,7 +240,7 @@ function custom_autoloader($class)
             }
             else
             {
-                $temp = preg_replace_callback('/(\w*)::(\w*)/x', 'callbackReplaceModels', $temp);
+                $temp = preg_replace_callback('/(\w*)::(\w*)/x', 'callbackReplaceStatics', $temp);
             }
 
             //echo "Saving class $class<br>";
@@ -236,9 +248,10 @@ function custom_autoloader($class)
             Cache::store('file')->plainPut(_DIR_.'/../../storage/framework/classes/'.$class.'.php', $temp);
             $temp = null;
             
-            require_once(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
+            if ($require)
+                require_once(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
         }
-        else
+        elseif ($require)
         {
             require_once($newclass);
         }
@@ -252,4 +265,26 @@ function custom_autoloader($class)
 # Error handling
 if (!$artisan) {
     set_exception_handler(array('ExceptionHandler', 'handleException'));
+}
+
+
+function loadClassesInCache($list)
+{
+    //dd($list);
+    if (file_exists(_DIR_.'/../../storage/framework/classes/loaded'))
+    {
+        return;
+    }
+
+    foreach ($list as $class => $location)
+    {
+        # Skip migration files and vendor classes
+        if (strpos($location, 'database/migrations')===false && strpos($location, 'vendor/')===false)
+        {
+            custom_autoloader($class, false);
+        }
+    }
+
+    Cache::store('file')->plainPut(_DIR_.'/../../storage/framework/classes/loaded', '');
+
 }

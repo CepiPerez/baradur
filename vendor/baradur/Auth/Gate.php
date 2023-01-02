@@ -7,6 +7,8 @@ Class Gate {
 
     public static $policies;
 
+    public static $user = null;
+
     public static function define($function, $callback, $func=null)
     {
         if (isset($func))
@@ -18,7 +20,13 @@ Class Gate {
 
     private static function getResult($function, $param=null)
     {
-        if (!Auth::user()) return false;
+        $current_user = isset(self::$user)? self::$user : Auth::user();
+
+        if (!isset($current_user)) {
+            return false;
+        }
+
+        self::$user = null;
 
         $cont = null;
         $func = null;
@@ -36,9 +44,10 @@ Class Gate {
         $controller = new $cont;
         
         if (isset($param))
-            return $controller->$func(Auth::user(), $param);
+            return $controller->$func($current_user, $param);
         else 
-            return $controller->$func(Auth::user());
+            return $controller->$func($current_user);
+        
     }
 
 
@@ -58,7 +67,12 @@ Class Gate {
             abort(403);
     }
 
-    
+    public static function forUser($user)
+    {
+        self::$user = $user;
+        $gate = new Gate;
+        return $gate;
+    }
 
 
 

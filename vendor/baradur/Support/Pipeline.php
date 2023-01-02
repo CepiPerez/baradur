@@ -4,7 +4,7 @@ class Pipeline
 {
     protected $container;
     protected $passable;
-    protected $pipes = [];
+    protected $pipes = array();
     protected $method = 'handle';
 
     /**
@@ -85,11 +85,15 @@ class Pipeline
         foreach ($this->pipes() as $pipe)
         {
             list($class, $params) = $this->parsePipeString($pipe);
-
-            $params = array_merge(array($this->passable, null), $params);
-
-            $result = CoreLoader::invokeClassMethod($class, $this->method, $params);
+            //dump($class); // dump($params);
             
+            $controller = new $class;
+            $params = array_merge(array($result, null), $params);
+            //$result = $controller->{$this->method}($result, null, $params);
+
+            $reflectionMethod = new ReflectionMethod($class, $this->method);       
+            $result = $reflectionMethod->invokeArgs($controller, $params);
+
             if (!($result instanceof $this->passable))
                 return $result;
         }
@@ -98,14 +102,11 @@ class Pipeline
         {
             return $result;
         }
-        else
-        {
-            list($class, $method, $params) = getCallbackFromString($destination);
-            array_shift($params);
-            call_user_func_array(array($class, $method), array_merge(array($result), $params));
-        }
 
-        //return $pipeline($this->passable);
+        list($class, $method, $params) = getCallbackFromString($destination);
+        array_shift($params);
+        return call_user_func_array(array($class, $method), array_merge(array($result), $params));
+
     }
 
     /**

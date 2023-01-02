@@ -55,7 +55,7 @@ abstract Class Factory
      * Seeds the Collection without persist\
      * the data in database 
      * 
-     * @return Factory
+     * @return Collection|Model
      */
     public function make()
     {

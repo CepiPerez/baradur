@@ -2,7 +2,6 @@
     "Are you sure?": "Está seguro?",
     "You wont be able to revert this": "No podrá revertir esta acción",
     "Cancel": "Cancelar",
-    "Accept": "Aceptar",
-    "You don't have permission to access this resource": "Usted no tiene permiso para acceder a este recurso",
-    "Resource not found on this server": "No se encontró el recurso solicitado"
+    "Accept": "Aceptar"
+
 }

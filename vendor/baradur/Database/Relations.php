@@ -27,7 +27,8 @@ Class Relations
         {
             list($class, $method, $params) = getCallbackFromString($parent->_extraQuery);
             array_shift($params);
-            call_user_func_array(array($class, $method), array_merge(array($query), $params));
+            executeCallback($class, $method, array_merge(array($query), $params), null);
+            //call_user_func_array(array($class, $method), array_merge(array($query), $params));
         }
     }
 
@@ -70,8 +71,9 @@ Class Relations
         if ($parent->_collection->count()>0)
         {
             $wherein = array();
-            $wherein = $parent->_collection->pluck($primary)->toArray();
+            $wherein = (array)$parent->_collection->pluck($primary);
             $res->whereIn($res->_table.'.'.$foreign, $wherein);
+            $res->_relationVars['where_in'] = $wherein;
         }
 
         self::addExtraQuery($res, $parent);
@@ -109,13 +111,15 @@ Class Relations
             'class' => $parent->_parent,
             'foreign' => $foreign,
             'primary' => $primary,
+            'collection' => $parent->_collection
         );
 
         if ($parent->_collection->count()>0)
         {
             $wherein = array();
-            $wherein = $parent->_collection->pluck($primary)->toArray();
+            $wherein = (array)$parent->_collection->pluck($primary);
             $res->whereIn($res->_table.'.'.$foreign, $wherein);
+            $res->_relationVars['where_in'] = $wherein;
         }
 
         self::addExtraQuery($res, $parent);
@@ -151,8 +155,9 @@ Class Relations
         if ($parent->_collection->count()>0)
         {
             $wherein = array();
-            $wherein = $parent->_collection->pluck($primary)->toArray();
+            $wherein = (array)$parent->_collection->pluck($primary);
             $res = $res->whereIn($foreignthrough, $wherein);
+            $res->_relationVars['where_in'] = $wherein;
         }
 
         
@@ -228,9 +233,10 @@ Class Relations
 
         if ($parent->_collection->count()>0)
         {
-            $wherein = $parent->_collection->pluck($primary)->toArray();
+            $wherein = (array)$parent->_collection->pluck($primary);
             $res = $res->whereIn($method.'_id', $wherein);
             $res->_relationVars['current_id'] = $parent->_collection->first()->$primary;
+            $res->_relationVars['where_in'] = $wherein;
         }
             
         return $res;
@@ -247,7 +253,7 @@ Class Relations
     {        
         $primary = is_array($parent->_primary)? $parent->_primary[0] : $parent->_primary;
 
-        $keys = array_keys($parent->_collection->first()->toArray());
+        $keys = array_keys((array)$parent->_collection->first());
 
         $type = null;
         $id = null;
@@ -261,11 +267,12 @@ Class Relations
             return null;
 
         $classname = $parent->_collection->pluck($type)->first();
-        $wherein = $parent->_collection->pluck($id)->toArray();
+        $wherein = (array)$parent->_collection->pluck($id);
 
         $res = self::getInstance($classname, $parent);
         
         $res = $res->whereIn($primary, $wherein);
+        $res->_relationVars['where_in'] = $wherein;
 
         $res->_relationVars = array(
             'foreign' => $primary,
@@ -301,15 +308,15 @@ Class Relations
         );
         
         $res = $res->where($secondary.'.'.$arr['type'], $parent->_parent)
-            ->join($secondary, $arr['id'], '=', $primary);
+            ->join($secondary, $arr['id'], '=', 'id');
         
 
         if ($parent->_collection->count()>0)
         {
-            $wherein = $parent->_collection->pluck($primary)->toArray();
+            $wherein = (array)$parent->_collection->pluck($primary);
             $res = $res->whereIn($arr['related'], $wherein);
-
             $res->_relationVars['current_id'] = $parent->_collection->first()->$primary;
+            $res->_relationVars['where_in'] = $wherein;
         }
 
         return $res;
@@ -343,10 +350,10 @@ Class Relations
 
         if ($parent->_collection->count()>0)
         {
-            $wherein = $parent->_collection->pluck($primary)->toArray();
+            $wherein = (array)$parent->_collection->pluck($primary);
             $res = $res->whereIn($res->_relationVars['primary'], $wherein);
-
             $res->_relationVars['current_id'] = $parent->_collection->first()->$primary;
+            $res->_relationVars['where_in'] = $wherein;
         }
 
         return $res;
@@ -382,12 +389,20 @@ Class Relations
             $res->_has($r, $c);
         }
 
-        //dump($res); 
+        $columns = $parent->_relationColumns;
+        $relation = $parent->_relationName;
+        //dump($parent); 
 
         if (in_array($relationship, array('hasOneThrough', 'hasManyThrough')))
         {
             $res->addSelect("$classthrough.$foreignthrough as bardur_through_key");
             $key = 'bardur_through_key';
+
+            if (is_array($columns) && !in_array($key, $columns))
+            {
+                $columns[] = $key;
+            }
+
         }
         elseif ($relationship == 'belongsToMany')
         {
@@ -419,14 +434,9 @@ Class Relations
                 $res->addSelect("$classthrough.$ec as pivot_$ec");
         }
 
-
-
         //dump($res);
         $res = $res->get();
         //dump($res); //dump($parent);
-
-        $columns = $parent->_relationColumns;
-        $relation = $parent->_relationName;
 
         if ($relationship=='morphedByMany')
         {
@@ -437,41 +447,92 @@ Class Relations
         //dump($res);
         //dump($parent);
 
+        $to_remove = array();
+
         foreach ($parent->_collection as $current)
         {
             //dump($current);
-            $item = $columns!='*' ? 
-                $res->where($key, $current->$primary)->keys($columns) :
-                $res->where($key, $current->$primary);
 
             if (in_array($relationship, array('morphToMany', 'morphedByMany', 'belongsToMany')))
             {
+                $results = $columns!='*'
+                    ? $res->where($key, $current->$primary)->keys($columns) 
+                    : $res->where($key, $current->$primary);
 
-                foreach ($item as $r)
+                foreach ($results as $r)
                 {
                     $pivot = new DB;
-                    foreach ($r as $k => $v)
+                    foreach ($r->_original as $k => $v)
                     {
                         if (strpos($k, 'pivot_')!==false)
                         {
                             $child = str_replace('pivot_', '', $k);
+                            $pivot->_setOriginalKey($child, $v);
                             $pivot->$child = $v;
-                            unset($r->$k);
+
+                            if (!in_array($k, $to_remove))
+                                $to_remove[] = $k;
                         }
+                        unset($pivot->append_attributes);
+                        unset($pivot->append_relations);
+                        unset($pivot->_global_scopes);
+                        unset($pivot->_query);
                     }
-                    $r->$pivot_name = $pivot;
+                    $r->setRelationAttribute($pivot_name, $pivot);
                 }
+
             }
 
-            if ($oneOfMany || 
+            elseif ($oneOfMany || 
             (in_array($relationship, array('hasOne', 'belongsTo', 'morphOne', 'morphTo', 'hasOneThrough'))))
             {
-                $item = $item->first();
+                $results = $columns!='*'
+                    ? $res->where($key, $current->$primary)->keys($columns) 
+                    : $res->where($key, $current->$primary);
+
+                $results = $results->first();
+            }
+            
+            elseif ((in_array($relationship, array('hasMany', 'hasManyThrough'))))
+            {
+                $results = $columns!='*'
+                    ? $res->where($key, $current->$primary)->keys($columns) 
+                    : $res->where($key, $current->$primary);
+
+                //$results = $results;
             }
 
-            $current->$relation = $item;
+
+            $current->setRelationAttribute($relation, $results);
             
         }
+
+        if (count($to_remove)>0)
+        {
+            foreach ($parent->_collection as $item)
+            {
+                if ($item->$relation instanceof Collection)
+                {
+                    foreach ($item->$relation as $it)
+                    {
+                        foreach ($to_remove as $remove)
+                        {
+                            unset($it->attributes[$remove]);
+                            unset($it->_original[$remove]);
+                        }
+                    }
+                }
+                else
+                {
+                    foreach ($to_remove as $remove)
+                    {
+                        unset($item->attributes[$remove]);
+                        unset($item->_original[$remove]);
+                    }
+                }
+            }
+        }
+
 
         $parent->_loadedRelations[] = $relation;
 

@@ -4,6 +4,7 @@ class MiddlewareHelper
 {
     protected static $kernel;
     protected static $booted = false;
+    protected static $list = null;
 
     public static function bootKernel()
     {
@@ -24,14 +25,111 @@ class MiddlewareHelper
         }
     }
 
-    public static function getMiddlewaresList()
+    private static function fillMiddlewareList()
     {
-        return self::$kernel->getMiddlewareList();
+        $lists = array('middleware', 'middlewareGroups', 'routeMiddleware');
+        
+        foreach ($lists as $list)
+        {
+            self::$list[$list] = self::$kernel->getMiddlewareList($list);
+        }
+        //dump(self::$list);
     }
 
-    public static function getMiddlewareGroup()
+    private static function checkMiddlewareList()
     {
-        return self::$kernel->getMiddlewareGroup();
+        if (!self::$list)
+        {
+            MiddlewareHelper::bootKernel();
+            self::fillMiddlewareList();
+        }
+    }
+
+    public static function getMiddlewareList($values)
+    {
+        self::checkMiddlewareList();
+        
+        $values = array_merge(self::$list['middleware'], $values);
+
+        $final_list = array();
+
+        foreach ($values as $value)
+        {
+            foreach (self::getMiddlewareFromValue($value) as $to_add)
+            {
+                $final_list[] = $to_add;
+            }
+        }
+
+        return $final_list;
+
+    }
+
+    public static function getMiddlewareFromValue($value)
+    {
+        global $_class_list;
+
+        list($midd, $params) = explode(':', $value);
+
+        if (isset($_class_list[$midd]))
+        {
+            return array( $midd . ($params? ':'.$params : '') );
+        }
+
+        $list = array();
+
+        $new_list = self::getMiddlewareListFromGroups($value);
+
+        foreach ($new_list as $to_add)
+        {
+            $list[] = $to_add;
+        }        
+
+        return $list;    
+    }
+   
+    private static function getMiddlewareListFromGroups($value)
+    {
+        self::checkMiddlewareList();
+
+        global $_class_list;
+        
+        $list = array();
+
+        list($midd, $params) = explode(':', $value);
+
+        if (isset(self::$list['middlewareGroups'][$midd]))
+        {
+            $items = self::$list['middlewareGroups'][$midd];
+            
+            if (!is_array($items)) $items = array($items);
+
+            foreach ($items as $item)
+            {
+                if (isset($_class_list[$item]))
+                {
+                    $list[] = $item . ($params? ':'.$params : '');
+                }
+            }
+        }
+
+        if (isset(self::$list['routeMiddleware'][$midd]))
+        {
+            $items = self::$list['routeMiddleware'][$midd];
+            
+            if (!is_array($items)) $items = array($items);
+
+            foreach ($items as $item)
+            {
+                if (isset($_class_list[$item]))
+                {
+                    $list[] = $item . ($params? ':'.$params : '');
+                }
+            }
+        }
+
+        return $list;
+
     }
 
     /* public static function invokeMiddleware($middleware, $request, $params)

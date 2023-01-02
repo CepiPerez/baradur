@@ -12,6 +12,9 @@ Class Request
 
     private $validated = array();
 
+    protected $stopOnFirstFailure = false;
+
+
     public function generate($route)
     {
         $this->clear();
@@ -110,79 +113,27 @@ Class Request
         return $this->validated;
     }
 
+    private function setPost($post)
+    {
+        $this->post = $post;
+    }
+
     public function validate($arguments)
     {
-        $pass = true;
-        $stopOnFirstFail = false;
-        $errors = array();
+        //$result = Validator::validate($this->all(), $arguments);
+        $validator = new Validator($this->all(), $arguments);
 
-        foreach ($arguments as $key => $argument)
+        if ($this->stopOnFirstFailure)
         {
-            $validations = explode('|', $argument);
-    
-            foreach ($validations as $validation)
-            {
-
-                list($arg, $values) = explode(':', $validation);
-
-                if ($arg=='bail') 
-                {
-                    $stopOnFirstFail = true;
-                }
-
-                else if ($arg=='required') 
-                {
-                    if ( !isset($this->post[$key]) || (is_string($this->post[$key]) && strlen($this->post[$key])==0) )
-                    {
-                        $pass = false;
-                        $errors[$key] = __("validation.required", array('attribute' => $key));
-                    }
-                }
-
-                else if ($arg=='max') 
-                {
-                    if ( isset($this->post[$key]) && is_string($this->post[$key]) && strlen($this->post[$key])<=$values) continue;
-                    elseif ( isset($this->post[$key]) && $this->post[$key]<=$values) continue;
-                    else
-                    {
-                        $pass = false;
-                        $errors[$key] = __("validation.max.string", array('attribute' => $key, 'max' => $values));
-                    }
-                }
-
-                else if ($arg=='unique') 
-                {
-                    list($table, $column, $ignore) = explode(',', $values);
-                    if (!$column) $column = $key;
-
-                    $value = $this->post[$key];
-
-                    $val = DB::table($table)->where($column, $value)->first();
-                    
-                    if ($val && $val->$column!=$ignore)
-                    {
-                        $pass = false;
-                        $errors[$key] = __("validation.unique", array('attribute' => $key));
-                    }
-                }
-
-                if ($stopOnFirstFail && !$pass) break;
-    
-            }
-
-            if ($stopOnFirstFail && !$pass) break;
-
-            $this->validated[$key] = $this->post[$key];
-
+            $validator->stopOnFirstFailure();
         }
 
-        if (!$pass)
+
+        if ($validator->fails())
         {
-            back()->withErrors($errors)->showFinalResult();
+            back()->withErrors($validator->errors())->showFinalResult();
             exit();
-        }
-
-        return $pass;
+        } 
     }
 
     public function path()
@@ -279,6 +230,12 @@ Class Request
         return serialize((array)$this);
     }
 
+    public function __set($name, $value)
+    {
+        $this->post[$name] = $value;
+    }
+
+
     public function __get($key)
     {
         if (isset($this->post[$key]))
@@ -293,10 +250,39 @@ Class Request
         return null;
     }
 
+    /** @return bool */
     public function hasFile($name)
     {
         return isset($this->files[$name]) && !empty($this->files[$name]);
     }
 
+    /** @return bool|null */
+    public function boolean($name)
+    {
+        $value = $this->__get($name);
 
+        return isset($value)? Str::of($value)->toBoolean() : null;
+    }
+
+    /** @return string|null */
+    public function string($name)
+    {
+        $value = $this->__get($name);
+
+        return $value? Str::of($value)->__toString() : null;
+    }
+
+    /** @return string|null */
+    public function str($name)
+    {
+        return $this->string($name);
+    }
+
+    /** @return Carbon|null */
+    public function date($name)
+    {
+        $value = $this->__get($name);
+
+        return $value? Carbon::parse($value) : null;
+    }
 }

@@ -2,17 +2,10 @@
 
 class Schema
 {
-    static $__classname;
-
     static $drop = false;
 
     static $unique = array();
     static $primary = array();
-
-    public static function init($classname)
-    {
-        self::$__classname = $classname;
-    }
 
     public static function checkMainTable()
     {
@@ -32,13 +25,13 @@ class Schema
             self::$drop = false;
         }
 
-        $col = '`'.$column->name.'` '.$column->type;
+        $col = '`'.$column->name.'` '.strtoupper($column->type);
         if (isset($column->length)) $col .= ' ('.$column->length.')';
         else if (isset($column->precision)) $col .= ' ('.$column->precision.','.$column->scale.')';
 
-        if (isset($column->increments)) $col .= ' AUTO_INCREMENT';
         if (isset($column->unsigned)) $col .= ' UNSIGNED';
         if (!isset($column->nullable)) $col .= ' NOT NULL';
+        if (isset($column->increments)) $col .= ' AUTO_INCREMENT';
 
         if (isset($column->default)) $col .= ' DEFAULT '.$column->default;
         if (isset($column->update)) $col .= ' ON UPDATE '.$column->update;
@@ -62,11 +55,10 @@ class Schema
 
     public static function dropIfExists($table)
     {
-        //print("REMOVING $table\n");
         self::checkMainTable();
-        DB::statement('SET FOREIGN_KEY_CHECKS = 0');
+        //DB::statement('SET FOREIGN_KEY_CHECKS = 0');
         DB::statement('DROP TABLE IF EXISTS `'.$table.'`');
-        DB::statement('SET FOREIGN_KEY_CHECKS = 1');
+        //DB::statement('SET FOREIGN_KEY_CHECKS = 1');
     }
 
     
@@ -74,21 +66,33 @@ class Schema
     {
         self::checkMainTable();
 
+        //print_r($values[1]); exit();
+
         $table = array_shift($values);
+
+        if (strpos($values[0], '@')>0)
+        {
+            list($class, $method, $params) = getCallbackFromString($values[0]);
+            $blueprint = new Blueprint();
+            executeCallback($class, $method, array(&$blueprint), null);
+            //call_user_func_array(array($class, $method), array(&$blueprint));
+        }
+        //print_r($blueprint);exit();
 
         $columns = array();
         $foreigns = array();
         $primary = array();
         $unique = array();
 
-        foreach ($values as $column)
+        foreach ($blueprint as $column)
         {
-            if (is_array($column))
+            /* if (is_array($column))
             {
                 foreach ($column as $col)
                 {
-                    if ($col->type == 'foreign')
+                    if ($col->type == 'foreign') {
                         $foreigns[] = $col;
+                    }
                     elseif ($col->type == 'primary')
                         $primary[] = $col->name;
                     elseif ($col->type == 'unique')
@@ -98,64 +102,76 @@ class Schema
                 }
             }
             else
-            {
+            { */
                 if ($column->type == 'foreign')
                     $foreigns[] = $column;
                 elseif ($column->type == 'primary')
                     $primary[] = array('value'=>$column->value, 'name'=>$column->name);
                 elseif ($column->type == 'unique')
-                    $unique[] = array('value'=>$column->value, 'name'=>$column->name);
-                else
+                    $unique[] = $column;
+                else {
                     $columns[] = self::addColumn($column);
-            }
+                    if ($column->unique)
+                        $unique[] = $column;
+                }
+            /* } */
         }
 
-        $foreigntext = '';
+        $foreigntext = array();
         if (count($foreigns)>0)
         {
             foreach ($foreigns as $foreign)
             {
-                $foreigntext .= ', FOREIGN KEY (' . $foreign->name .') '.
-                    'REFERENCES ' . $foreign->on . ' (' . $foreign->references . ')';
+                $text = '';
+                $key = $table . '_' . $foreign->name . '_foreign';
+
+                $text .= 'CONSTRAINT `' . $key . '` FOREIGN KEY (`' . $foreign->name .'`) '.
+                    'REFERENCES `' . $foreign->on . '` (`' . $foreign->references . '`)';
                 
                 if (isset($foreign->onDelete))
-                    $foreigntext .= ' ON DELETE '.$foreign->onDelete;
+                    $text .= ' ON DELETE '.$foreign->onDelete;
                 
                 if (isset($foreign->onUpdate))
-                    $foreigntext .= ' ON UPDATE '.$foreign->onUpdate;
+                    $text .= ' ON UPDATE '.$foreign->onUpdate;
+
+                $foreigntext[] =  $text;
             }
         }
+
+
 
         $primarytext = array();
         foreach ($primary as $f)
         {
-
             $text = '';
             if (isset($f['name']))
-                $text .= ', CONSTRAINT '.$f['name'].' PRIMARY KEY ('. implode(', ',$f['value']) .')';
-            else if (!isset($f['name']) && is_array($f['value']))
-                $text .= ', CONSTRAINT '. implode('_', $f['value']) .' PRIMARY KEY ('. implode(', ',$f['value']) .')';
+                $text .= 'CONSTRAINT '.$f['name'].' PRIMARY KEY ('. implode(', ',$f['value']) .')';
+            //else if (!isset($f['name']) && is_array($f['value']))
+            //    $text .= 'CONSTRAINT '. implode('_', $f['value']) .' PRIMARY KEY ('. implode(', ',$f['value']) .')';
             else
-                $text .= ', PRIMARY KEY ('. $f['value'] .')';
+                $text .= 'PRIMARY KEY ('. $f['value'] .')';
             $primarytext[] =  $text;
         }
         foreach (self::$primary as $f)
-            $primarytext[] =  ', PRIMARY KEY ('.$f.')';
+            $primarytext[] =  'PRIMARY KEY ('.$f.')';
 
         $uniquetext = array();
         foreach ($unique as $f)
         {
-            $text = '';
-            if (isset($f['name']))
-                $text .= ', CONSTRAINT '.$f['name'].' UNIQUE ('. implode(', ',$f['value']) .')';
-            else if (!isset($f['name']) && is_array($f['value']))
-                $text .= ', CONSTRAINT '. implode('_', $f['value']) .' UNIQUE ('. implode(', ',$f['value']) .')';
-            else
-                $text .= ', UNIQUE ('. $f['value'] .')';
+            $key = isset($f->index_name) ? $f->index_name : $table . '_' . $f->name . '_unique';
+            $text = 'CONSTRAINT '.$key.' UNIQUE ('. $f->name .')';
+            //if (isset($f['name']))
+            //    $text .= 'CONSTRAINT '.$f['name'].' UNIQUE ('. implode(', ',$f['value']) .')';
+            //else if (!isset($f['name']) && is_array($f['value']))
+            //    $text .= ', CONSTRAINT '. implode('_', $f['value']) .' UNIQUE ('. implode(', ',$f['value']) .')';
+            //else
+            //    $text .= 'UNIQUE ('. $f['value'] .')';
             $uniquetext[] =  $text;
         }
-        foreach (self::$unique as $f)
-            $uniquetext[] =  ', UNIQUE ('. $f .')';
+        //foreach (self::$unique as $f)
+        //    $uniquetext[] =  'UNIQUE ('. $f .')';
+
+
 
         self::$primary = array();
         self::$unique = array();
@@ -164,12 +180,13 @@ class Schema
         if ($action == 'CREATE')
         {
             $query = 'CREATE TABLE `'.$table.'` ('. implode(', ', $columns);
-            //if (self::$primary) $query .= ', PRIMARY KEY ('. self::$primary . ')';
-            if (count($primarytext)>0) $query .= implode('', $primarytext);
-            if (count($uniquetext)>0) $query .= implode('', $uniquetext);
-            if ($foreigntext!='') $query .= $foreigntext;
+            if (count($primarytext)>0) $query .= ', '. implode(', ', $primarytext);
+            if (count($uniquetext)>0) $query .= ', '. implode(', ', $uniquetext);
+            if (count($foreigntext)>0) $query .= ', '. implode(', ', $foreigntext);
             $query .= ')';
+
         }
+        
         elseif ($action == 'ALTER')
         {
             $query = 'ALTER TABLE `'.$table.'` ';
@@ -184,8 +201,7 @@ class Schema
 
         }
 
-
-        #printf($query.PHP_EOL);
+        //printf($query.PHP_EOL);
         DB::statement($query);
         
     }

@@ -2,37 +2,22 @@
 
 Class HttpKernel
 {
+    protected $middleware = array();
     protected $routeMiddleware = array();
+    protected $middlewareGroups = array();
 
-    public function getMiddlewareList()
+    public function getMiddlewareList($parent)
     {
- 
-        $middlewares = array();
-        foreach ($this->routeMiddleware as $name => $class)
+        $list = array();
+
+        foreach ($this->$parent as $name => $class)
         {
-            if (!isset($middlewares[$name]))
-                $middlewares[$name] = $class;
+            if (!isset($list[$name]))
+                $list[$name] = $class;
         }
 
-        return $middlewares;
-
+        return $list;
     }
-
-    public function getMiddlewareGroup()
-    {
- 
-        $groups = array();
-        foreach ($this->middlewareGroups as $name => $class)
-        {
-            if (!isset($groups[$name]))
-                $groups[$name] = $class;
-        }
-
-        return $groups;
-
-    }
-
-
 
 
 }

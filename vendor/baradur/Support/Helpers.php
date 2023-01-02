@@ -27,7 +27,7 @@ Class Helpers
         return $converted;
     }
 
-    public static function getPlural($string, $fromCli=false)
+    public static function getPlural($string)
     {
         global $locale, $fallback_locale;
 
@@ -36,11 +36,14 @@ Class Helpers
         if (!file_exists($filepath))
             $filepath = _DIR_.'/../../lang/'.$fallback_locale.'/plurals.php';
 
-        if (!file_exists($filepath))
+        /* if (!file_exists($filepath))
             $filepath = _DIR_.'/lang/'.$locale.'/plurals.php';
 
         if (!file_exists($filepath))
-            $filepath = _DIR_.'/lang/'.$fallback_locale.'/plurals.php';
+            $filepath = _DIR_.'/lang/'.$fallback_locale.'/plurals.php'; */
+
+        if (!file_exists($filepath))
+            throw new Exception("FILE $filepath NOT FOUND\n");
         
         $lang = CoreLoader::loadConfigFile($filepath);
         $result = '';
@@ -65,14 +68,17 @@ Class Helpers
     {
         global $locale, $fallback_locale, $artisan;
 
-        $filepath = _DIR_.($artisan? '':'/../../').'lang/'.$locale.'/plurals.php';
+        $filepath = _DIR_.'/../../lang/'.$locale.'/plurals.php';
         
         if (!file_exists($filepath))
-            $filepath = _DIR_.($artisan? '':'/../../').'lang/'.$fallback_locale.'/plurals.php';
+            $filepath = _DIR_.'/../../lang/'.$fallback_locale.'/plurals.php';
 
-        
+        if (!file_exists($filepath))
+            throw new Exception("FILE $filepath NOT FOUND\n");
+
         $lang = CoreLoader::loadConfigFile($filepath);
         $result = '';
+        //dd($lang);
         foreach ($lang as $key => $value)
         {
             $res = $string;
@@ -111,16 +117,6 @@ Class Helpers
         return $obj;
     }
 
-    /* public static function setRequest($req)
-    {
-        self::$_request = $req;
-    } */
-
-    /* public static function getRequest()
-    {
-        return self::$_request;
-    } */
-
     public static function trans($string, $placeholder=null)
     {
         global $locale, $fallback_locale;
@@ -156,8 +152,8 @@ Class Helpers
 
         while (count($array)>0)
         {
-            $value = array_shift($array);            
-            $result = $result[$value] ? $result[$value] : $value;
+            $value = array_shift($array);
+            $result = isset($result[$value]) ? $result[$value] : $value;
         }
             
 
@@ -176,10 +172,18 @@ Class Helpers
         $str = self::trans($string, $placeholder);
         $res = explode('|', $str);
 
+        $helper = null;
+        if (is_array($value))
+        {
+            $helper = array_keys($value);
+            $helper = $helper[0];
+            $value = $value[$helper];
+        }
+
         if (count($res)==2)
         {
-            if ($value==1) return $res[0];
-            else return $res[1];
+            if ($value==1) return str_replace(':'.$helper, $value, $res[0]);
+            else return str_replace(':'.$helper, $value, $res[1]);
         }
         else if (count($res)>2)
         {
@@ -218,7 +222,7 @@ Class Helpers
                 ++$count;
             }
         }
-        return $selected;
+        return str_replace(':'.$helper, $value, $selected);
     }
 
     public static function config($val)

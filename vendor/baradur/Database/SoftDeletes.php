@@ -28,7 +28,7 @@ trait SoftDeletes
      * 
      * @return bool
      */
-    public function softDeletes()
+    public function delete()
     {
         if (!$this->useSoftDeletes)
             throw new Exception('Trying to use softDelete method on a non-softDelete Model');

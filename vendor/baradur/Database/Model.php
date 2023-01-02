@@ -1,21 +1,25 @@
 <?php
 
 /**
- * 
  * @method static Collection all()
- * @method static $this first()
+ * @method static Model first()
  * @method static Collection paginate(int $value)
- * @method static $this find(string $value)
- * @method static $this findOrFail(string $value)
+ * @method static Model|Collection find(string $value)
+ * @method static Model findOrFail(string $value)
  * @method static Model firstOrNew()
  * @method static Model firstOrCreate()
+ * @method static Model updateOrCreate()
+ * @method static Model upsert()
+ * @method static mixed insertOrIgnore()
  * @method static Builder select(string|array $column)
  * @method static Builder addSelect(string|array $column)
  * @method static Builder selectRaw(string $select, array $bindings=array())
  * @method static Builder where(string|array|closure $column, string $param1, string $param2, string $boolean='AND')
+ * @method static Builder whereNot(string|array|closure $column, string $param1, string $param2, string $boolean='AND')
  * @method static Builder whereIn(string $colum, array $values)
  * @method static Builder whereNotIn(string $colum, array $values)
  * @method static Builder whereColumn(string $first, string $operator, string $second, string $chain)
+ * @method static Builder whereBetween(string $column, array $values)
  * @method static Builder whereRelation(string $relation, string $column, string $comparator, string $value)
  * @method static Builder whereBelongsTo(string $related, string $relationshipName=null, $boolean='AND')
  * @method static Builder when(bool $condition, Closure $callback, Closure $defut=null)
@@ -45,86 +49,73 @@
  * @method static mixed max(string $column)
  * @method static mixed avg(string $column)
  * @method static mixed average(string $column)
- * @method static $this create(array $record)
+ * @method static Model create(array $record)
  * @method static Builder has(string $relation, string $comparator=null, string $value=null)
  * @method static Builder whereHas(string $relation, Query $filter=null, string $comparator=null, string $value=null)
  * @method static Builder withWhereHas(string $relation, Query $filter=null)
  * @method static Builder withoutGlobalScope(Scope|string $scope)
  * @method static Builder withoutGlobalScopes()
  * @method static Builder query()
+ * @method static int|mixed destroy()
  * @method static Factory factory()
+ * @method static void observe()
+ * @method static mixed truncate()
+ * @method static mixed forceDelete()
+ * @method static mixed restore()
  */
 
 class Model
 {
-
-    protected $_original = array();
-    protected $_relations = array();
+    public $timestamps = true;
     
-    /**
-     * Sets database table used in model\
-     * Default value is Model' name in lowercase and plural
-     */
+    protected $_CREATED_AT = 'created_at';
+    protected $_UPDATED_AT = 'updated_at';
+
+    public $_original = array();
+    protected $_relations = null;
+    
     protected $table = null;
-
-    /**
-     * Sets table primary key\
-     * Default value is 'id'
-     */
     protected $primaryKey = 'id';
-
-    /**
-     * Sets fillable columns\
-     * Default is empty array
-     */
     protected $fillable = array();
-
-    /**
-     * Sets guarded columns\
-     * Default is null
-     */
     protected $guarded = null;
-
-    /**
-     * Sets hidden attributes\relationships
-     */
     protected $hidden = array();
-
-    /**
-     * Sets the Model's factory
-     */
-    protected $factory = null;
-
+    protected $appends = array();
+    protected $_timestamps = null;
+    protected $casts = array();
 
     protected $wasRecentlyCreated = false;
 
-    /**
-     * Sets the connector for database\
-     * Uses main connector by default, wich is
-     * created using .env variables\
-     * Example:\
-     * array('host' => '192.168.1.1', 'user' => 'admin', 'password' => 'admin',
-     * 'database' => 'mydatabase', 'port' => 3306);
-     * @var array
-     */
-    protected $connector = null;
+    public $attributes = array();
+    public $append_attributes = array();
+    public $append_relations = array();
 
-    public $global_scopes = array();
+    public $_query;
 
-    public function __construct()
+    protected $connection = null;
+
+    public $_global_scopes = array();
+
+    public function __construct($attributes=array())
     {
         if (!isset($this->table))
         {
             $this->table = Helpers::camelCaseToSnakeCase(get_class($this));
         }
+        $this->_timestamps = $this->timestamps;
+
+        foreach ($attributes as $key => $value)
+        {
+            $this->attributes[$key] = $value;
+        }
+
     }
 
     protected function addGlobalScope($scope, $callback=null)
     {
         if (is_object($scope))
-            $this->global_scopes[get_class($scope)] = $scope;
+            $this->_global_scopes[get_class($scope)] = $scope;
         else
-            $this->global_scopes[$scope] = $callback;
+            $this->_global_scopes[$scope] = $callback;
     }
 
     public function getRouteKeyName()
@@ -142,6 +133,21 @@ class Model
         return $this->fillable;
     }
 
+    public function getTimestamps()
+    {
+        return $this->_timestamps;
+    }
+
+    public function getCreatedAt()
+    {
+        return $this->_CREATED_AT;
+    }
+
+    public function getUpdatedAt()
+    {
+        return $this->_UPDATED_AT;
+    }
+
     public function getHidden()
     {
         return $this->hidden;
@@ -152,10 +158,32 @@ class Model
         return $this->guarded;
     }
 
-    public function getUseSoftDeletes()
+    public function getCasts()
+    {
+        return $this->casts;
+    }
+
+    public function getAppends()
+    {
+        return $this->appends;
+    }
+
+    public function getAttributes()
+    {
+        return $this->attributes;
+    }
+
+    public function usesSoftDeletes()
     {
         return isset($this->useSoftDeletes);
     }
+
+    public function usesHasFactory()
+    {
+        return isset($this->hasFactory);
+    }
+
+
 
     /** @return Builder */
     public static function instance($parent, $table=null)
@@ -167,18 +195,12 @@ class Model
      * @return Builder
      */
     public function getQuery($query=null)
-    {
-        /* if (!isset(self::$_query) || self::$_query->_parent!=get_class($this))
-        {
-            self::$_query = self::instance(get_class($this));
-            self::$_query->_collection->append($this);
-        } */
-            
+    {            
         if (!isset($this->_query))
         {
-            $this->_query = $query? $query : new Builder(get_class($this));
-            
+            $this->_query = $query? $query : new Builder(get_class($this));       
         }
+
         if ($this->_query->_collection->count()==0 && count($this->_original)>0)
         {
             $this->_query->_collection->append($this);
@@ -211,7 +233,7 @@ class Model
 
     public function getConnector()
     {
-        return $this->connector;
+        return $this->connection;
     }
 
     public function _setOriginalKey($key, $val)
@@ -235,12 +257,24 @@ class Model
     }
 
 
-
+    public function __set($name, $value)
+    {
+        $this->attributes[$name] = $value;
+    }
 
    
     public function __get($name)
     {
-        //dump("GET::$name");
+        //dump($name);
+        if (array_key_exists($name, $this->attributes))
+            return $this->attributes[$name];
+
+        if (array_key_exists($name, $this->append_attributes))
+            return $this->append_attributes[$name];
+
+        if (array_key_exists($name, $this->append_relations))
+            return $this->append_relations[$name];
+
         if ($name=='exists')
             return count($this->_original)>0;
 
@@ -268,19 +302,20 @@ class Model
                 throw new Exception("Attempted to lazy load [$name] on Model [".get_class($this)."]");
 
             $this->load($name);
+            //dd($this);
             
-            return $this->$name;
+            return $this->append_relations[$name];
         }
-        else
+        
+        global $preventAccessingMissingAttributes;
+
+        if ($preventAccessingMissingAttributes)
         {
-            global $preventAccessingMissingAttributes;
-
-            if ($preventAccessingMissingAttributes)
-                throw new Exception("The attribute [$name] either does not 
-                    exist or was not retrieved for model [".get_class($this)."]", 120);
+            throw new Exception("The attribute [$name] either does not 
+                exist or was not retrieved for model [".get_class($this)."]", 120);
         }
 
-
+        return null;
     }
 
 
@@ -292,7 +327,9 @@ class Model
     public function toArray()
     {
         $c = new Collection(get_class($this), $this->hidden);
-        return $c->toArray($this);
+        $c->append($this);
+        $res = $c->toArray();
+        return $res[0];
     }
 
 
@@ -342,6 +379,19 @@ class Model
     }
 
     /**
+     * Discard attribute changes and reset the attributes to their original state.
+     *
+     * @return $this
+     */
+    public function discardChanges()
+    {
+        $this->attributes = $this->_original;
+
+        return $this;
+    }
+
+
+    /**
      * Determine if attribute(s) has changed
      * 
      * @param string $value
@@ -350,11 +400,11 @@ class Model
     public function isDirty($value=null)
     {
         if ($value)
-            return $this->_original[$value] != $this->$value;
+            return $this->_original[$value] != $this->attributes[$value];
 
         foreach ($this->_original as $key => $val)
         {
-            if ($this->$key != $val)
+            if ($this->attributes[$key] != $val)
                 return true;
         }
         return false;
@@ -370,12 +420,12 @@ class Model
     public function isClean($value=null)
     {
         if ($value)
-            return $this->_original[$value] == $this->$value;
+            return $this->_original[$value] == $this->attribute[$value];
 
         $res = true;
         foreach ($this->_original as $key => $val)
         {
-            if ($this->$key != $val)
+            if ($this->attribute[$key] != $val)
             {
                 $res = false;
                 break;
@@ -386,9 +436,8 @@ class Model
     }
 
     /**
-     * Re-retrieve the model from the database.\
-     * The existing model instance will not be affected
-     * 
+     * Reload a fresh model instance from the database.
+     *
      * @return Model
      */
     public function fresh()
@@ -396,31 +445,74 @@ class Model
         if (count($this->_original)==0)
             throw new Exception('Trying to re-retrieve from a new Model'); 
 
-        return $this->getQuery()->fresh($this->_original, null);
+        return $this->getQuery()->_fresh($this->_original, null);
 
     }
 
     /**
-     * Re-retrieve the model from the database.\
-     * The existing model instance will not be affected
-     * 
+     * Reload the current model instance with fresh attributes from the database.
+     *
      * @return Model
      */
     public function refresh()
     {
-        if (count($this->_original)==0)
-            throw new Exception('Trying to re-retrieve from a new Model'); 
+        $cloned = $this->fresh();
 
-        $res = $this->getQuery()->refresh($this->_original, $this->_relations);
+        $this->attributes = $cloned->attributes;
+        $this->append_attributes = $cloned->append_attributes;
+        $this->append_relations = $cloned->append_relations;
+        $this->_relations = $cloned->_relations;
+        $this->_original = $cloned->_original;
+        
+        return $this;
 
-        foreach($this as $key => $val)
-            unset($this->$key);
+    }
 
-        foreach ($res as $key => $val)
+    public function setAppendAttribute($key, $val)
+    {
+        $this->append_attributes[$key] = $val;
+    }
+
+    public function setRelationAttribute($key, $val)
+    {
+        $this->append_relations[$key] = $val;
+    }
+
+    public function setAttribute($key, $val)
+    {
+        global $preventSilentlyDiscardingAttributes;
+
+        
+        if (in_array($key, $this->fillable))
         {
-            $this->$key = $val;
+            $this->attributes[$key] = $val;
         }
+        elseif (isset($this->guarded) && !in_array($key, $this->guarded))
+        {
+            $this->attributes[$key] = $val;
+        }
+        else
+        {
+            if ($preventSilentlyDiscardingAttributes)
+                throw new Exception("Add fillable property [$key] to allow mass assignment on [".get_class($this)."]");
+        }
+    }
 
+
+    /**
+     * Fill the model with an array of attributes.
+     *
+     * @param  array  $attributes
+     * @return $this
+     *
+     */
+    public function fill($attributes)
+    {
+        foreach($attributes as $key => $val)
+        {
+            $this->setAttribute($key, $val);
+        }
+        return $this;
     }
 
 
@@ -428,18 +520,6 @@ class Model
     {
         return $this->getQuery()->_fillableOff = true;
     }
-
-    /**
-     * Set a factory to seed the model
-     * 
-     * @return Factory
-     */
-    /* public static function factory()
-    {
-        $class = new self;
-        print_r($class);
-        return $class->getQuery()->factory();
-    } */
 
     public function seed($array, $persist)
     {
@@ -480,27 +560,17 @@ class Model
      */
     public function save()
     {
-        $res = $this->getQuery();
-
-        //dump($res);
-
-        //dump($this);
-        //dd($this->_getOriginalKeys());
-
         if (count($this->_original)>0)
         {
-            $res->_fillableOff = true;
-            $final = $res->update($this, $this->_original);
-            $res->_fillableOff = false;
-        }
-        else
-        {
-            $res->_fillableOff = true;         
-            $final = $res->create($this);
-            $res->_fillableOff = false;
+            return $this->update();
         }
 
-        return $final;
+        $query = $this->getQuery();
+        $query->_fillableOff = true;         
+        $result = $query->create($this->attributes);
+        $query->_fillableOff = false;
+
+        return $result;
     }
 
     /**
@@ -510,7 +580,25 @@ class Model
      */
     public function push()
     {
-        return $this->getQuery()->push($this, count($this->_original)==0);
+        if (! $this->save()) {
+            return false;
+        }
+
+        foreach ($this->append_relations as $models)
+        {
+            $models = $models instanceof Collection
+                ? $models->all() : array($models);
+
+            foreach (array_filter($models) as $model)
+            {
+                if (! $model->push())
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
 
@@ -532,22 +620,20 @@ class Model
      * @param array $record
      * @return bool
      */
-    public function update($record)
+    public function update($attributes=array())
     {
-        //var_dump(self::getInstance()->getQuery());
-        if( isset($this) && $this instanceof self )
-        {
-            //$this->checkObserver('updating', $this);
+        $this->fill($attributes);
 
-            $res = $this->getQuery();
-            $primary = $this->getRouteKeyName();
-            $res = $res->where($primary, $this->$primary)->update($record);
-
-            //if ($res) $this->checkObserver('updated', $this);
-
-            return $res;
+        if ($this->_timestamps) {
+            $key = $this->_UPDATED_AT;
+            $this->$key = now()->toDateTimeString();
         }
 
+        $result = $this->getQuery()->update($this->attributes);
+        $this->_query = null;
+     
+        return $result;
+     
         //return self::getInstance()->getQuery()->update($record);
     }
 
@@ -558,23 +644,16 @@ class Model
      */
     public function delete()
     {
-        if( isset($this) && $this instanceof self )
-        {
-            $this->checkObserver('deleting', $this);
+        $this->checkObserver('deleting', $this);
 
-            $res = self::instance(get_class($this));
-            $primary = $this->getRouteKeyName();
-            $res = $res->where($primary, $this->$primary)->delete();
+        $res = self::instance(get_class($this));
+        $primary = $this->getRouteKeyName();
+        $res = $res->where($primary, $this->$primary)->delete();
 
-            if ($res) $this->checkObserver('deleted', $this);
+        if ($res) $this->checkObserver('deleted', $this);
 
-            return $res;
-        }
-
-        //return self::getInstance()->getQuery()->update($record);
+        return $res;
     }
-
-
 
 
     /**
@@ -585,18 +664,13 @@ class Model
      */
     public function load($relations)
     {
-        if( isset($this) && $this instanceof self )
-        {
-            $relations = is_string($relations) ? func_get_args() : $relations;
-            
-            $res = $this->getQuery();
-            //$res->_collection->append($this);
-            
-            $res->load($relations);
-            unset($res);
+        $relations = is_string($relations) ? func_get_args() : $relations;
+        
+        $this->getQuery()->load($relations);
 
-            return $this;
-        }
+        $this->_query = null;
+
+        return $this;
     }
 
 
@@ -738,25 +812,16 @@ class Model
      */
     public function loadAggregate($relations, $column, $function = null)
     {
-        $res = $this;
-        if( isset($this) && $this instanceof self )
+        $relations = is_string($relations) ? func_get_args() : $relations;            
+
+        foreach ($relations as $relation)
         {
-            $relations = is_string($relations) ? func_get_args() : $relations;            
-
-            $this->getQuery();
-            //$this->getQuery()->_collection->append($this);
-
-            foreach ($relations as $relation)
-            {
-                $res = $this->getQuery()->loadAggregate($relation, $column, $function); //->first();
-            }
-            unset($this->_query);
+            $query = $this->getQuery()->loadAggregate($relation, $column, $function); //->first();
         }
-        return $res->_collection->first();
+        $this->_query = null;
+
+        return $query->_collection->first();
     }
-
-
-   
 
     /**
      * Eager load relation counts on the model.
@@ -832,7 +897,68 @@ class Model
     }
 
 
+/**
+     * Set the given relationship on the model.
+     *
+     * @param  string  $relation
+     * @param  mixed  $value
+     * @return $this
+     */
+    public function setRelation($relation, $value)
+    {
+        $this->append_relations[$relation] = $value;
 
+        return $this;
+    }
 
+    /**
+     * Unset a loaded relationship.
+     *
+     * @param  string  $relation
+     * @return $this
+     */
+    public function unsetRelation($relation)
+    {
+        unset($this->append_relations[$relation]);
+
+        return $this;
+    }
+
+    /**
+     * Set the entire relations array on the model.
+     *
+     * @param  array  $relations
+     * @return $this
+     */
+    public function setRelations(array $relations)
+    {
+        $this->append_relations = $relations;
+
+        return $this;
+    }
+
+    /**
+     * Duplicate the instance and unset all the loaded relations.
+     *
+     * @return $this
+     */
+    public function withoutRelations()
+    {
+        $model = clone $this;
+
+        return $model->unsetRelations();
+    }
+
+    /**
+     * Unset all the loaded relations for the instance.
+     *
+     * @return $this
+     */
+    public function unsetRelations()
+    {
+        $this->append_relations = array();
+
+        return $this;
+    }
 
 }

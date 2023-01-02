@@ -18,14 +18,24 @@
  */
 abstract class FakerBase
 {
+    protected static function callbackNumerify()
+    {
+        return rand(0, 9);
+    }
+
+    protected static function callbackLetterify()
+    {
+        return chr(rand(97,122));
+    }
+
     protected static function numerify($numberString)
     {
-        return preg_replace_callback("/#/", function() { return rand(0, 9); }, $numberString);
+        return preg_replace_callback("/#/", 'FakerBase::callbackNumerify', $numberString);
     }
 
     protected static function letterify($letterString)
     {
-        return preg_replace_callback("/\?/", function() { return chr(rand(97,122)); }, $letterString);
+        return preg_replace_callback("/\?/", 'FakerBase::callbackLetterify', $letterString);
     }
 
     protected static function bothify($string)

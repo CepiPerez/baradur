@@ -17,7 +17,7 @@ Class Component
         $this->_component = $component;
     }
 
-    private function setAttributes($attributes)
+    public function setAttributes($attributes)
     {
         $this->_attributes = $attributes;
     }
@@ -46,7 +46,7 @@ Class Component
     
     public function __get($name)
     {
-        echo "Called ".$name."::"; var_dump($this->$name); echo "<br>";
+        //echo "Called ".$name."::"; var_dump($this->$name); echo "<br>";
         return $this->$name;
     }
 

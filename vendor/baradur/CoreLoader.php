@@ -3,7 +3,7 @@
 class CoreLoader
 {
 
-    public static function loadClass($file, $is_provider=true)
+    public static function loadClass($file, $is_provider=true, $migration=null)
     {
         global $artisan, $_class_list;
         $cfname = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
@@ -17,8 +17,8 @@ class CoreLoader
                 !file_exists($dest_folder.'baradur_'.$dest_file) 
                 ||
                 (filemtime($file) > filemtime($dest_folder.'baradur_'.$dest_file))
-                || 
-                env('APP_ENV')!='production' )
+                /* || 
+                env('APP_DEBUG')==1 */)
             {
                 //echo "Recaching file:". $file."<br>";
 
@@ -30,25 +30,44 @@ class CoreLoader
                 }
                 else
                 {
-                    $classFile = preg_replace_callback('/(\w*)::(\w*)/x', 'callbackReplaceModels', $classFile);
+                    $classFile = preg_replace_callback('/(\w*)::(\w*)/x', 'callbackReplaceStatics', $classFile);
                 }
-                
-                
-                Cache::store('file')->plainPut($dest_folder.'baradur_'.$dest_file, $classFile);
 
-                require_once($dest_folder.'baradur_'.$dest_file);
+                if (isset($migration))
+                {
+                    $classFile = preg_replace('/return[\s]*new[\s]*class/', "class $migration ", $classFile);
+                }
                 
                 if ($artisan)
                 {
                     ini_set('display_errors', false);
                     error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_WARNING & ~E_NOTICE);
                 }
+                
+                if (strpos($cfname, 'baradurClosures_')===false)
+                {
+                    Cache::store('file')->plainPut($dest_folder.'baradur_'.$dest_file, $classFile);
+                    require_once($dest_folder.'baradur_'.$dest_file);
+                }
+                else
+                {
+                    Cache::store('file')->plainPut($dest_folder.$dest_file, $classFile);
+                    require_once($dest_folder.$dest_file);
+                }
+                
+                
 
                 $classFile = null;
 
             }
             else
             {
+                if ($artisan)
+                {
+                    ini_set('display_errors', false);
+                    error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_WARNING & ~E_NOTICE);
+                }
+                
                 if (file_exists($dest_folder.'baradurClosures_'.$dest_file))
                     require_once($dest_folder.'baradurClosures_'.$dest_file);
 
@@ -129,35 +148,36 @@ class CoreLoader
 
     public static function invokeClassMethod($class, $method, $params=array(), $instance=null)
     {
-
-        $controller = $instance? $instance : new $class();
-
-        if (is_subclass_of($controller, 'BaseController'))
+        //dump($class);
+        //$controller = $instance? $instance : new $class;
+        
+        if (is_subclass_of($instance, 'BaseController'))
         {
-            foreach ($controller->middleware as $midd)
+            foreach ($instance->middleware as $midd)
             {
-                $class = $midd->findMiddlewareClass($midd->middleware);
+                list($mclass, $mparams) = explode(':', $midd->middleware);
+
+                $mclass = MiddlewareHelper::getMiddlewareFromValue($mclass);
+                $mclass = new $mclass[0];
 
                 $res = request();
 
-                $params = array_merge(array($res, null), array());
-
                 if (isset($midd->only) && $midd->only==$method)
-                    $res = self::invokeClassMethod($class, 'handle', $params);
+                    $res = $mclass->handle($res, null, $mparams);
 
                 elseif (isset($midd->except) && $midd->except!=$method)
-                    $res = self::invokeClassMethod($class, 'handle', $params);
+                    $res = $mclass->handle($res, null, $mparams);
 
                 elseif (!isset($midd->except) && !isset($midd->only))
-                    $res = self::invokeClassMethod($class, 'handle', $params);
+                    $res = $mclass->handle($res, null, $mparams);
 
                 if (!($res instanceof Request))
                     return $res;
             }
         }
         
-        $reflectionMethod = new ReflectionMethod($controller, $method);        
-        return $reflectionMethod->invokeArgs($controller, $params);
+        $reflectionMethod = new ReflectionMethod($class, $method);       
+        return $reflectionMethod->invokeArgs($instance, $params);
 
     }
 

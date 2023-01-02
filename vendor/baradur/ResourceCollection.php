@@ -1,32 +1,111 @@
 <?php
 
-class ResourceCollection
+class ResourceCollection extends ArrayObject
 {
+	protected $_wrap = 'data';
+
     public $collection;
+    protected $_links;
+    protected $_meta;
+
+    public $collects = null;
 
     public function __construct($resource)
     {
-        //parent::__construct($resource);
-        //$this->resource = $this->collectResource($resource);
+        if (isset($resource->pagination))
+        {
+            $paginator = $resource->getPaginator();
+            $this->_links = $paginator;
+            $this->_meta = $paginator->meta;
+            unset($this->_links->meta);
+        }
 
-        $this->collection = $resource;
+        if (!isset($this->collects))
+        {
+            $childName = str_replace('Collection', '', str_replace('Resource', '', get_class($this))) . 'Resource';
+            $this->collects = $childName!='Resource' ? $childName : 'JsonResource';
+        }
 
-        $res = $this->toArray($resource);
+        $this->collection = new Collection(get_class($this));
 
+        foreach ($resource as $item)
+        {
+            $class = $this->collects;
+            $new = new $class($item);
+            $this->collection[] = $new;
+        }
+        
+        if (JsonResource::getWrapping() && !isset($resource->pagination))
+        {
+            foreach ($this->toArray(request()) as $val)
+            {
+                $this[] = $this->_toArray($val);
+            } 
+        }
+        else
+        {
+            $wrapname = $this->_wrap;
+            $wrap = array();
+            foreach ($this->toArray(request()) as $key => $val)
+            {
+                $val = $this->_toArray($val);
+                $wrap[$key] = JsonResource::getWrapping()? $val : $val->data;
+            } 
+            $this[$wrapname] = $wrap;
+        }
+
+        
         unset($this->collection);
+        unset($this->collects);
 
-        foreach ($res as $key => $val)
-            $this->$key = $val;
+        if (isset($this->_links))
+        {
+            $this['links'] = $this->_links;
+            $this['meta'] = $this->_meta;
+        }
 
+        
     }
 
-    public function toArray($data)
+    private function _toArray($item)
     {
-        return (array)$this->collection;
+        if ($item instanceof Model)
+        {
+            return $item->toArray();
+        }
+
+        if (is_array($item) || $item instanceof Collection)
+        {
+            $res = array();
+            foreach ($item as $key => $val)
+            {
+                $res[$key] = $this->_toArray($val);
+            }
+            return $res;
+        }
+
+        return $item;
     }
 
-    public function __call($name, $arguments)
+    public function toArray($request)
     {
-        return $this->collection->$name();
+        /* if (isset($this->_links))
+            return array('data' => $this->collection);
+        else  */
+            return (array) $this->collection;
+    }
+
+    public function getResult()
+    {        
+        if (!isset($this['meta']) && !isset($this[$this->_wrap]))
+        {
+            $res = array();
+            foreach ($this as $val)
+                $res[] = $val;
+
+            return $res;
+        }
+
+        return $this;
     }
 }
