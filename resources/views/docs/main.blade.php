@@ -47,31 +47,31 @@
               <ul class="list-unstyled mt-2" id="submenu">
 
                 <li class="sidebaritem">
-                    <a href="/docs">Getting started</a>
+                    <a href="{{ env('APP_URL') }}/docs">Getting started</a>
                 </li>
 
                 <li class="sidebaritem">
-                    <a href="/docs/routing">Routing</a>
+                    <a href="{{ env('APP_URL') }}/docs/routing">Routing</a>
                 </li>
 
                 <li class="sidebaritem">
-                    <a href="/docs/controllers">Controllers</a>
+                    <a href="{{ env('APP_URL') }}/docs/controllers">Controllers</a>
                 </li>
 
                 <li class="sidebaritem">
-                    <a href="/docs/models">Models</a>
+                    <a href="{{ env('APP_URL') }}/docs/models">Models</a>
                 </li>
 
                 <li class="sidebaritem">
-                    <a href="/docs/eloquent">Eloquent</a>
+                    <a href="{{ env('APP_URL') }}/docs/eloquent">Eloquent</a>
                 </li>
 
                 <li class="sidebaritem">
-                    <a href="/docs/localization">Localization</a>
+                    <a href="{{ env('APP_URL') }}/docs/localization">Localization</a>
                 </li>
                   
                 <li class="sidebaritem">
-                    <a href="/docs/artisan">Artisan</a>
+                    <a href="{{ env('APP_URL') }}/docs/artisan">Artisan</a>
                 </li>
   
 

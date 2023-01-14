@@ -29,7 +29,7 @@ Class Builder
 
     public $_method = '';
     public $_where = '';
-    public $bindings = array();
+    public $_bindings = array();
     public $_join = '';
     public $_limit = null;
     public $_offset = null;
@@ -54,6 +54,11 @@ Class Builder
 
     private $_scopes = array();
 
+    private $_lastInsert = null;
+
+    public $_hasConstraints = null;
+
+    public $_toBase = false;
 
 
     public function __construct($model, $table = null)
@@ -126,7 +131,7 @@ Class Builder
         $cloned->_relationship = $this->_relationship; 
         $cloned->_method = $this->_method; 
         $cloned->_where = $this->_where; 
-        $cloned->bindings = $this->bindings; 
+        $cloned->_bindings = $this->_bindings; 
         $cloned->_join = $this->_join; 
         $cloned->_limit = $this->_limit; 
         $cloned->_offset = $this->_offset; 
@@ -148,6 +153,7 @@ Class Builder
         $cloned->_timestamps = $this->_timestamps;
         $cloned->_timestamp_created = $this->_timestamp_created;
         $cloned->_timestamp_updated = $this->_timestamp_updated;
+        $cloned->_toBase = $this->_toBase;
 
         return $cloned;
     }
@@ -173,25 +179,43 @@ Class Builder
         $this->_fromSub = '';
         $this->_keys = array();
         $this->_values = array();
-        $this->bindings = array();
+        $this->_bindings = array();
     }
 
     private $sql_connector = null;
+
+
+    protected function setConnectorDriver($driver, $host, $user, $password, $database, $port=3306)
+    {
+        if ($driver=='mysql')
+        {
+            return new PdoConnector($host, $user, $password, $database, $port);
+        }
+
+        if ($driver=='mysqli')
+        {
+            return new MysqliConnector($host, $user, $password, $database, $port);
+        }
+
+        if ($driver=='oracle')
+        {
+            return new OracleConnector($host, $user, $password, $database, $port);
+        }
+    }
     
     /**
-     * @return Connector
+     * @return PdoConnector|MysqliConnector|OracleConnector
      */
     public function connector()
     {
         if (!$this->sql_connector)
         {
-            $config = CoreLoader::loadConfigFile(_DIR_.'/../../config/database.php');
             
             if ($this->_connector)
             {
-                $config = $config['connections'][$this->_connector];
-
-                $this->sql_connector = new Connector(
+                $config = config('database.connections.'.$this->_connector);
+                $this->sql_connector = $this->setConnectorDriver(
+                    $config['driver'],
                     $config['host'],
                     $config['username'], 
                     $config['password'], 
@@ -205,15 +229,16 @@ Class Builder
 
                 if (!isset($database))
                 {
-                    $default = $config['default'];
-                    $conn_values = $config['connections'][$default];
+                    $default = config('database.default');
+                    $config = config('database.connections.'.$default);
     
-                    $database = new Connector(
-                        $conn_values['host'],
-                        $conn_values['username'], 
-                        $conn_values['password'], 
-                        $conn_values['database'],
-                        $conn_values['port']
+                    $database = $this->setConnectorDriver(
+                        $config['driver'],
+                        $config['host'],
+                        $config['username'], 
+                        $config['password'], 
+                        $config['database'],
+                        $config['port']
                     );
                 }
 
@@ -271,6 +296,7 @@ Class Builder
         if ($this->_order != '') $res .= $this->_order . ' ';
         if (!$this->_limit && $this->_offset) $this->_limit = 9999999;
         if ($this->_limit) $res .= ' LIMIT '.$this->_limit;
+        if ($this->_limit && !$this->_offset) $this->_offset = 0;
         if ($this->_offset) $res .= ' OFFSET '.$this->_offset;
 
         if (strpos(strtolower($res), ' join ')===false && count($this->_loadedRelations)==0)
@@ -299,9 +325,15 @@ Class Builder
     }
 
 
+    private function toSqlFirst()
+    {
+        $res = $this->toSql();
+        return $res[0];
+    }
+
     
     /**
-     * Returns the full query in a string
+     * Returns the full query as a string
      * 
      * @return string
      */
@@ -309,15 +341,52 @@ Class Builder
     {
         $res = $this->buildQuery();
 
-        foreach ($this->bindings as $val)
+        /* foreach ($this->_bindings as $val)
         {
-            foreach ($val as $k => $v)
-                $res = preg_replace('/\?/', $v, $res, 1);
+            if (is_string($val)) $val = "'$val'";
+            $res = preg_replace('/\?/', $val, $res, 1);
+        } */
+
+        return array($res, $this->_bindings);
+    }
+
+    /**
+     * Returns the full query as a string
+     * 
+     * @return string
+     */
+    public function toPlainSql()
+    {
+        //dump($this);
+        $res = $this->buildQuery();
+
+        $bind = array();
+        foreach ($this->_bindings['select'] as $b) $bind[] = $b;
+        foreach ($this->_bindings['join'] as $b) $bind[] = $b;
+        foreach ($this->_bindings['where'] as $b) $bind[] = $b;
+        foreach ($this->_bindings['union'] as $b) $bind[] = $b;
+        foreach ($this->_bindings['having'] as $b) $bind[] = $b;
+
+        foreach ($bind as $val)
+        {
+            if (is_string($val)) $val = "'$val'";
+            $res = preg_replace('/\?/', $val, $res, 1);
         }
 
         return $res;
     }
 
+
+    /**
+     * Hidrates the result using Objects instead of Models
+     * 
+     * @return Builder
+     */
+    public function toBase()
+    {
+        $this->_toBase = true;
+        return $this;
+    }
 
 
     /**
@@ -327,33 +396,34 @@ Class Builder
      * @param string $columns String containing colums divided by comma
      * @return Builder
      */
-    public function selectRaw($val = '*', $bindings = array())
+    public function selectRaw($query = '*', $bindings = array())
     {
+        $this->_bindings['select'] = array();
         foreach ($bindings as $v)
         {
-            /* $vtype = 'i';
-            if (is_string($v))
-            {
-                $vtype = 's';   
-            }    
-            $this->bindings[] = array($vtype => $v); */
-
-            $val = preg_replace('/\?/', $v, $val, 1);
+            //$val = preg_replace('/\?/', $v, $val, 1);
+            $this->_bindings['select'][] = $v;
         }
 
-        $this->_method = 'SELECT ' . $val;
+        $this->_method = 'SELECT ' . $query;
 
         return $this;
     }
 
     private function getSelectColumns($select)
     {
-        if (!is_array($select)) $select = func_get_args();
-
         $columns = array();
         foreach($select as $key => $value)
         {
-            if (is_numeric($key))
+            if ($value instanceof Builder)
+            {
+                $columns[] = '(' . $value->toSqlFirst() . ') as ' . $key;
+            }
+            elseif ($value instanceof Raw)
+            {
+                $columns[] = $value->query;
+            }
+            elseif (is_numeric($key))
             {
                 list($col, $as, $alias) = explode(' ', $value);
                 list($db, $col) = explode('.', $col);
@@ -367,10 +437,7 @@ Class Builder
                     ($col? '.' . ($col=='*'? '*' : '`'.$col.'`') : '') . 
                     (trim(strtolower($as))=='as'? ' as `'.$alias.'`':'');
             }
-            elseif ($value instanceof Builder)
-            {
-                $columns[] = '(' . $value->toSql() . ') as ' . $key;
-            }
+            
         }
 
         return $columns;
@@ -386,6 +453,8 @@ Class Builder
      */
     public function select($select = '*')
     {
+        if (!is_array($select)) $select = func_get_args();
+
         $result = $this->getSelectColumns($select);
         $this->_method = 'SELECT ' . implode(', ', $result);
         return $this;
@@ -400,6 +469,7 @@ Class Builder
      */
     public function addSelect($select = '*')
     {
+        if (!is_array($select)) $select = func_get_args();
         $result = $this->getSelectColumns($select);
         $this->_method .= ', ' . implode(', ', $result);
         return $this;
@@ -415,7 +485,7 @@ Class Builder
      */
     public function fromSub($subquery, $alias)
     {
-        $this->_fromSub = ' (' . $subquery->toSql() . ') ' . $alias;
+        $this->_fromSub = ' (' . $subquery->toSqlFirst() . ') ' . $alias;
         return $this;
     }
 
@@ -431,14 +501,8 @@ Class Builder
     {
         foreach ($bindings as $v)
         {
-            /* $vtype = 'i';
-            if (is_string($v))
-            {
-                $vtype = 's';   
-            }    
-            $this->bindings[] = array($vtype => $v); */
-
-            $where = preg_replace('/\?/', $v, $where, 1);
+            //$where = preg_replace('/\?/', $v, $where, 1);
+            $this->_bindings['where'][] = $v;
         }
 
         if ($this->_where == '')
@@ -485,8 +549,9 @@ Class Builder
                 $this->_where = $prev_where . ' AND (' . str_replace('WHERE ', '', $this->_where) . ')';
             else
                 $this->_where = 'WHERE (' . str_replace('WHERE ', '', $this->_where) . ')';
-            
         }
+
+        //dump($this);
 
         return $this;
     }
@@ -512,7 +577,7 @@ Class Builder
         {
             foreach ($column as $key => $val)
             {
-                $res[] = $this->getWhere($key, $val);
+                $res[] = $this->getWhere($key, $val, null);
             }
         }
         else
@@ -526,7 +591,7 @@ Class Builder
         return implode(' '.$boolean.' ', $res);
     }
 
-    private function getWhere($column, $cond='', $val='')
+    private function getWhere($column, $cond='', $val='', $class='where')
     {
         if ($val=='')
         {
@@ -544,15 +609,17 @@ Class Builder
             $vtype = 's';   
         }
 
-        $this->bindings[] = array($vtype => $val); */
+        $this->_bindings[] = array($vtype => $val); */
 
-        if (is_string($val))
+        /* if (is_string($val))
         {
             $val = rtrim(ltrim($val, "'"), "'");
             $val = "'$val'";
-        }
+        } */
 
-        return $column . ' ' . $cond . ' ' . $val;
+        $this->_bindings[$class][] = $val;
+
+        return $column . ' ' . $cond . ' ?';// . $val;
 
 
     }
@@ -560,6 +627,8 @@ Class Builder
     private function addWhere($column, $cond='', $val='', $boolean='AND')
     {
         //dump(func_get_args());
+        //dump(get_class($this));
+        //dump($this->_bindings);
         if (is_array($column))
         {
             $result = $this->getArrayOfWheres($column, $boolean);
@@ -574,7 +643,7 @@ Class Builder
         }
         else
         {
-            $result = $this->getWhere($column, $cond, $val);
+            $result = $this->getWhere($column, $cond, $val, get_class($this)=='JoinClause'?'join':'where');
         }
 
         if ($this->_where == '')
@@ -659,10 +728,11 @@ Class Builder
 
         foreach ($values as $val)
         {
-            if (is_string($val))
-                $val = "'".$val."'";
+            /* if (is_string($val))
+                $val = "'".$val."'"; */
             
-            $final_array[] = $val;
+            $final_array[] = '?';
+            $this->_bindings['where'][] = $val;
         }
 
         list ($table, $col) = explode('.', $column);
@@ -1011,12 +1081,14 @@ Class Builder
             $vtype = 's';   
         }
 
-        $this->bindings[] = array($vtype => $value); */
+        $this->_bindings[] = array($vtype => $value); */
 
 
-        if (is_string($value)) $value = "'$value'";
+        //if (is_string($value)) $value = "'$value'";
 
-        return $reference . ' ' . $operator . ' ' . $value;
+        $this->_bindings['having'][] = $value;
+
+        return $reference . ' ' . $operator . ' ?';// . $value;
 
     }
 
@@ -1148,14 +1220,8 @@ Class Builder
     {
         foreach ($bindings as $v)
         {
-            /* $vtype = 'i';
-            if (is_string($v))
-            {
-                $vtype = 's';   
-            }    
-            $this->bindings[] = array($vtype => $v); */
-
-            $val = preg_replace('/\?/', $v, $sql, 1);
+            $this->_bindings['having'] = $v;
+            //$val = preg_replace('/\?/', $v, $sql, 1);
         }
 
         if ($this->_having == '')
@@ -1210,6 +1276,9 @@ Class Builder
         $join = new JoinClause($name);
         $this->getCallback($column, $join);
 
+        if (!$this->_bindings['join']) $this->_bindings['join'] = array();
+        $this->_bindings['join'] = array_merge($this->_bindings['join'], $join->_bindings['join']);
+        
         $result = str_replace('WHERE', '', $join->_where);
         unset($join);
 
@@ -1217,7 +1286,8 @@ Class Builder
             $this->_join = $side . ' JOIN `' . $name . '` ON ' . $result;
         else
             $this->_join .= ' ' . $side . ' JOIN `' . $name . '` ON ' . $result;
-
+        
+        //dump($this);
         return $this;
 
     }
@@ -1315,7 +1385,22 @@ Class Builder
 
         if ($query instanceof Builder)
         {
-            $query = $query->toSql();
+            if (!$this->_bindings['select']) $this->_bindings['select'] = array();
+            if (!$this->_bindings['where']) $this->_bindings['where'] = array();
+            if (!$this->_bindings['join']) $this->_bindings['join'] = array();
+
+            if (is_array($query->_bindings['select']) && count($query->_bindings['select'])>0) {
+                $this->_bindings['join'] = array_merge($this->_bindings['join'], $query->_bindings['select']);
+            }
+            if (is_array($query->_bindings['join']) && count($query->_bindings['join'])>0) {
+                $this->_bindings['join'] = array_merge($this->_bindings['join'], $query->_bindings['join']);
+            }
+            
+            if (is_array($query->_bindings['where']) && count($query->_bindings['where'])>0) {
+                $this->_bindings['join'] = array_merge($this->_bindings['join'], $query->_bindings['where']);
+            }
+
+            $query = $query->toSqlFirst();
         }
 
 
@@ -1323,7 +1408,7 @@ Class Builder
             $this->_join = $side.' JOIN (' . $query . ') as ' . $alias . ' ' . $filter;
         else
             $this->_join .= ' '.$side.' JOIN (' . $query . ') as ' . $alias . ' ' . $filter;
-  
+
         return $this;
     }
 
@@ -1411,7 +1496,11 @@ Class Builder
      */
     public function union($query)
     {
-        $this->_union = 'UNION ' . $query->toSql();
+        $this->_union = 'UNION ' . $query->toSqlFirst();
+
+        if (count($query->_bindings['union'])>0) {
+            $this->_bindings['union'] = array_merge($this->_bindings['union'], $query->_bindings['union']);
+        }
 
         return $this;
 
@@ -1426,10 +1515,13 @@ Class Builder
      */
     public function unionAll($query)
     {
-        $this->_union = 'UNION ALL ' . $query->toSql();
+        $this->_union = 'UNION ALL ' . $query->toSqlFirst();
+
+        if (count($query->_bindings['union'])>0) {
+            $this->_bindings['union'] = array_merge($this->_bindings['union'], $query->_bindings['union']);
+        }
 
         return $this;
-
     }
 
     /**
@@ -1630,7 +1722,7 @@ Class Builder
             array_push($this->_keys, $key);
 
             $camel = Helpers::snakeCaseToCamelCase($key);
-            #echo "KEY: $camel"."Attribute<br>";
+            //echo "KEY: $camel"."Attribute<br>";
 
             if (method_exists($this->_parent, 'set'.ucfirst($camel).'Attribute'))
             {
@@ -1654,10 +1746,10 @@ Class Builder
                 $val = $val->toDateTimeString();
             } */
             
-            if (is_string($val)) 
+            /* if (is_string($val)) 
             {
                 $val = "'".$val."'";
-            }
+            } */
 
             array_push($this->_values, isset($val)? $val : "NULL");
         }
@@ -1734,10 +1826,20 @@ Class Builder
         if ($this->_timestamps && !isset($this->_values[$this->_timestamp_created]) && $this->_parent!='DB')
             $this->set($this->_timestamp_created, now()->toDateTimeString());
 
-        $sql = 'INSERT ' . ($ignore? 'IGNORE ' : '') . 'INTO `' . $this->_table . '` (' . implode(', ', $this->_keys) . ')'
-                . ' VALUES (' . implode(', ', $this->_values) . ')';
+        //$sql = 'INSERT ' . ($ignore? 'IGNORE ' : '') . 'INTO `' . $this->_table . '` (' . implode(', ', $this->_keys) . ')'
+        //        . ' VALUES (' . implode(', ', $this->_values) . ')';
 
-        $query = $this->connector()->query($sql);
+        $qmarks = array();
+        for ($i=0; $i<count($this->_values); $i++) {
+            $qmarks[] = '?';
+        }
+
+        $sql = 'INSERT ' . ($ignore? 'IGNORE ' : '') . 'INTO `' . $this->_table . 
+            '` (' . implode(', ', $this->_keys) . ') VALUES (' . implode(', ', $qmarks) . ')';
+
+        //dump("INSERTING:: $sql<br>".implode(', ', $this->_values));
+
+        $query = $this->connector()->query($sql, $this->_values);
     
         $last = array();
         for ($i=0; $i<count($this->_keys); ++$i)
@@ -1832,7 +1934,9 @@ Class Builder
         if ($this->_insert($record))
         {
             $this->checkObserver('created', $record);
-            return $this->insertNewItem();
+            $item = $this->insertNewItem();
+            $item->_setRecentlyCreated(true);
+            return $item;
         }
         
         return null;
@@ -1949,6 +2053,7 @@ Class Builder
         );
 
         $values = array();
+        $bindings = array();
         foreach ($attributes as $key => $val)
         {
             if (!is_object($val) && !in_array($key, $this->_appends))
@@ -1956,7 +2061,29 @@ Class Builder
                 if (is_bool($val)) {
                     $val = $val==true? 1 : 0;
                 }
-                $values[$key] = "`$key` = ". ($val!==null ? "'".$val."'" : 'NULL');
+
+                $camel = Helpers::snakeCaseToCamelCase($key);
+
+                if (method_exists($this->_parent, 'set'.ucfirst($camel).'Attribute'))
+                {
+                    $fn = 'set'.ucfirst($camel).'Attribute';
+                    $newmodel = new $this->_parent;
+                    $val = $newmodel->$fn($val);
+                }
+
+                if (method_exists($this->_parent, $camel.'Attribute'))
+                {
+                    #echo "Value:$val<br>";
+                    $fn = $camel.'Attribute';
+                    $newmodel = new $this->_parent;
+                    $nval = $newmodel->$fn($val, (array)$newmodel);
+                    if (isset($nval['set'])) $val = $nval['set'];
+                    #echo "NEW value:$val<br>";
+                }
+
+                //$values[$key] = "`$key` = ". ($val!==null ? "'".$val."'" : 'NULL');
+                $values[$key] = "`$key` = ". ($val!==null ? '?' : 'NULL');
+                $bindings[] = $val;
             }
         }
     
@@ -1970,13 +2097,13 @@ Class Builder
         /* if ($this->_softDelete && !$this->_withTrashed)
             $this->whereNull('deleted_at'); */
 
-        
-
         $sql = 'UPDATE `' . $this->_table . '` SET ' . implode(', ', $values) . ' ' . $this->_where;
+
+        //dump("UPDATING:: $sql<br>".implode(', ', $this->_bindings['where'])."<br>".implode(', ', $bindings));
 
         $this->checkObserver('updating', $attributes);
 
-        $query = $this->connector()->query($sql); //, $this->_where, $this->bindings);
+        $query = $this->connector()->query($sql, array_merge($bindings, $this->_bindings['where'])); //, $this->_where, $this->_bindings);
 
         if ($query)
             $this->checkObserver('updated', $attributes);
@@ -2003,7 +2130,8 @@ Class Builder
         
         $sql = 'SELECT * FROM `' . $this->_table . '` '. $this->_where . ' LIMIT 0, 1';
         
-        $res = $this->connector()->execSQL($sql, $this->bindings);
+        $cloned = $this->_clone();
+        $res = $this->connector()->execSQL($sql, $cloned, true);
 
         if ($res->count()>0)
         {
@@ -2035,18 +2163,18 @@ Class Builder
         
         $sql = 'SELECT * FROM `' . $this->_table . '` '. $this->_where . ' LIMIT 0, 1';
         
-        $res = $this->connector()->execSQL($sql, $this->bindings);
+        $res = $this->connector()->execSQL($sql, $this, true);
 
         if ($res->count()>0)
         {
-            $item = $res[0];
+            $item = $res->first();
             
             $this->update($values);
 
             foreach($values as $key => $val)
                 $item->$key = $val;
 
-            return $this->insertUnique($item);
+            return $item; //$this->insertUnique($item);
         }
 
         $new = array_merge($attributes, $values);
@@ -2089,7 +2217,7 @@ Class Builder
                 . ' VALUES (' . implode(', ', $this->_values) . ')';
 
         //echo $sql;
-        $query = $this->connector()->execSQL($sql, $this->bindings);
+        $query = $this->connector()->execSQL($sql, $this, false);
 
         $this->clear();
         
@@ -2109,7 +2237,7 @@ Class Builder
 
         $sql = 'DELETE FROM `' . $this->_table . '` ' . $this->_where;
 
-        $query = $this->connector()->query($sql); //, $this->bindings);
+        $query = $this->connector()->query($sql); //, $this->_bindings);
 
         $this->clear();
         
@@ -2207,7 +2335,7 @@ Class Builder
 
         //dd($sql); exit();
 
-        $query = $this->connector()->query($sql); //, $this->_where, $this->bindings);
+        $query = $this->connector()->query($sql); //, $this->_where, $this->_bindings);
 
         $this->clear();
         
@@ -2231,7 +2359,7 @@ Class Builder
         
         $sql = 'DELETE FROM `' . $this->_table . '` ' . $this->_where;
 
-        $query = $this->connector()->query($sql); //, $this->bindings);
+        $query = $this->connector()->query($sql); //, $this->_bindings);
 
         $this->clear();
         
@@ -2284,7 +2412,7 @@ Class Builder
         $item->$primary = $model->$foreign;
         //$item->setRelation($this->_relationVars['relationship'], $model);
 
-        $item->_query = null;
+        $item->setQuery(null);
 
         return $item;
 
@@ -2307,7 +2435,7 @@ Class Builder
         $item->$primary = null;
         //$item->setRelation($this->_relationVars['relationship'], $model);
 
-        $item->_query = null;
+        $item->setQuery(null);
 
         return $item;
     }
@@ -2351,22 +2479,22 @@ Class Builder
 
         $sql = $this->_method . ' FROM `' . $this->_table . '` ' . $this->_where . ' LIMIT 0, 1';
 
-        $this->connector()->execSQL($sql, $this->bindings, $this->_collection);
+        $this->connector()->execSQL($sql, $this, true);
 
         if ($this->_collection->count()>0)
         {
             $this->processEagerLoad();
 
-            return $this->insertUnique($this->_collection->first(), true);
+            return $this->_collection->first(); //$this->insertUnique($this->_collection->first(), true);
         }
 
-        $item = new $this->_parent;
+        $item = array(); //new $this->_parent;
 
         foreach ($attributes as $key => $val)
-            $item->$key = $val;
+            $item[$key] = $val;
             
         foreach ($values as $key => $val)
-            $item->$key = $val;
+            $item[$key] = $val;
 
         return $this->insertUnique($item, true);
     }
@@ -2390,13 +2518,13 @@ Class Builder
 
         $sql = $this->_method . ' FROM `' . $this->_table . '` ' . $this->_where . ' LIMIT 0, 1';
         
-        $this->connector()->execSQL($sql, $this->bindings, $this->_collection);
+        $this->connector()->execSQL($sql, $this, true);
 
         if ($this->_collection->count()>0)
         {
             $this->processEagerLoad();
 
-            return $this->insertUnique($this->_collection->first(), true);
+            return $this->_collection->first(); //$this->insertUnique($this->_collection->first(), true);
         }
 
         $item = new $this->_parent;
@@ -2466,10 +2594,10 @@ Class Builder
                 $this->where($key, $this->_lastInsert[$key]);
             }
 
-            return $this->insertUnique($this->first());
+            return $this->first(); //$this->insertUnique($this->first());
         }
 
-        return $this->insertUnique($this->find($last));
+        return $this->find($last); //$this->insertUnique($this->find($last));
     }
 
 
@@ -2482,6 +2610,30 @@ Class Builder
 
         foreach ($data as $key => $val)
         {
+            $item->$key = $val;
+        }
+
+        //$this->__new = false;
+        $item->_setOriginalRelations($this->_eagerLoad);
+
+        unset($item->_global_scopes);
+        unset($item->timestamps);
+
+        $item->setAttributes(CastHelper::processCasts(
+            $item->getAttributes(),
+            $this->_model,
+            false
+        ));
+
+
+        foreach ($item->getAttributes() as $key => $val)
+        {
+            if ($this->_softDelete)
+            {
+                $item->unsetAttribute('deleted_at');
+            }
+
+
             $camel = Helpers::snakeCaseToCamelCase($key);
 
             if (method_exists($this->_parent, 'get'.ucfirst($camel).'Attribute'))
@@ -2493,69 +2645,42 @@ Class Builder
             {
                 $fn = $camel.'Attribute';
                 $nval = $item->$fn($val, (array)$item);
-                if (isset($nval['get'])) $val = $nval['get'];
+                if (isset($nval['get'])) $item->$key = $nval['get'];
             }
-
-            if ($key!='deleted_at' || ($key=='deleted_at' && !$this->_softDelete))
-                $item->$key = $val;
-
-            /* if (!is_object($val))
-            {
-                if ($key!='deleted_at' && !$new)
-                    $item->_setOriginalKey($key, $val);
-
-                elseif ($key=='deleted_at' && !$this->_softDelete && !$new)
-                    $item->_setOriginalKey($key, $val);
-
-                elseif ($key=='deleted_at' && $this->_softDelete)
-                    $item->_setTrashed($val);
-            } */
-
-            foreach ($this->_appends as $append)
-            {
-                $item->setAppendAttribute($append, $item->$append);
-            }
-
-
         }
-
-        $this->__new = false;
-        $item->_setOriginalRelations($this->_eagerLoad);
-
-        unset($item->_global_scopes);
-        unset($item->timestamps);
-
-        $item->attributes = CastHelper::processCasts(
-            $item->attributes,
-            $this->_model,
-            false
-        );
 
         foreach ($item->getAttributes() as $key => $val)
         {
             $item->_setOriginalKey($key, $val);
         }
 
+        /* foreach ($this->_appends as $append)
+        {
+            $item->setAppendAttribute($append, $item->$append);
+        } */
+
         return $item;
 
     }
 
-    private function insertData($data)
+    /* private function insertData($data)
     {
         $col = new Collection($this->_parent, $this->_hidden); //get_class($this->_parent));
-        $col->_modelKeys = $this->_primary;
+        //$col->_modelKeys = $this->_primary;
 
         foreach ($data as $item)
         {    
             $col[] = $this->insertUnique($item);
         }
 
-        if (isset($data->pagination))
-            $col->pagination = $data->pagination;
+        if ($data->hasPagination())
+        {
+            $col->setPagination($data->getPagination());
+        }
 
         return $col;
        
-    }
+    } */
 
     /**
      * Return all records from current query
@@ -2644,7 +2769,7 @@ Class Builder
 
         $sql = $this->buildQuery();
 
-        $this->connector()->execSQL($sql, $this->bindings, $this->_collection);
+        $this->connector()->execSQL($sql, $this, true);
 
         if ($this->_collection->count()==0)
             return NULL;
@@ -2653,7 +2778,7 @@ Class Builder
 
         $this->clear();
 
-        return $this->insertUnique($this->_collection[0]);
+        return $this->_collection->first(); // $this->insertUnique($this->_collection[0]);
     }
 
     /**
@@ -2675,7 +2800,7 @@ Class Builder
 
         $sql = $this->buildQuery();
 
-        $this->connector()->execSQL($sql, $this->bindings, $this->_collection);
+        $this->connector()->execSQL($sql, $this, true);
 
         if ($this->_collection->count()==0)
             return $this->_collection;
@@ -2684,7 +2809,7 @@ Class Builder
 
         $this->clear();
 
-        return $this->insertData($this->_collection);
+        return $this->_collection; //$this->insertData($this->_collection);
 
     }
     
@@ -2714,7 +2839,7 @@ Class Builder
         $sql = $this->buildQuery() . " LIMIT $cant OFFSET $offset";
 
         
-        $this->connector()->execSQL($sql, $this->bindings, $this->_collection);
+        $this->connector()->execSQL($sql, $this, true);
 
         if ($this->_collection->count()==0)
         {
@@ -2723,16 +2848,19 @@ Class Builder
         
         $records = 'select count(*) AS total from (' . $this->buildQuery() .') final';
         
-        $query = $this->connector()->execSQL($records, $this->bindings);
+        $query = $this->connector()->execSQL($records, $this->_clone(), true)->first();
 
-        $total = isset($query[0])? (int)$query[0]->total : 0;
+        $total = isset($query)? (int)( 
+            isset($query->total)? $query->total : (
+                isset($query->TOTAL)? $query->TOTAL : 0)
+            ) : 0;
 
         $pages = ceil($total / $cant);
 
         $pagina = (int)$pagina;
         $pages = (int)$pages;
         
-        $pagination = new stdClass;
+        $pagination = new Paginator;
 
         $pagination->first = $pagina<=1? null : 'p=1';
         $pagination->last = $pagina==$pages? null : 'p='.$pages;
@@ -2749,14 +2877,15 @@ Class Builder
         $meta['total'] = $total;
 
         $pagination->meta = $meta;
+
         
         $this->_collection->setPaginator($pagination);
-
+        
         $this->processEagerLoad();
         
         $this->clear();
 
-        return $this->insertData($this->_collection);
+        return $this->_collection; //$this->insertData($this->_collection);
 
     }
 
@@ -2979,10 +3108,9 @@ Class Builder
 
     private function processEagerLoad()
     {
-        if (count($this->_eagerLoad) == 0) return;
+        //if (count($this->_eagerLoad) == 0) return;
+        //dd($this);
         
-        //dump($this->_eagerLoad);
-
         foreach ($this->_eagerLoad as $key => $val)
         {
             $q = $this->_model->getQuery();
@@ -2991,10 +3119,11 @@ Class Builder
             $q->_relationColumns = '*';
             $q->_extraQuery = isset($val['_constraints']) ? $val['_constraints'] : null;
             $q->_nextRelation = $val;
+            $q->_toBase = $this->_toBase;
             //dump($key);dump($val);
             //dump($this->_hasConstraints);
             
-            if (!isset($val['_constraints']))
+            if (!isset($val['_constraints']) && isset($this->_hasConstraints['constraints']))
             {
                 $q->_hasConstraints = $this->_hasConstraints;
             }
@@ -3007,8 +3136,23 @@ Class Builder
 
             $res = $this->_model->$key();
 
+            $res->_toBase = $this->_toBase;
+
             Relations::insertRelation($q, $res, $key);
         }
+
+        if (!$this->_toBase)
+        {
+            foreach ($this->_collection as $item)
+            {
+                foreach ($this->_appends as $append)
+                {
+                    $item->setAppendAttribute($append, $item->$append);
+                }
+    
+            }
+        }
+
 
     }
 
@@ -3024,21 +3168,21 @@ Class Builder
     }
 
 
-    public function setHasConstraint($value)
+    /* public function setHasConstraint($value)
     {
         if (!$value)
             unset($this->_hasConstraints);
         else
             $this->_hasConstraints = $value;
-    }
+    } */
 
     public function _has($relation, $constraints=null, $comparator=null, $value=null)
     {
         //echo "HAS: ".$relation. " :: ".$constraints."<br>";
-        //dump($constraints);
+        //dump($this, true);
         $data = null;
         
-        $newparent = new $this->_parent;
+        //$newparent = new $this->_parent;
         
         if (strpos($relation, '.')>0)
         {
@@ -3053,10 +3197,10 @@ Class Builder
             $relation = reset($data);
         }
         
-        $newparent->getQuery()->varsOnly = true;
+        //$newparent->getQuery()->varsOnly = true;
         //$newparent->$relation();
-        $data = $newparent->$relation();
-        //dump($data);
+        $data = $this->_model->$relation();
+        //dump($data, true);
 
         $childtable = $data->_table;
         $foreign = $data->_relationVars['foreign'];
@@ -3067,21 +3211,27 @@ Class Builder
         {
             $this->getCallback($constraints, $data);
 
-            // OLD
-            //$new_where = str_replace('`'.$data->_table.'`.', '`'.$data->_table.'`.', $data->_where);
-            //$new_where = str_replace('`_child_table_`.', '`'.$data->_table.'`.', $new_where);
-            //echo "NEW_WHERE: $new_where<br>";
+            if ($data->_bindings['where']) {
+                if (!$this->_bindings['where'])
+                    $this->_bindings['where'] = array();
+                
+                $this->_bindings['where'] = array_merge($this->_bindings['where'], $data->_bindings['where']);
+            }
+                
             $filter = str_replace('WHERE', ' AND', $data->_where);
         } 
         elseif (isset($constraints) && !is_array($constraints) && strpos($constraints, '@')===false)
         {
-            $filter = " AND `$data->_table`.`$constraints` $comparator $value";
+            $filter = " AND `$data->_table`.`$constraints` $comparator ?";//$value";
             $comparator = null;
+            if ($value) $this->_bindings['where'][] = $value;
         }
         else
         {
             $filter = str_replace('WHERE', ' AND', $data->_where);
+            if ($value) $this->_bindings['where'][] = $value;
         }
+
         
         /* elseif (isset($constraints) && is_array($constraints))
         {
@@ -3094,7 +3244,7 @@ Class Builder
         }  */
 
         //if (isset($constraints) && strpos($constraints, '@')!==false)
-        //    $this->bindings = $constraints->bindings;
+        //    $this->_bindings = $constraints->_bindings;
 
 
         if (!$comparator)
@@ -3102,7 +3252,7 @@ Class Builder
                 $this->_table.'`.`'.$primary.'` = `'.$childtable.'`.`'.$foreign.'`' . $filter . ')';
         else
             $where = ' (SELECT COUNT(*) FROM `'.$childtable.'` WHERE `'.
-                $this->_table.'`.`'.$primary.'` = `'.$childtable.'`.`'.$foreign.'`' . $filter  . ') '.$comparator.' '.$value;
+                $this->_table.'`.`'.$primary.'` = `'.$childtable.'`.`'.$foreign.'`' . $filter  . ') '.$comparator.' ?';//.$value;
 
         if (isset($data->_relationVars['classthrough']))
         {
@@ -3135,11 +3285,10 @@ Class Builder
             else
                 $where = '(SELECT COUNT(*) FROM `'.$childtable.'` INNER JOIN `'.$ct.'` ON `'.$ct.'`.`'.$cf.
                     '` = `'.$childtable.'`.`'.$foreign.'` WHERE `'.
-                    $this->_table.'`.`'.$primary.'` = `'.$ct.'`.`'.$cp.'`' . $filter . ') '.$comparator.' '.$value;
+                    $this->_table.'`.`'.$primary.'` = `'.$ct.'`.`'.$cp.'`' . $filter . ') '.$comparator.' ?'; //.$value;
 
         }
 
-        //$this->_extraquery = $extraquery;
 
         if ($this->_where == '')
             $this->_where = 'WHERE ' . $where;
@@ -3488,6 +3637,9 @@ Class Builder
                 //call_user_func_array(array($class, $method), array_merge(array($data), $params));
                 $this->getCallback($constraints, $data);
 
+                if (!$this->_bindings['select']) $this->_bindings['select'] = array();
+                $this->_bindings['select'] = array_merge($this->_bindings['select'], $data->_bindings['where']);
+
                 $new_where = str_replace("`_child_table_`.", "`".$data->_table."`.", $data->_where);
                 $subquery .= str_replace('WHERE',' AND', $new_where);
             }
@@ -3509,7 +3661,7 @@ Class Builder
     /**
     * Load a set of aggregations over relationship's column onto the collection.
     *
-    * @return Collection
+    * @return Builder
     */
     public function loadAggregate($relations, $column, $function = 'count')
     {
@@ -3563,8 +3715,8 @@ Class Builder
 
             $this->whereIn($p_key, $this->_collection->pluck($this->_primary[0])->toArray());
 
-            $temp = new Collection('stdClass');
-            $temp = $this->connector()->execSQL($this->toSql(), $this->bindings, $temp);
+            $temp = $this->_clone();            
+            $temp = $temp->toBase()->connector()->execSQL($this->toSqlFirst(), $temp, true);
 
             foreach ($temp as $t)
             {
@@ -3672,7 +3824,7 @@ Class Builder
         $this->_method = "SELECT $function($columns) as aggregate";
         $sql = $this->buildQuery();
 
-        return $this->connector()->execSQL($sql)->first()->aggregate;
+        return $this->connector()->execSQL($sql, $this, true)->first()->aggregate;
     }
 
 
@@ -3720,7 +3872,10 @@ Class Builder
         {
             if ($persist)
             {
-                $col[] = $this->insert($item);
+                if ($this->insert($item))
+                {
+                    $col[] = $this->insertUnique($item);
+                }
             }
             else
             {

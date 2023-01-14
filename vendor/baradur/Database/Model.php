@@ -55,6 +55,7 @@
  * @method static Builder withWhereHas(string $relation, Query $filter=null)
  * @method static Builder withoutGlobalScope(Scope|string $scope)
  * @method static Builder withoutGlobalScopes()
+ * @method static Builder toBase()
  * @method static Builder query()
  * @method static int|mixed destroy()
  * @method static Factory factory()
@@ -71,7 +72,7 @@ class Model
     protected $_CREATED_AT = 'created_at';
     protected $_UPDATED_AT = 'updated_at';
 
-    public $_original = array();
+    protected $_original = array();
     protected $_relations = null;
     
     protected $table = null;
@@ -79,17 +80,16 @@ class Model
     protected $fillable = array();
     protected $guarded = null;
     protected $hidden = array();
-    protected $appends = array();
     protected $_timestamps = null;
     protected $casts = array();
 
     protected $wasRecentlyCreated = false;
 
-    public $attributes = array();
-    public $append_attributes = array();
-    public $append_relations = array();
+    protected $attributes = array();
+    protected $relations = array();
+    protected $appends = array();
 
-    public $_query;
+    protected $_query;
 
     protected $connection = null;
 
@@ -173,6 +173,21 @@ class Model
         return $this->attributes;
     }
 
+    public function getAttribute($key)
+    {
+        return array_key_exists($key, $this->attributes)? $this->attributes[$key] : null;
+    }
+
+    public function getRelations()
+    {
+        return $this->relations;
+    }
+
+    public function getRelation($key)
+    {
+        return array_key_exists($key, $this->relations)? $this->relations[$key] : null;
+    }
+
     public function usesSoftDeletes()
     {
         return isset($this->useSoftDeletes);
@@ -209,6 +224,11 @@ class Model
         return $this->_query;
     }
 
+    public function setQuery($query)
+    {
+        $this->_query = $query;
+    }
+
     /* public function setQuery($query, $full=true)
     {
         if (!$full)
@@ -241,11 +261,6 @@ class Model
         $this->_original[$key] = $val;
     }
 
-    public function _getOriginalKeys()
-    {
-        return $this->_original;
-    }
-
     public function _setOriginalRelations($relations)
     {
         $this->_relations = $relations;
@@ -269,11 +284,11 @@ class Model
         if (array_key_exists($name, $this->attributes))
             return $this->attributes[$name];
 
-        if (array_key_exists($name, $this->append_attributes))
-            return $this->append_attributes[$name];
+        if (array_key_exists($name, $this->appends))
+            return $this->appends[$name];
 
-        if (array_key_exists($name, $this->append_relations))
-            return $this->append_relations[$name];
+        if (array_key_exists($name, $this->relations))
+            return $this->relations[$name];
 
         if ($name=='exists')
             return count($this->_original)>0;
@@ -304,7 +319,7 @@ class Model
             $this->load($name);
             //dd($this);
             
-            return $this->append_relations[$name];
+            return $this->relations[$name];
         }
         
         global $preventAccessingMissingAttributes;
@@ -316,6 +331,18 @@ class Model
         }
 
         return null;
+    }
+
+
+    /**
+     * Appends an attribute
+     * 
+     * @return Model
+     */
+    public function appends($append)
+    {
+        $this->appends[$append] = $this->$append;
+        return $this;
     }
 
 
@@ -445,7 +472,7 @@ class Model
         if (count($this->_original)==0)
             throw new Exception('Trying to re-retrieve from a new Model'); 
 
-        return $this->getQuery()->_fresh($this->_original, null);
+        return $this->getQuery()->_fresh($this->_original, $this->relations);
 
     }
 
@@ -459,8 +486,8 @@ class Model
         $cloned = $this->fresh();
 
         $this->attributes = $cloned->attributes;
-        $this->append_attributes = $cloned->append_attributes;
-        $this->append_relations = $cloned->append_relations;
+        $this->appends = $cloned->appends;
+        $this->relations = $cloned->relations;
         $this->_relations = $cloned->_relations;
         $this->_original = $cloned->_original;
         
@@ -470,12 +497,13 @@ class Model
 
     public function setAppendAttribute($key, $val)
     {
-        $this->append_attributes[$key] = $val;
+        $this->appends = array_diff($this->appends, array($key));
+        $this->appends[$key] = $val;
     }
 
     public function setRelationAttribute($key, $val)
     {
-        $this->append_relations[$key] = $val;
+        $this->relations[$key] = $val;
     }
 
     public function setAttribute($key, $val)
@@ -498,6 +526,45 @@ class Model
         }
     }
 
+    public function unsetAttribute($key)
+    {
+        unset($this->attributes[$key]);
+    }
+
+    public function unsetOriginal($key)
+    {
+        unset($this->_original[$key]);
+    }
+
+    public function setAttributes($attributes)
+    {
+        $this->attributes = $attributes;
+    }
+
+    public function setAppends($appends=array())
+    {
+        $this->appends = array();
+
+        if (is_array($appends))
+        {
+            foreach ($appends as $append)
+            {
+                $this->appends($append);
+            }
+        }
+
+        return $this;
+    }
+
+    protected function serializeDate($date)
+    {
+        return $date->toDateTimeString();
+    }
+
+    public function _getSerializedDate($date)
+    {
+        return $this->serializeDate($date);
+    }
 
     /**
      * Fill the model with an array of attributes.
@@ -584,7 +651,7 @@ class Model
             return false;
         }
 
-        foreach ($this->append_relations as $models)
+        foreach ($this->relations as $models)
         {
             $models = $models instanceof Collection
                 ? $models->all() : array($models);
@@ -906,7 +973,7 @@ class Model
      */
     public function setRelation($relation, $value)
     {
-        $this->append_relations[$relation] = $value;
+        $this->relations[$relation] = $value;
 
         return $this;
     }
@@ -919,7 +986,7 @@ class Model
      */
     public function unsetRelation($relation)
     {
-        unset($this->append_relations[$relation]);
+        unset($this->relations[$relation]);
 
         return $this;
     }
@@ -930,9 +997,9 @@ class Model
      * @param  array  $relations
      * @return $this
      */
-    public function setRelations(array $relations)
+    public function setRelations($relations)
     {
-        $this->append_relations = $relations;
+        $this->relations = $relations;
 
         return $this;
     }
@@ -956,7 +1023,7 @@ class Model
      */
     public function unsetRelations()
     {
-        $this->append_relations = array();
+        $this->relations = array();
 
         return $this;
     }

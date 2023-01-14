@@ -12,7 +12,7 @@ class ResourceCollection extends ArrayObject
 
     public function __construct($resource)
     {
-        if (isset($resource->pagination))
+        if ($resource->getPagination())
         {
             $paginator = $resource->getPaginator();
             $this->_links = $paginator;
@@ -35,7 +35,7 @@ class ResourceCollection extends ArrayObject
             $this->collection[] = $new;
         }
         
-        if (JsonResource::getWrapping() && !isset($resource->pagination))
+        if (JsonResource::getWrapping() && !$resource->getPagination())
         {
             foreach ($this->toArray(request()) as $val)
             {

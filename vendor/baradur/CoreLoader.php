@@ -98,8 +98,8 @@ class CoreLoader
 
         if (
             !file_exists($dest_folder.$dest_file) 
-            ||
-            (filemtime($file) > filemtime($dest_folder.$dest_file))
+            //||
+            //(filemtime($file) > filemtime($dest_folder.$dest_file))
             /* || 
             env('APP_ENV')!='production'  */)
         {

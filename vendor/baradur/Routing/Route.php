@@ -44,6 +44,21 @@ Class RouteItem
         return $this;
     }
 
+    public function named()
+    {
+        if (is_null($this->name)) {
+            return false;
+        }
+
+        foreach (func_get_args() as $pattern) {
+            if (Str::is($pattern, $this->name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
 }
 
 Class RouteGroup 

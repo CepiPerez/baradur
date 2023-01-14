@@ -21,7 +21,7 @@ $locale = 'en';
 if ( !function_exists('json_decode') )
 {
     function json_decode($content, $assoc=false){
-        include(_DIR_.'/../json/json.php');
+        include(_DIR_.'vendor/json/json.php');
         if ( $assoc ){
             $json = new Services_JSON(SERVICES_JSON_LOOSE_TYPE);
         } else {
@@ -33,7 +33,7 @@ if ( !function_exists('json_decode') )
 else
 {
     function json_decode2($content, $assoc=false){
-        include(_DIR_.'/../json/json.php');
+        include(_DIR_.'vendor/json/json.php');
         if ( $assoc ){
             $json = new Services_JSON(SERVICES_JSON_LOOSE_TYPE);
         } else {
@@ -47,7 +47,7 @@ if ( !function_exists('json_encode') )
 {
     function json_encode($content){
         //var_dump($content);
-        include_once(_DIR_.'/../json/json.php');
+        include_once(_DIR_.'vendor/json/json.php');
         $json = new Services_JSON;  
         return $json->encode($content);
     }
@@ -56,7 +56,7 @@ else
 {
     function json_encode2($content){
         //var_dump($content);
-        include_once(_DIR_.'/../json/json.php');
+        include_once(_DIR_.'vendor/json/json.php');
         $json = new Services_JSON;  
         return $json->encode($content);
     }

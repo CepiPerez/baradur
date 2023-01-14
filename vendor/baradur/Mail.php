@@ -125,9 +125,8 @@ Class Mail
 
     public function sendSmtp()
     {
-        global $artisan;
         //echo "Sending through PHPMAILER<br>";
-        require_once(_DIR_.($artisan? '/vendor' : '/..').'/PHPMailer/PHPMailerAutoload.php');
+        require_once(_DIR_.'vendor/PHPMailer/PHPMailerAutoload.php');
 
         $default = Helpers::config('mail.default');
         $mailers = Helpers::config('mail.mailers'); 

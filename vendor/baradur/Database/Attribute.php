@@ -12,4 +12,10 @@ Class Attribute
         $this->get = $get;
         $this->set = $set;
     }
+
+    public static function make(callable $get = null, callable $set = null)
+    {
+        return new Attribute($get, $set);
+    }
+
 }

@@ -3,13 +3,47 @@
 class Filesystem
 {
 
+    protected $path;
+    protected $url;
+
+    public function __construct($path=null, $url=null)
+    {
+        $this->path = $path;
+        $this->url = $url;
+    }
+
+    private function getPath()
+    {
+        if (!is_null($this->path))
+            return $this->path . '/';
+
+        return '';
+    }
+
+    private function getUrl()
+    {
+        if (!is_null($this->url))
+            return $this->url . '/';
+
+        return '';
+    }
+
     public function exists($path)
     {
+        $path = $this->getPath() . $path;
         return file_exists($path);
+    }
+
+    public function missing($path)
+    {
+        $path = $this->getPath() . $path;
+        return !file_exists($path);
     }
 
     public function makeDirectory($path, $mode = 0755, $recursive = false, $force = false)
     {
+        $path = $this->getPath() . $path;
+
         if ($force) {
             return @mkdir($path, $mode, $recursive);
         }
@@ -19,6 +53,8 @@ class Filesystem
 
     public function chmod($path, $mode = null)
     {
+        $path = $this->getPath() . $path;
+
         if (!file_exists($path))
             return false;
 
@@ -31,8 +67,15 @@ class Filesystem
 
     public function put($path, $contents, $lock = false)
     {
+        $path = $this->getPath() . $path;
+
         //echo "Saving $path<br>";
-        return file_put_contents($path, $contents, $lock ? LOCK_EX : 0);
+        $res = file_put_contents($path, $contents, $lock ? LOCK_EX : 0);
+
+        if ($res) @chmod($path, 0777);
+
+        return $res===false? false : true;
+
     }
 
     public function delete($paths)
@@ -41,7 +84,9 @@ class Filesystem
 
         $success = true;
 
-        foreach ($paths as $path) {
+        foreach ($paths as $path)
+        {
+            $path = $this->getPath() . $path;
             try {
                 if (@unlink($path)) {
                     clearstatcache(false, $path);
@@ -56,38 +101,43 @@ class Filesystem
         return $success;
     }
 
-    public function isFile($file)
+    public function isFile($path)
     {
-        return is_file($file);
+        $path = /* $this->getPath() . */ $path;
+        return is_file($path);
     }
 
-    public function isDirectory($directory)
+    public function isDirectory($path)
     {
-        return is_dir($directory);
+        $path = /* $this->getPath() . */ $path;
+        return is_dir($path);
     }
 
     public function size($path)
     {
+        $path = $this->getPath() . $path;
         return filesize($path);
     }
 
-    public function deleteDirectory($directory, $preserve = false)
+    public function deleteDirectory($path, $preserve = false)
     {
-        if (! $this->isDirectory($directory)) {
+        $path = $this->getPath() . $path;
+
+        if (! $this->isDirectory($path)) {
             return false;
         }
 
         
-        $files = array_diff(scandir($directory), array('.','..'));
+        $files = array_diff(scandir($path), array('.','..'));
         foreach ($files as $file)
         {
-            if (is_dir("$directory/$file") && !is_link("$directory/$file")) 
+            if (is_dir("$path/$file") && !is_link("$path/$file")) 
             {
-                $this->deleteDirectory("$directory/$file");
+                $this->deleteDirectory("$path/$file");
             }
             else
             {
-                $this->delete("$directory/$file");
+                $this->delete("$path/$file");
             }
         }
         
@@ -112,33 +162,38 @@ class Filesystem
         } */
 
         if (! $preserve) {
-            @rmdir($directory);
+            @rmdir($path);
         }
 
         return true;
     }
 
 
-    public function directories($directory)
+    public function directories($path)
     {
+        $path = $this->getPath() . $path;
+
         /* $directories = [];
 
         foreach (Finder::create()->in($directory)->directories()->depth(0)->sortByName() as $dir) {
             $directories[] = $dir->getPathname();
         } */
 
-        $directories = glob($directory . '/*' , GLOB_ONLYDIR);
-        $directories[] = $directory;
+        $directories = glob($path . '/*' , GLOB_ONLYDIR);
+        $directories[] = $path;
 
         return $directories;
     }
 
     public function get($path, $lock = false)
     {
+        $path = $this->getPath() . $path;
+
         if ($this->isFile($path)) {
             return $lock ? $this->sharedGet($path) : file_get_contents($path);
         }
 
+        return null;
         throw new Exception("File does not exist at path {$path}.");
     }
 
@@ -164,6 +219,47 @@ class Filesystem
 
         return $contents;
     }
+
+    public function download($file, $name=null, $headers=null)
+    {
+        $file = $this->getPath() . $file;
+
+        if (!isset($name)) $name = basename($file);
+        $mime = mime_content_type($file);
+
+        header('Content-type: '.$mime);
+        header('Content-disposition: download; filename="'.$name.'"');
+        header('content-Transfer-Encoding:binary');
+        header('Accept-Ranges:bytes');
+        @readfile($file);
+        exit();
+    }
+
+    public function url($file)
+    {
+        return $this->getUrl() . $file;
+    }
     
+    public function path($file)
+    {
+        return $this->getPath() . $file;
+    }
+
+    public function lastModified($path)
+    {
+        $path = $this->getPath() . $path;
+
+        return filemtime($path);
+    }
+
+    public function copy($source, $dest)
+    {
+        return copy($this->getPath().$source, $this->getPath().$dest);
+    }
+
+    public function move($source, $dest)
+    {
+        return rename($this->getPath().$source, $this->getPath().$dest);
+    }
 
 }

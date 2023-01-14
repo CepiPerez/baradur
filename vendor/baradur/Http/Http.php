@@ -37,7 +37,7 @@ class Http
         return $this->result;
     }
 
-    public function getResults($method, $url, $data=null)
+    public function getResults($method, $url, $data=null, $fullResponse=false)
     {
         $this->url = $url;
         $curl = new Curl;
@@ -51,7 +51,7 @@ class Http
 
         foreach ($this->headers as $key => $value)
         {
-            $curl->httpHeader($key, $value);
+            $curl->httpHeaders($key, $value);
         }
 
         
@@ -65,6 +65,11 @@ class Http
 
             $tries++;
             sleep($this->sleep);
+        }
+
+        if ($fullResponse)
+        {
+            return $result;
         }
 
         $response = new Response($result);

@@ -8,6 +8,8 @@ Class View
 	public static $shared = array();
 	public static $composers = array();
 
+	public static $autoremove = false;
+
 
 	public function with($key, $value)
     {
@@ -48,19 +50,11 @@ Class View
 			self::$composers[$template] = $callback;
 	}
 
+
 	# Loads the template file
 	public static function loadTemplate($file, $args=array())
 	{
-		global $app, $artisan;
-
-		/* echo "VIEW PARAMS:";
-		dd($args);
-		echo "END VIEW PARAMS:"; */
-
-		$file = str_replace('.', '/', $file);
-
-		if (!file_exists(_DIR_.'/../../resources/views/'.$file.'.blade.php') && !isset($artisan))
-			abort(404);
+		list($views, $file) = Blade::__findTemplate($file);
 
 		$arguments = array(
 			'app_name' => env('APP_NAME')
@@ -135,11 +129,13 @@ Class View
 
 		//$app->arguments = $args;
 
-		$views = _DIR_.(!isset($artisan)?'/../..':'').'/resources/views';
-		$cache = _DIR_.(!isset($artisan)?'/../..':'').'/storage/framework/views';
+		$cache = _DIR_.'storage/framework/views';
 		$blade = new BladeOne($views, $cache);
 
-		$result = $blade->run($file, $arguments);
+		$result = self::$autoremove ? 
+			$blade->runInternal($file, $arguments, true) : $blade->run($file, $arguments);
+
+		self::$autoremove = false;
 
 		unset($_SESSION['messages']);
 		unset($_SESSION['errors']);

@@ -108,7 +108,7 @@ class SubstituteBindings
                             $relation = Str::plural($arrkeys[0]);
                             $relation = $last->$relation();
                             $record = $relation->where($relation->_primary[0], $val)->first();
-                            unset($last->_query);
+                            $last->setQuery(null);
                         }
 
                         if (!$record) abort(404);

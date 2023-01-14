@@ -289,6 +289,7 @@ class Carbon
         if ($name=='dayOfWeek') { return date('w', $this->date); };
         if ($name=='firstWeekDay') { return 0; };
         if ($name=='lastWeekDay') { return 6; };
+        if ($name=='timestamp') { return $this->date; };
         
         return null;
     }

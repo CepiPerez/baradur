@@ -70,7 +70,8 @@ class Curl
      * @param mixed $data
      * @param array $options
      */
-    public function sendRequest($method, $url, $data = array(), $options = array()) {
+    public function sendRequest($method, $url, $data = array(), $options = array())
+    {
         $this->setUrl($url);
         $post_data = false;
         

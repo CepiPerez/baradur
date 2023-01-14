@@ -257,7 +257,7 @@ function getCallbackFromString($string)
 
     if (!class_exists($class))
     {
-        CoreLoader::loadClass(_DIR_.'/../../storage/framework/classes/'.$class.'.php', false);
+        CoreLoader::loadClass(_DIR_.'storage/framework/classes/'.$class.'.php', false);
     }
 
     return $result;
@@ -285,6 +285,7 @@ function executeCallback($class, $method, $parameters, $parent=null)
 
 function callbackReplaceTraits($match)
 {
+    //print_r($match);
     global $_class_list, $_trait_to_add, $_functions_to_add;
 
     //$_functions_to_add = array();
@@ -432,14 +433,12 @@ function replaceNewPHPFunctions($text, $classname=null, $dir=null)
     if ($classname) $_current_classname[] = $classname;
 
     # Replace commented code
-    //$text = preg_replace('/\/\*([^\/\*]*[\*]\/)/x', '', $text);
-    //$text = preg_replace('/\/\/([^\n]*)/x', '', $text);
     $text = preg_replace('/(?:(?:\/\*(?:[^*]|(?:\*+[^*\/]))*\*+\/)|(?:(?<!\:|\\\|\'|\")\/\/.*))/x', '', $text);
     while (preg_match('/\n[\s]*\n[\s]*\n/x', $text))
         $text = preg_replace('/\n[\s]*\n[\s]*\n/x', "\n\n", $text);
     
     # Find Traits inside classes
-    $text = preg_replace_callback('/use\s[\s]*(\w[^;]*);/x', 'callbackReplaceTraits', $text);
+    $text = preg_replace_callback('/use\s[\s]*([a-zA-Z, ]*);/x', 'callbackReplaceTraits', $text);
 
     # Add trait inside class, removing existent functions;
     if (count($_functions_to_add)>0)
@@ -467,7 +466,7 @@ function replaceNewPHPFunctions($text, $classname=null, $dir=null)
     # const CREATED_AT and UPDATED_AT
     if (in_array($classname, $_model_list))
     {
-        $text = preg_replace('/protected[\s]*\$attributes[\s]*=/x', 'public \$attributes =', $text);
+        //$text = preg_replace('/protected[\s]*\$attributes[\s]*=/x', 'public \$attributes =', $text);
         $text = preg_replace('/const[^\s]*CREATED_AT/x', 'protected $_CREATED_AT', $text);
         $text = preg_replace('/const[^\s]*UPDATED_AT/x', 'protected $_UPDATED_AT', $text);
     }
@@ -480,10 +479,14 @@ function replaceNewPHPFunctions($text, $classname=null, $dir=null)
     $text = preg_replace('/protected[\s]*static[\s]*function[\s]*booted/x', 'public function booted', $text);
     $text = str_replace('static::', '$this->', $text);
 
-
     # resources static wrap to _wrap
     $text = preg_replace('/public[\s]*static[\s]*\$wrap/x', 'protected $_wrap', $text);
 
+    # __DIR__ to dirname(__FILE__)
+    $text = str_replace('__DIR__', 'dirname(__FILE__)', $text);
+
+    # __DIR__ to dirname(__FILE__)
+    $text = str_replace('Blade::if', 'Blade::_if', $text);
 
     # Convert [] to array()
     // this one doesn't work on PHP 5.1.6
@@ -549,9 +552,9 @@ function replaceNewPHPFunctions($text, $classname=null, $dir=null)
         $_current_classname = $last_class;
 
         Cache::store('file')
-            ->plainPut($dir.'/../../storage/framework/classes/baradurClosures_'.$_current_classname[0].'.php', $controller);
+            ->plainPut($dir.'/storage/framework/classes/baradurClosures_'.$_current_classname[0].'.php', $controller);
 
-        //require_once(_DIR_.'/../../storage/framework/classes/baradurClosures_'.$_current_classname[0].'.php');
+        //require_once(_DIR_.'storage/framework/classes/baradurClosures_'.$_current_classname[0].'.php');
 
         $controller = null;
         $_arrow_functions = array();
@@ -568,9 +571,9 @@ function replaceNewPHPFunctions($text, $classname=null, $dir=null)
         $controller .= "}";
         
         Cache::store('file')
-            ->plainPut($dir.'/../../storage/framework/classes/baradurMacros_'.$_current_classname[0].'.php', $controller);
+            ->plainPut($dir.'/storage/framework/classes/baradurMacros_'.$_current_classname[0].'.php', $controller);
 
-        require_once(_DIR_.'/../../storage/framework/classes/baradurMacros_'.$_current_classname[0].'.php');
+        require_once(_DIR_.'storage/framework/classes/baradurMacros_'.$_current_classname[0].'.php');
 
         $controller = null;
         $_macro_functions = array();

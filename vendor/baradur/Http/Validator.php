@@ -41,7 +41,9 @@ class Validator
             $result = $this->messages[$attributes['attribute']];
 
             foreach ($attributes as $key => $val)
+            {
                 $result = str_replace(':'.$key, $val, $result);
+            }
 
             $this->errors[$attributes['attribute']] = $result;
         }
@@ -61,9 +63,14 @@ class Validator
 
         $req_values = $this->attributes; //$request;
 
-        foreach ($this->rules as $key => $argument)
+        
+
+        foreach ($this->rules as $key => $validations)
         {
-            $validations = explode('|', $argument);
+            if (is_string($validations)) {
+                $validations = explode('|', $validations);
+            }
+
             $ok = true;
 
             $canbenull = in_array('nullable', $validations);

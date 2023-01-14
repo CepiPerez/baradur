@@ -14,7 +14,7 @@ Class Cache
             if ($driver == 'file')
             {
                 $files = new Filesystem();
-                $cache = _DIR_.'/../../storage/framework/cache';
+                $cache = _DIR_.'storage/framework/cache';
                 self::$drivers['file'] = new FileStore($files, $cache, 0777);
             }
             elseif ($driver == 'redis')

@@ -6,7 +6,7 @@ Class SmartCache
 
     private static function getInstance($group=null)
     {
-        $cache = _DIR_.'/../../storage/framework/cache';
+        $cache = _DIR_.'storage/framework/cache';
 
         if (!isset(self::$instance))
         {

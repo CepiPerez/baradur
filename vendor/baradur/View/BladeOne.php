@@ -90,7 +90,7 @@ class BladeOne
     }
 
 
-    private function runInternal($view,$variables=array(), $forced=false,$isParent=true,$runFast=false)
+    public function runInternal($view,$variables=array(), $forced=false,$isParent=true,$runFast=false)
     {
         if ($isParent) {
             $this->variables=$variables;
@@ -337,11 +337,12 @@ class BladeOne
 
     protected function createComponent($component, $attributes, $content=null)
     {
-        //echo "COMPONENT: ".$component.":: ATTR: ".dd($attributes);
+        //dump($component);
+        //dd($attributes);
 
         //dd($this->component_slots);
 
-        $c = ucfirst($component).'Component';
+        $c =  Blade::__findComponent($component); //ucfirst($component).'Component';
         $instance = null;
         $reflect = null;
 
@@ -354,7 +355,7 @@ class BladeOne
             foreach ($params as $param)
             {
                 if (isset($attributes) && isset($attributes[$param->name]))
-                    $params_to_send[] = "<?php echo (".$attributes[$param->name]."); ?>";
+                    $params_to_send[] = $attributes[$param->name]; /* "<?php echo (".$attributes[$param->name]."); ?>"; */
                 unset($attributes[$param->name]);
             }
             $reflect  = new ReflectionClass($c);
@@ -405,24 +406,17 @@ class BladeOne
         $this->component_slots = array();
 
         $back_action = $app->action;
-        $result = $instance->render()->result;
+        $result = $instance->render();
+
+        if (is_object($result)) 
+        {
+            View::$autoremove = true;
+            $result = $result->result->__toString();
+        }
         $app->action = $back_action;
 
-        if (!file_exists(_DIR_.'/../../resources/views/'.
-            str_replace('.', '/', $app->result->template) . '.blade.php'))
-        { 
-            $app->result->template .= '.index';
-        }
-
-        if (!file_exists(_DIR_.'/../../resources/views/'.
-            str_replace('.', '/', $app->result->template) . '.blade.php'))
-        {
-            throw new Exception('Component [' . str_replace('.', '/', $app->result->template) .
-                '] is missing'); die();
-        }
-
         $temp_params = null;
-        return $result->__toString();
+        return $result;
 
     }
 
@@ -502,18 +496,55 @@ class BladeOne
     }
 
     function callbackCompileStatements($match) {
-        
         //echo "REPLACING: ";var_dump($match);echo "<br>";
         if ($this->contains($match[1], '@')) {
             $match[0] = isset($match[3]) ? $match[1].$match[3] : $match[1];
         } elseif (isset($this->customDirectives[$match[1]])) {
             $match[0] = call_user_func($this->customDirectives[$match[1]], $this->get($match, 3));
         } elseif (method_exists($this, $method = 'compile'.ucfirst($match[1]))) {
-            /* echo "COMPILING ".ucfirst($match[1])." :: ".$this->get($match, 2)
-            ." :: ".$this->get($match, 3)
-            ." :: ".$this->get($match, 4)."<br>"; */
             $match[0] = $this->$method($this->get($match, 3));
         } else {
+            $compiler = $match[1];
+            $end = false;
+            $else = false;
+
+            if (substr($compiler, 0, 3)=='end') {
+                $end = true;
+                $compiler = str_replace('end', '', $compiler);
+            }
+            if (substr($compiler, 0, 4)=='else') {
+                $else = true;
+                $compiler = str_replace('else', '', $compiler);
+            }
+
+            //dump($end); dump($else); dump($compiler);
+
+            $custom = Blade::__findCompiler($compiler);
+
+            if ($custom)
+            {
+                if ($end) {
+                    return $this->compileEndif();
+                }
+
+                list($class, $method) = getCallbackFromString($custom);
+
+                $expression = $class.'::'.$method.'(';
+
+                if ($match[4]) {
+                    $expression .= $match[4];
+                }
+
+                $expression .= ')';
+
+                if ($else) {
+                    return $this->phpTag."elseif ({$expression}): ?>";
+                }
+
+                return $this->phpTag."if ({$expression}): ?>";
+
+            }
+            
             $this->showError("@compile","Operation not defined:@".$match[1],true);
         }
 
@@ -568,6 +599,8 @@ class BladeOne
             $params = str_replace('[', '', $params);
             $params = str_replace(']', '', $params);
             $params = preg_replace_callback('/\$([\w]+)/', array($this, "replaceFromInstanceVars"), $params);
+
+            //dump($command); dump($params); ddd($this->variables['__instance']);
 
             return $this->variables['__instance']->$command($params);
         }

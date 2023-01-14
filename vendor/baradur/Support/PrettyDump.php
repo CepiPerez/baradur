@@ -64,7 +64,7 @@ Class PrettyDump
 
             if (get_class($subject)=='Collection')
             {
-                if ($subject->pagination)
+                if ($subject->hasPagination())
                     $res .= "<i style='margin-left:".($depth * 2)."rem;color:gray;'>&lt;has pagination&gt;</i><br>";
             }
             

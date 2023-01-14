@@ -16,7 +16,7 @@ $preventAccessingMissingAttributes = false;
 
 #ini_set('memory_limit', '256M');
 
-ini_set('display_errors', true);
+ini_set('display_errors', 0);
 error_reporting(E_ALL + E_NOTICE);
 #ini_set('display_errors', false);
 #error_reporting(0);
@@ -27,7 +27,7 @@ error_reporting(E_ALL + E_NOTICE);
     error_reporting(0);
 } */
 
-define ('_DIR_', dirname(__FILE__));
+define ('_DIR_', str_replace('vendor/baradur', '', dirname(__FILE__)));
 
 $_class_list = array();
 $_model_list = array();
@@ -38,10 +38,10 @@ $_builder_methods = array();
 global $artisan;
 
 # Load all classes
-if (!file_exists(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'))
+if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'))
 {
     //echo "CREATING CLASSES<br>";
-    $it = new RecursiveDirectoryIterator(_DIR_.'/../../app');
+    $it = new RecursiveDirectoryIterator(_DIR_.'app');
     foreach(new RecursiveIteratorIterator($it) as $file)
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
@@ -53,7 +53,7 @@ if (!file_exists(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':
                 $_resource_list[] = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
         }
     }
-    $it = new RecursiveDirectoryIterator(_DIR_.'/../../database');
+    $it = new RecursiveDirectoryIterator(_DIR_.'database');
     foreach(new RecursiveIteratorIterator($it) as $file)
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
@@ -62,7 +62,7 @@ if (!file_exists(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':
         }
     }
 
-    $it = new RecursiveDirectoryIterator(_DIR_.'/../baradur');
+    $it = new RecursiveDirectoryIterator(_DIR_.'vendor/baradur');
     foreach(new RecursiveIteratorIterator($it) as $file)
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
@@ -71,7 +71,7 @@ if (!file_exists(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':
         }
     }
 
-    $it = new RecursiveDirectoryIterator(_DIR_.'/../faker');
+    $it = new RecursiveDirectoryIterator(_DIR_.'vendor/faker');
     foreach(new RecursiveIteratorIterator($it) as $file)
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
@@ -80,11 +80,11 @@ if (!file_exists(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':
         }
     }
 
-    if (file_exists(_DIR_.'/../autoload.php'))
+    if (file_exists(_DIR_.'vendor/autoload.php'))
     {
         $real = _DIR_;
         $real = rtrim($real, 'baradur');
-        $extra = include_once(_DIR_.'/../autoload.php');
+        $extra = include_once(_DIR_.'vendor/autoload.php');
         if (count($extra)>0)
         {
             foreach ($extra as $key => $val)
@@ -92,15 +92,15 @@ if (!file_exists(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':
         }
     }
 
-    @file_put_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'classes.php', serialize($_class_list));
-    @file_put_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'models.php', serialize($_model_list));
-    @file_put_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'resources.php', serialize($_resource_list));
+    @file_put_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php', serialize($_class_list));
+    @file_put_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'models.php', serialize($_model_list));
+    @file_put_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'resources.php', serialize($_resource_list));
 }
 else
 {
-    $_class_list = unserialize(file_get_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'));
-    $_model_list = unserialize(file_get_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'models.php'));
-    $_resource_list = unserialize(file_get_contents(_DIR_.'/../../storage/framework/config/'.($artisan? 'artisan_':'').'resources.php'));
+    $_class_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'));
+    $_model_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'models.php'));
+    $_resource_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'resources.php'));
 }
 
 
@@ -109,14 +109,14 @@ spl_autoload_register('custom_autoloader');
 
 
 # Environment variables
-if (file_exists(_DIR_.'/../../storage/framework/config/env.php'))
+if (file_exists(_DIR_.'storage/framework/config/env.php'))
 {
-    require_once(_DIR_.'/../../storage/framework/config/env.php');
+    require_once(_DIR_.'storage/framework/config/env.php');
 }
 else
 {
     require_once('DotEnv.php');
-    DotEnv::load(_DIR_.'/../../', '.env');
+    DotEnv::load(_DIR_, '.env');
 }
 
 # Globals
@@ -135,7 +135,7 @@ require_once('CoreLoader.php');
 
 
 # Generating Application KEY (for Tokens usage)
-require_once(_DIR_.'/../random_compat/lib/random.php');
+require_once(_DIR_.'vendor/random_compat/lib/random.php');
 if (!isset($_SESSION['key']))
     $_SESSION['key'] = bin2hex(random_bytes(32));
 
@@ -150,7 +150,7 @@ $app = new App();
 $app->singleton('request', 'Request');
 
 # Including config file
-$config = CoreLoader::loadConfigFile(_DIR_.'/../../config/app.php');
+$config = CoreLoader::loadConfigFile(_DIR_.'config/app.php');
 
 # Initializing locale
 $locale = $config['locale'];
@@ -161,10 +161,10 @@ setlocale(LC_ALL, $config['locale']);
 date_default_timezone_set($config['timezone']);
 
 # Initializing App cache
-$cache = new FileStore(new Filesystem(), _DIR_.'/../../storage/framework/classes', 0777);
+$cache = new FileStore(new Filesystem(), _DIR_.'storage/framework/classes', 0777);
 
 # Initializing Storage
-Storage::$path = _DIR_.'/../../storage/app/public/';
+Storage::$path = _DIR_.'storage/app/public/';
 
 # Caching all classes
 loadClassesInCache($_class_list);
@@ -173,7 +173,7 @@ loadClassesInCache($_class_list);
 $_service_providers = array();
 foreach($config['providers'] as $provider)
 {
-    CoreLoader::loadClass(_DIR_.'/../../app/providers/'.$provider.'.php');
+    CoreLoader::loadClass(_DIR_.'app/providers/'.$provider.'.php');
 }
 foreach ($_service_providers as $provider)
 {
@@ -205,25 +205,25 @@ function custom_autoloader($class, $require=true)
     else
         return false;
 
-    if (file_exists(_DIR_.'/../../storage/framework/classes/'.$class.'.php'))
+    if (file_exists(_DIR_.'storage/framework/classes/'.$class.'.php'))
     {
         $date = filemtime($newclass);
-        $cachedate = filemtime(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
+        $cachedate = filemtime(_DIR_.'storage/framework/classes/'.$class.'.php');
         //echo($class.":::".$date ."::".$cachedate."<br>");
 
         if ($date < $cachedate) // && env('APP_DEBUG')==0)
         {
-            if (file_exists(_DIR_.'/../../storage/framework/classes/baradurClosures_'.$class.'.php') && $require)
-                require_once(_DIR_.'/../../storage/framework/classes/baradurClosures_'.$class.'.php');
+            if (file_exists(_DIR_.'storage/framework/classes/baradurClosures_'.$class.'.php') && $require)
+                require_once(_DIR_.'storage/framework/classes/baradurClosures_'.$class.'.php');
 
             if ($require)
-                require_once(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
+                require_once(_DIR_.'storage/framework/classes/'.$class.'.php');
 
             return;
         } 
         else
         {
-            @unlink(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
+            @unlink(_DIR_.'storage/framework/classes/'.$class.'.php');
         }
     }
     
@@ -245,11 +245,11 @@ function custom_autoloader($class, $require=true)
 
             //echo "Saving class $class<br>";
 
-            Cache::store('file')->plainPut(_DIR_.'/../../storage/framework/classes/'.$class.'.php', $temp);
+            Cache::store('file')->plainPut(_DIR_.'storage/framework/classes/'.$class.'.php', $temp);
             $temp = null;
             
             if ($require)
-                require_once(_DIR_.'/../../storage/framework/classes/'.$class.'.php');
+                require_once(_DIR_.'storage/framework/classes/'.$class.'.php');
         }
         elseif ($require)
         {
@@ -271,7 +271,7 @@ if (!$artisan) {
 function loadClassesInCache($list)
 {
     //dd($list);
-    if (file_exists(_DIR_.'/../../storage/framework/classes/loaded'))
+    if (file_exists(_DIR_.'storage/framework/classes/loaded'))
     {
         return;
     }
@@ -285,6 +285,6 @@ function loadClassesInCache($list)
         }
     }
 
-    Cache::store('file')->plainPut(_DIR_.'/../../storage/framework/classes/loaded', '');
+    Cache::store('file')->plainPut(_DIR_.'storage/framework/classes/loaded', '');
 
 }

@@ -5,7 +5,7 @@ Class PDF
 
     private static function generate($filename, $view, $landscape=false, $zoom="1")
     {
-        $folder = _DIR_.'/../../storage/app/public/';
+        $folder = _DIR_.'storage/app/public/';
 
         Storage::put($filename.'.html', $view);
 

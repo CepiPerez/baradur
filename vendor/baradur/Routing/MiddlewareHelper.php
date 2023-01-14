@@ -11,14 +11,14 @@ class MiddlewareHelper
         if (self::$booted)
             return;
 
-        if (file_exists(_DIR_.'/../../app/http/Kernel.php'))
+        if (file_exists(_DIR_.'app/http/Kernel.php'))
         {
-            $temp = file_get_contents(_DIR_.'/../../app/http/Kernel.php');
+            $temp = file_get_contents(_DIR_.'app/http/Kernel.php');
 
             $temp = replaceNewPHPFunctions($temp, 'App_Http_Kernel', _DIR_);
 
-            Cache::store('file')->plainPut(_DIR_.'/../../storage/framework/classes/App_Http_Kernel.php', $temp);
-            require_once(_DIR_.'/../../storage/framework/classes/App_Http_Kernel.php');
+            Cache::store('file')->plainPut(_DIR_.'storage/framework/classes/App_Http_Kernel.php', $temp);
+            require_once(_DIR_.'storage/framework/classes/App_Http_Kernel.php');
             
             self::$kernel = new Kernel;
             self::$booted = true;

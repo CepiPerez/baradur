@@ -76,12 +76,10 @@
 
           <div class="relative flex items-center justify-between h-14 ">
 
-              <a href="{{ env('HOME') }}">
-                <div class="flex justify-start">
-                  <img class="block h-8 w-auto ml-1 pt-1.5" src="{{asset('assets/logo.png')}}" alt="">
-                  <p class="text-2xl text-white py-1 px-3">{{$app_name}}</p>
-                </div>
-              </a>
+              <div class="flex justify-start">
+                <img class="block h-8 w-auto ml-1 pt-1.5" src="{{asset('assets/logo.png')}}" alt="">
+                <p class="text-2xl text-white py-1 px-3">{{$app_name}}</p>
+              </div>
               
               <div class="flex justify-end mx-0 px-0">
                 
@@ -148,6 +146,24 @@
           
       </nav>
 
+      <!-- Breadcrumb -->
+      @if ($breadcrumb)
+      <ol class="flex h-9 items-center bg-slate-200 px-3 md:px-5 dark:bg-zinc-700 text-sm">
+        @foreach ($breadcrumb as $key => $value)
+          @if (!$loop->first)
+          <svg class="w-6 h-4 text-slate-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+          @endif
+          @if ($value == '#')
+          <li class="breadcrumb-item dark:text-gray-200">{{$key}}</li>
+          @else
+          <li class="breadcrumb-item active">
+            <a class="text-sky-700 dark:text-cyan-500 hover:no-underline" href="{{HOME.$value}}">{{$key}}</a>
+          </li>
+          @endif
+        @endforeach
+      </ol>
+      @endif
+
       <!-- Main content -->
       <div class="mx-2 pr-0.5 md:mx-5">
 
@@ -158,7 +174,7 @@
       
     </main>
     
-    {{-- <footer class="bg-gray-600 dark:bg-zinc-800 w-full absolute bottom-0 pt-2 pb-3 px-5">
+    <footer class="bg-gray-600 dark:bg-zinc-800 w-full absolute bottom-0 pt-2 pb-3 px-5">
       <div class="flex justify-center md:justify-between text-gray-400 dark:text-zinc-500">
         <div class="hidden md:flex my-1">
           <span>© 2022 Matias Perez - cepiperez@gmail.com</span>
@@ -183,7 +199,7 @@
 
         </div>
       </div>
-    </footer> --}}
+    </footer>
 
     @stack('js')
 

@@ -7,8 +7,8 @@ function session($val) { return App::getSession($val); }
 
 function __($translation, $placeholder=null) { return Helpers::trans($translation, $placeholder); }
 function public_path($path=null) { return env('APP_URL').'/'.env('PUBLIC_FOLDER').'/'.$path; }
-function storage_path($path=null) { return _DIR_.'/storage/'.$path; }
-function base_path($path=null) { return _DIR_.'/../../'.$path; }
+function storage_path($path=null) { return _DIR_.'storage/'.$path; }
+function base_path($path=null) { return _DIR_.$path; }
 function csrf_token() { return App::generateToken(); }
 function config($val) { return Helpers::config($val); }
 function to_route($route) { return redirect()->route($route); }
@@ -140,7 +140,7 @@ function abort($error)
 function error($error_code, $error_message)
 {
 
-	if (file_exists(_DIR_.'/../../resources/views/errors/'.$error_code.'.blade.php'))
+	if (file_exists(_DIR_.'resources/views/errors/'.$error_code.'.blade.php'))
 	{
 		view('errors.'.$error_code, compact('error_code', 'error_message'));
 		app()->showFinalResult();
@@ -383,4 +383,26 @@ function tap($value, $callback=null)
 	call_user_func_array(array($class, $method), array_merge(array($value), $params));
 	
 	return $value;
+}
+
+function value($default, $parent=null)
+{
+	if (is_string($default) && strpos($default, '@')!==false)
+	{
+		list($class, $method, $params) = getCallbackFromString($default);
+		return call_user_func_array(array($class, $method), $parent? array_merge(array($parent), $params) : $params);
+	}
+
+	return $default;
+}
+
+function app_path($value=null)
+{
+	return _DIR_.'app/'.$value;
+}
+
+function is_assoc($arr)
+{
+    if (array() === $arr) return false;
+    return array_keys($arr) !== range(0, count($arr) - 1);
 }

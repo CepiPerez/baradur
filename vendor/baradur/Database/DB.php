@@ -31,6 +31,23 @@ class DB extends Model
         //return $res->getQuery()->query($query);
     }
 
+    public static function select($query, $bindings=array())
+    {
+        if ($query instanceof Raw) {
+            $query = $query->query;
+        }
+
+        $res = parent::instance('DB');
+        $res->_bindings = $bindings;
+        $res->toBase()->connector()->execSQL($query, $res, true);
+        return $res->_collection;
+    }
+
+    public static function raw($query, $bindings=array())
+    {
+        return new Raw($query, $bindings);
+    }
+
     /**
      * Executes the SQL $query
      * 

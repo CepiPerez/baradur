@@ -15,12 +15,14 @@ class CastHelper
             return Carbon::parse($val)->settings(array('toStringFormat'=>$format));
         }
 
-        if ($type == 'boolean') {
+        if ($type == 'boolean')
             return Str::of($val)->toBoolean();
-        }
         
         if ($type == 'array')
             return unserialize($val);
+
+        if ($type == 'integer')
+            return intval($val);
 
         return $val;
 
@@ -60,7 +62,7 @@ class CastHelper
             elseif (in_array($key, array('deleted_at', $model->getCreatedAt(), $model->getUpdatedAt())) && $val)
             {
                 if ($for_array)
-                    $item[$key] = Carbon::parse($val)->__toString();
+                    $item[$key] = $model->_getSerializedDate($val);
                 else
                     $item[$key] = Carbon::parse($val);
             }

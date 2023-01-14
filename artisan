@@ -29,7 +29,7 @@ function migrate()
     $count = 0;
 
     $files = array();
-    $it = new RecursiveDirectoryIterator(_DIR_.'/../../database/migrations');
+    $it = new RecursiveDirectoryIterator(_DIR_.'database/migrations');
     foreach(new RecursiveIteratorIterator($it) as $file)
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
@@ -55,7 +55,7 @@ function migrate()
 
             if (!class_exists($converted))
             {
-                CoreLoader::loadClass(_DIR_.'/../../database/migrations/'.$file, false, $converted);
+                CoreLoader::loadClass(_DIR_.'database/migrations/'.$file, false, $converted);
             }
 
             $class = new $converted;
@@ -78,7 +78,7 @@ function migrate()
 function rollback($rollback, $output = true)
 {
 
-    $it = new RecursiveDirectoryIterator(_DIR_.'/../../database/migrations');
+    $it = new RecursiveDirectoryIterator(_DIR_.'database/migrations');
     foreach(new RecursiveIteratorIterator($it) as $file)
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
@@ -124,7 +124,7 @@ function makeController($controller, $resource=false, $api=false, $singleton=fal
 {
     /* $config = new Config;
     $config->boot(); */
-    CoreLoader::loadClass(_DIR_.'/../../app/providers/RouteServiceProvider.php', true);
+    CoreLoader::loadClass(_DIR_.'app/providers/RouteServiceProvider.php', true);
 
     $class = '';
 
@@ -185,7 +185,7 @@ function makePolicy($policy)
 
 function makeMigration($command)
 {
-    CoreLoader::loadClass(_DIR_.'/../../app/providers/RouteServiceProvider.php', true);
+    CoreLoader::loadClass(_DIR_.'app/providers/RouteServiceProvider.php', true);
 
     $command = Str::snake($command);
 
@@ -430,7 +430,7 @@ elseif ($action == 'make:model' && count($argv)>0)
 
     /* $config = new Config;
     $config->boot(); */
-    CoreLoader::loadClass(_DIR_.'/../../app/providers/RouteServiceProvider.php', true);
+    CoreLoader::loadClass(_DIR_.'app/providers/RouteServiceProvider.php', true);
 
     if (!file_exists('app/http/controllers/'.$model.'Controller.php') && $controller)
     {
@@ -716,7 +716,7 @@ elseif ($action == 'route:list')
     }
 
     global $locale, $_service_providers;
-    CoreLoader::loadClass(_DIR_.'/../../app/providers/RouteServiceProvider.php', true);
+    CoreLoader::loadClass(_DIR_.'app/providers/RouteServiceProvider.php', true);
     $class = new RouteServiceProvider;
     $class->register();
     $class->boot();
@@ -808,47 +808,45 @@ elseif ($action == 'route:list')
 
 elseif ($action == 'route:clear')
 {
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/routes')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/routes')->flush();
     printf("\033[32mRoute cache cleared successfully.\033[m\n");
 }
 
 elseif ($action == 'route:cache')
 {
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/routes')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/routes')->flush();
     printf("\033[32mRoute cache cleared successfully.\033[m\n");
 
-    require_once(_DIR_.'/../../vendor/baradur/Routing/Route_functions.php');
+    require_once(_DIR_.'vendor/baradur/Routing/Route_functions.php');
 
-    CoreLoader::loadClass(_DIR_.'/../../app/providers/RouteServiceProvider.php', true);
+    CoreLoader::loadClass(_DIR_.'app/providers/RouteServiceProvider.php', true);
     
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/routes')
-        ->plainPut(_DIR_.'/../../storage/framework/routes/web.php', serialize((array)Route::routeList()));
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/routes')
+        ->plainPut(_DIR_.'storage/framework/routes/web.php', serialize((array)Route::routeList()));
     
     printf("\033[32mRoutes cached successfully.\033[m\n");
 }
 
 elseif ($action == 'view:clear')
 {
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/views')->flush(); 
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/views')->flush(); 
     printf("\033[32mCompiled views cleared successfully.\033[m\n");
 }
 
 elseif ($action == 'view:cache')
 {
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/views')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/views')->flush();
     printf("\033[32mCompiled views cleared successfully.\033[m\n");
 
     global $app;
     $app = new App();
 
-    $it = new RecursiveDirectoryIterator(_DIR_.'/../../resources/views');
+    $it = new RecursiveDirectoryIterator(_DIR_.'resources/views');
     foreach(new RecursiveIteratorIterator($it) as $file)
     {
-
-
         if (substr(basename($file), -10 )=='.blade.php')
         {
-            $file = str_replace(_DIR_.'/../../resources/views/', '', $file);
+            $file = str_replace(_DIR_.'resources/views/', '', $file);
             $file = str_replace('.blade.php', '', $file);
 		    $res = View::loadTemplate($file, array());
         }
@@ -859,41 +857,50 @@ elseif ($action == 'view:cache')
 
 elseif ($action == 'cache:clear')
 {
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/cache')->flush();
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/classes')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/cache')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/classes')->flush();
     printf("\033[32mApplication cache cleared successfully.\033[m\n");
 }
 
 elseif ($action == 'config:clear')
 {
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/config')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/config')->flush();
     printf("\033[32mConfiguration cache cleared successfully.\033[m\n");
 }
 
 elseif ($action == 'config:cache')
 {
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/config')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/config')->flush();
     printf("\033[32mConfiguration cache cleared successfully.\033[m\n");
 
-    require_once(_DIR_.'/../../vendor/baradur/DotEnv.php');
-    DotEnv::load(_DIR_.'/../../', '.env');
+    $it = new RecursiveDirectoryIterator(_DIR_.'config');
+    foreach(new RecursiveIteratorIterator($it) as $file)
+    {
+        if (substr(basename($file), -4)=='.php')
+        {
+            CoreLoader::loadConfigFile(_DIR_.'config/'.basename($file));
+        }
+    }
+
+    require_once(_DIR_.'vendor/baradur/DotEnv.php');
+    DotEnv::load(_DIR_.'', '.env');
     printf("\033[32mConfiguration cached successfully.\033[m\n");
 
 }
 
 elseif ($action == 'optimize:clear')
 {
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/views')->flush(); 
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/views')->flush(); 
     printf("\033[32mCompiled views cleared successfully.\033[m\n");
 
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/cache')->flush();
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/classes')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/cache')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/classes')->flush();
     printf("\033[32mApplication cache cleared successfully.\033[m\n");
 
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/routes')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/routes')->flush();
     printf("\033[32mRoute cache cleared successfully.\033[m\n");
 
-    Cache::store('file')->setDirectory(_DIR_.'/../../storage/framework/config')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/config')->flush();
     printf("\033[32mConfiguration cache cleared successfully.\033[m\n");
 
     printf("\033[32mCaches cleared successfully.\033[m\n");
@@ -901,7 +908,7 @@ elseif ($action == 'optimize:clear')
 
 elseif ($action == 'storage:link')
 {
-    $links = include(_DIR_.'/../../config/filesystem.php');
+    $links = include(_DIR_.'config/filesystems.php');
     foreach ($links['links'] as $key => $val)
     {
         //list ($back, $key, $val) = getRelativePath($key, $val);
@@ -938,7 +945,7 @@ elseif ($action == 'queue:work')
         die();
     }
 
-    require_once(_DIR_.'/../../Queue.php');    
+    require_once(_DIR_.'Queue.php');    
 }
 
 elseif ($action == 'queue:stop')

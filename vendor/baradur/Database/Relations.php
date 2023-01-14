@@ -122,6 +122,8 @@ Class Relations
             $res->_relationVars['where_in'] = $wherein;
         }
 
+        //dd($res);
+
         self::addExtraQuery($res, $parent);
 
         self::addNextRelations($res, $parent);
@@ -345,9 +347,10 @@ Class Relations
             'current_type' => $parent->_parent
         );
 
+        
         $res = $res->where($secondary.'.'.$arr['type'], $class)
             ->join($secondary, $arr['related'], '=', $arr['id']);
-
+    
         if ($parent->_collection->count()>0)
         {
             $wherein = (array)$parent->_collection->pluck($primary);
@@ -373,8 +376,7 @@ Class Relations
         $extra_columns = $res->_relationVars['extra_columns'];
         $pivot_name = isset($res->_relationVars['pivot_name'])?
             $res->_relationVars['pivot_name'] : 'pivot';
-        //dump($res);
-
+        
         if (isset($parent->_eagerLoad[$relation]['_constraints'])
             && !isset($res->_eagerLoad))
         {
@@ -391,7 +393,7 @@ Class Relations
 
         $columns = $parent->_relationColumns;
         $relation = $parent->_relationName;
-        //dump($parent); 
+        //dump($parent); dump($res); 
 
         if (in_array($relationship, array('hasOneThrough', 'hasManyThrough')))
         {
@@ -427,7 +429,6 @@ Class Relations
             $key = $foreign;
         }
 
-
         if ($extra_columns && in_array($relationship, array('belongsToMany', 'morphToMany', 'morphedByMany')))
         {
             foreach ($extra_columns as $ec)
@@ -451,7 +452,6 @@ Class Relations
 
         foreach ($parent->_collection as $current)
         {
-            //dump($current);
 
             if (in_array($relationship, array('morphToMany', 'morphedByMany', 'belongsToMany')))
             {
@@ -461,24 +461,45 @@ Class Relations
 
                 foreach ($results as $r)
                 {
-                    $pivot = new DB;
-                    foreach ($r->_original as $k => $v)
+                    if ($parent->_toBase)
                     {
-                        if (strpos($k, 'pivot_')!==false)
+                        $pivot = new stdClass;
+                        foreach ($r as $k => $v)
                         {
-                            $child = str_replace('pivot_', '', $k);
-                            $pivot->_setOriginalKey($child, $v);
-                            $pivot->$child = $v;
-
-                            if (!in_array($k, $to_remove))
-                                $to_remove[] = $k;
+                            if (strpos($k, 'pivot_')!==false)
+                            {
+                                $child = str_replace('pivot_', '', $k);
+                                $pivot->$child = $v;
+    
+                                if (!in_array($k, $to_remove))
+                                    $to_remove[] = $k;
+                            }
                         }
-                        unset($pivot->append_attributes);
-                        unset($pivot->append_relations);
-                        unset($pivot->_global_scopes);
-                        unset($pivot->_query);
+                        $r->$pivot_name = $pivot;
+
                     }
-                    $r->setRelationAttribute($pivot_name, $pivot);
+                    else
+                    {
+                        $pivot = new DB;
+                        foreach ($r->getOriginal() as $k => $v)
+                        {
+                            if (strpos($k, 'pivot_')!==false)
+                            {
+                                $child = str_replace('pivot_', '', $k);
+                                $pivot->_setOriginalKey($child, $v);
+                                $pivot->$child = $v;
+    
+                                if (!in_array($k, $to_remove))
+                                    $to_remove[] = $k;
+                            }
+                            $pivot->setAppends(null);
+                            $pivot->setRelations(null);
+                            unset($pivot->_global_scopes);
+                            $pivot->setQuery(null);
+                        }
+                        $r->setRelationAttribute($pivot_name, $pivot);
+                    }
+
                 }
 
             }
@@ -502,10 +523,14 @@ Class Relations
                 //$results = $results;
             }
 
-
-            $current->setRelationAttribute($relation, $results);
+            if ($current instanceof Model)
+                $current->setRelationAttribute($relation, $results);
+            else
+                $current->{$relation} = $results;
             
         }
+
+        //dd($parent);
 
         if (count($to_remove)>0)
         {
@@ -517,8 +542,15 @@ Class Relations
                     {
                         foreach ($to_remove as $remove)
                         {
-                            unset($it->attributes[$remove]);
-                            unset($it->_original[$remove]);
+                            if ($it instanceof Model)
+                            {
+                                $it->unsetAttribute($remove);
+                                $it->unsetOriginal($remove);
+                            }
+                            else
+                            {
+                                unset($it->$remove);
+                            }
                         }
                     }
                 }
@@ -526,8 +558,15 @@ Class Relations
                 {
                     foreach ($to_remove as $remove)
                     {
-                        unset($item->attributes[$remove]);
-                        unset($item->_original[$remove]);
+                        if ($item instanceof Model)
+                        {
+                            $item->unsetAttribute($remove);
+                            $item->unsetOriginal($remove);
+                        }
+                        else
+                        {
+                            unset($item->$remove);
+                        }
                     }
                 }
             }

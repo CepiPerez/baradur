@@ -132,9 +132,24 @@ class JsonResource
         }
     }
 
+    public function whenHas($attribute, $value = null, $default = null)
+    {
+        if (func_num_args() < 3) {
+            $default = '_value_not_loaded';
+        }
+
+        if (! array_key_exists($attribute, $this->resource->getAttributes())) {
+            return value($default, $this);
+        }
+
+        return func_num_args() === 1
+                ? $this->resource->{$attribute}
+                : value($value, $this->resource->{$attribute});
+    }
+
     public function whenLoaded($relation)
     {
-        if (isset($this->resource->append_relations[$relation]))
+        if ($this->resource->getRelation($relation))
             return $this->resource->$relation;
 
         return '_value_not_loaded';
@@ -144,15 +159,21 @@ class JsonResource
     {
         $relation = str_replace('_count', '', $relation) . '_count';
         
-        if (isset($this->resource->attributes[$relation]))
+        if ($this->resource->getAttribute($relation))
             return $this->resource->$relation;
 
         return '_value_not_loaded';
     }
 
-    public function when($condition, $value)
+    public function when($condition, $value, $default=null)
     {
-        if (is_bool($condition) && !$condition)
+        if ($condition) {
+            return value($value, $this);
+        }
+
+        return func_num_args()===3 ? value($default, $this) : '_value_not_loaded';
+
+        /* if (is_bool($condition) && !$condition)
             return '_value_not_loaded';
 
         if (!$condition)
@@ -171,7 +192,16 @@ class JsonResource
         list($class, $method, $params) = getCallbackFromString($value);
         $res = call_user_func_array(array($class, $method), array_merge(array($this), $params));
 
-        return $res;
+        return $res; */
+    }
+
+    public function unless($condition, $value, $default=null)
+    {
+        if (!$condition) {
+            return value($value, $this);
+        }
+
+        return func_num_args()===3 ? value($default, $this) : '_value_not_loaded';
     }
 
     public function whenNotNull($value)
@@ -183,7 +213,10 @@ class JsonResource
 
     public function mergeWhen($condition, $value)
     {
-        if (is_bool($condition) && !$condition)
+        return $condition ? array('_merged' => value($value, $this)) : '_value_not_loaded';
+
+
+        /* if (is_bool($condition) && !$condition)
             return '_value_not_loaded';
 
         if (!$condition)
@@ -194,14 +227,13 @@ class JsonResource
             return array('_merged' => $value);
         }
 
-
         list($class, $method, $params) = getCallbackFromString($value);
         $res = call_user_func_array(array($class, $method), array_merge(array($this), $params));
 
         foreach ($res as $key => $val)
         {
             $this->$key = $val;
-        }
+        } */
     }
 
 }
