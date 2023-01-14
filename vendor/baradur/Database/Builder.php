@@ -2083,7 +2083,7 @@ Class Builder
 
                 //$values[$key] = "`$key` = ". ($val!==null ? "'".$val."'" : 'NULL');
                 $values[$key] = "`$key` = ". ($val!==null ? '?' : 'NULL');
-                $bindings[] = $val;
+                if ($val!==null) $bindings[] = $val;
             }
         }
     
@@ -2099,7 +2099,7 @@ Class Builder
 
         $sql = 'UPDATE `' . $this->_table . '` SET ' . implode(', ', $values) . ' ' . $this->_where;
 
-        //dump("UPDATING:: $sql<br>".implode(', ', $this->_bindings['where'])."<br>".implode(', ', $bindings));
+        //dump(array_merge($bindings, $this->_bindings['where']));
 
         $this->checkObserver('updating', $attributes);
 
@@ -2237,7 +2237,9 @@ Class Builder
 
         $sql = 'DELETE FROM `' . $this->_table . '` ' . $this->_where;
 
-        $query = $this->connector()->query($sql); //, $this->_bindings);
+        //dump($sql); dd($this->_bindings);
+
+        $query = $this->connector()->query($sql, $this->_bindings);
 
         $this->clear();
         

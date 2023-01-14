@@ -333,7 +333,7 @@ Class Request
             exit();
         }
 
-        dump($ok); dump($pass);
+        //dump($ok); dump($pass);
 
         return $pass;
     }
