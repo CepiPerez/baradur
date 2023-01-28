@@ -9,7 +9,6 @@ class Authorize
         return $request;
     }
 
-
     public static function verify($function, $param=null)
     {
         preg_match_all('/\{[^}]*\}/', request()->route->url, $matches);

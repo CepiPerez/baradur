@@ -62,6 +62,11 @@ class BladeOne
 
     protected $firstCaseInSwitch = true;
 
+    protected $fragments = array();
+    protected $fragmentStack = array();
+    protected $lastFragment;
+
+    public $html;
 
     public function __construct($templatePath, $compiledPath)
     {
@@ -250,7 +255,7 @@ class BladeOne
     protected function compileClass($expression)
     {
         $expression = is_null($expression) ? '(array())' : $expression;
-        return "class=\"<?php echo Helpers::toCssClasses{$expression} ?>\"";
+        return "class=\"<?php echo Arr::toCssClasses{$expression} ?>\"";
     }
 
     private function parseAttributeBag($attributeString)
@@ -329,10 +334,38 @@ class BladeOne
         {
             $content = str_replace($slot[1], '', $content);
         }
-        //dd($content);
         
-        return $this->createComponent($component, $attributes, $content);
+        return $component=='dynamic-component' ? 
+            $this->createDynamicComponent($component, $attributes, $content) :
+            $this->createComponent($component, $attributes, $content);
 
+    }
+
+    protected function createDynamicComponent($component, $attributes, $content)
+    {
+        $component = $attributes['component'];
+        $component = ltrim(str_replace('{{', '', str_replace('}}', '', $component)), '$');
+        unset($attributes['component']);
+
+        $attr = '';
+        foreach ($attributes as $key => $val) {
+            $attr .= " $key='$val'";
+        }
+
+        $result = '{{ Blade::render("<x-$'.$component.$attr.'>'.$content.'</x-$'.$component.'>", array()) }}';
+        
+        return $result; 
+    }
+
+    protected function createDynamicSelfClosingComponent($component, $attributes)
+    {
+        $attr = '';
+        foreach ($attributes as $key => $val) {
+            $attr .= " $key='$val'";
+        }
+
+        $result = '{{ Blade::render("<x-$'.$component.' '.$attr.'/>", array()) }}';
+        return $result; 
     }
 
     protected function createComponent($component, $attributes, $content=null)
@@ -411,7 +444,7 @@ class BladeOne
         if (is_object($result)) 
         {
             View::$autoremove = true;
-            $result = $result->result->__toString();
+            $result = (string)$result;
         }
         $app->action = $back_action;
 
@@ -472,15 +505,20 @@ class BladeOne
 
         $attributes = $this->getArrayAttributesFromAttributeString(trim($match[2]));
         
+        $dynamic = false;
+
         if ($component=='dynamic-component' && isset($attributes['component']))
         {
-            $val = $attributes['component'];
-            $val = ltrim(str_replace('{{', '', str_replace('}}', '', $val)), '$');
-            $component = $this->variables[$val];
+            $dynamic = true;
+            $component = $attributes['component'];
+            $component = ltrim(str_replace('{{', '', str_replace('}}', '', $component)), '$');
+            //$component = $this->variables[$val];
             unset($attributes['component']);
         }
                 
-        return $this->createComponent($component, $attributes);
+        return $dynamic ? 
+            $this->createDynamicSelfClosingComponent($component, $attributes) :
+            $this->createComponent($component, $attributes);
 
     }
 
@@ -645,10 +683,6 @@ class BladeOne
                 return $this->variables['__instance']->$call();
             }
         }
-
-        /* $wrapped = str_replace('asset(', 'View::getAsset(', $wrapped);
-        $wrapped = str_replace('route(', 'Route::getRoute(', $wrapped);
-        $wrapped = str_replace('session(', 'App::getSession(', $wrapped); */
 
         
         return $this->phpTag.'echo '.$wrapped.'; ?>'.$whitespace;
@@ -1086,7 +1120,7 @@ class BladeOne
 
     protected function compileOnce()
     {
-        return $this->phpTag."\$this->startPushOnce(); ?>";
+        return $this->phpTag.'$this->startPushOnce(); ?>';
     }
 
     protected function compileEndonce()
@@ -1097,6 +1131,14 @@ class BladeOne
     protected function compileJson($expression)
     {
         return $this->phpTag."echo json_encode{$expression}; ?>";
+    }
+
+    protected function compileVite($expression)
+    {
+        $expression = $this->stripParentheses($expression);
+        $expression = str_replace("'", '', str_replace('"', '', $expression));
+        return $this->phpTag.'echo vite_assets("' .  $expression . '"); ?>';
+        /* return $this->phpTag.'echo \'<script type="module" src="'. asset('assets/app.js') . '"></script>\'; ?>'; */
     }
 
     protected function compileSwitch($expression)
@@ -1155,6 +1197,43 @@ class BladeOne
     protected function compileEndGuest()
     {
         return '<?php endif; ?>';
+    }
+
+    protected function compileFragment($expression)
+    {
+        $this->lastFragment = trim($expression, "()'\" ");
+
+        return "<?php \$this->startFragment{$expression}; ?>";
+    }
+    
+    protected function compileEndfragment()
+    {
+        return '<?php echo $this->stopFragment(); ?>';
+    }
+
+    public function startFragment($fragment)
+    {
+        if (ob_start()) {
+            $this->fragmentStack[] = $fragment;
+        }
+    }
+
+    public function stopFragment()
+    {
+        if (empty($this->fragmentStack)) {
+            throw new Exception('Cannot end a fragment without first starting one.');
+        }
+
+        $last = array_pop($this->fragmentStack);
+
+        $this->fragments[$last] = ob_get_clean();
+
+        return $this->fragments[$last];
+    }
+
+    public function getFragment($name, $default = null)
+    {
+        return isset($this->fragments[$name]) ? $this->fragments[$name] : $default;
     }
 
  

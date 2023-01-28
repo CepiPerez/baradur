@@ -8,10 +8,10 @@ Class FormRequest extends Request
         return request()->all();
     }
 
-    public function validateRules($rules)
+    public function validateRules()
     {
         $this->post = $this->prepareForValidation();
-        request()->validate($rules);
+        request()->validate($this->rules());
     }
 
     public function validated()
@@ -25,6 +25,11 @@ Class FormRequest extends Request
         {
             request()->$key = $val;
         }
+    }
+
+    public function rules()
+    {
+        return array();
     }
     
 }

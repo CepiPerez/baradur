@@ -7,10 +7,12 @@
     <h1 class="text-2xl mt-2 dark:text-zinc-300">{{$title}}</h1>
     <hr class="mt-2 mb-3">
 
-    <h3 class="text-xl dark:text-zinc-400">{{ __('login.thanks_confirmation') }}</h3><hr>
+    <h3 class="text-xl dark:text-zinc-400 my-4">{{ __('login.thanks_confirmation') }}</h3>
     <h6 class="dark:text-zinc-400">{{ __('login.can_login') }}</h6>
     <br>
-    <button class="btn"><a href="{{ HOME }}">{{ __('login.login') }}</a></button>
+    <button class="bg-cyan-600 hover:bg-cyan-700 text-white py-1.5 px-3 rounded">
+      <a href="{{ env('APP_URL') }}">{{ __('login.login') }}</a>
+    </button>
   
   </div>  
 

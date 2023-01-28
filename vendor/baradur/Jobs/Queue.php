@@ -1,8 +1,5 @@
 <?php
 
-$database = new Connector(env('DB_LOCAL_HOST'), env('DB_USER'), env('DB_PASSWORD'), env('DB_NAME'), env('DB_PORT'));
-
-
 $working = true;
 
 printf("\033[32mProcessing jobs from the [default] queue. \033[m\n");

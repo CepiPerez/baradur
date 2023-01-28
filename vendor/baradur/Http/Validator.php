@@ -19,7 +19,6 @@ class Validator
         $this->messages = $messages;
     }
 
-
     public static function make($attributes, $rules, $messages = array())
     {        
         $validator = new Validator($attributes, $rules, $messages); //self::validate($attributes, $rules);
@@ -61,9 +60,7 @@ class Validator
         $this->passed = true;
         $this->errors = array();
 
-        $req_values = $this->attributes; //$request;
-
-        
+        $req_values = $this->attributes;
 
         foreach ($this->rules as $key => $validations)
         {
@@ -132,7 +129,6 @@ class Validator
                             {
                                 $ok = false;
                                 $this->setMessage('min.string', array('attribute' => $key, 'min' => $values));
-                                //$this->errors[$key] = __("validation.min.string", array('attribute' => $key, 'min' => $values));
                             }
                         }
                         elseif (is_numeric($req_values[$key]))
@@ -141,7 +137,6 @@ class Validator
                             {
                                 $ok = false;
                                 $this->setMessage('min.numeric', array('attribute' => $key, 'min' => $values));
-                                //$this->errors[$key] = __("validation.min.numeric", array('attribute' => $key, 'min' => $values));
                             }
                         }
                         elseif (is_array($req_values[$key]))
@@ -150,7 +145,6 @@ class Validator
                             {
                                 $ok = false;
                                 $this->setMessage('min.array', array('attribute' => $key, 'min' => $values));
-                                //$this->errors[$key] = __("validation.min.array", array('attribute' => $key, 'min' => $values));
                             }
                         }
                         elseif (is_file($req_values[$key]))
@@ -159,7 +153,6 @@ class Validator
                             {
                                 $ok = false;
                                 $this->setMessage('min.file', array('attribute' => $key, 'min' => $values));
-                                //$this->errors[$key] = __("validation.min.file", array('attribute' => $key, 'min' => $values));
                             }
                         }
                     }
@@ -175,7 +168,6 @@ class Validator
                             {
                                 $ok = false;
                                 $this->setMessage('max.string', array('attribute' => $key, 'max' => $values));
-                                //$this->errors[$key] = __("validation.max.string", array('attribute' => $key, 'max' => $values));
                             }
                         }
                         elseif (is_numeric($req_values[$key]))
@@ -184,7 +176,6 @@ class Validator
                             {
                                 $ok = false;
                                 $this->setMessage('max.numeric', array('attribute' => $key, 'max' => $values));
-                                //$this->errors[$key] = __("validation.max.numeric", array('attribute' => $key, 'max' => $values));
                             }
                         }
                         elseif (is_array($req_values[$key]))
@@ -193,7 +184,6 @@ class Validator
                             {
                                 $ok = false;
                                 $this->setMessage('max.array', array('attribute' => $key, 'max' => $values));
-                                //$this->errors[$key] = __("validation.max.array", array('attribute' => $key, 'max' => $values));
                             }
                         }
                         elseif (is_file($req_values[$key]))
@@ -202,7 +192,6 @@ class Validator
                             {
                                 $ok = false;
                                 $this->setMessage('max.file', array('attribute' => $key, 'max' => $values));
-                                //$this->errors[$key] = __("validation.max.file", array('attribute' => $key, 'max' => $values));
                             }
                         }
                     }
@@ -221,7 +210,6 @@ class Validator
                         {
                             $ok = false;
                             $this->setMessage('unique', array('attribute' => $key));
-                            //$this->errors[$key] = __("validation.unique", array('attribute' => $key));
                         }
                     }
                 }
@@ -232,7 +220,6 @@ class Validator
                     {
                         $ok = false;
                         $this->setMessage('boolean', array('attribute' => $key));
-                        //$this->errors[$key] = __("validation.boolean", array('attribute' => $key));
                     }
                 }
 
@@ -242,7 +229,6 @@ class Validator
                     {
                         $ok = false;
                         $this->setMessage('accepted', array('attribute' => $key));
-                        //$this->errors[$key] = __("validation.accepted", array('attribute' => $key));
                     }
                 }
 
@@ -252,7 +238,6 @@ class Validator
                     {
                         $ok = false;
                         $this->setMessage('declined', array('attribute' => $key));
-                        //$this->errors[$key] = __("validation.declined", array('attribute' => $key));
                     }
                 }
 
@@ -263,10 +248,8 @@ class Validator
                     {
                         $ok = false;
                         $this->setMessage('email', array('attribute' => $key));
-                        //$this->errors[$key] = __("validation.email", array('attribute' => $key));
                     }
                 }
-                
 
                 if (!$ok)
                 {
@@ -277,18 +260,13 @@ class Validator
                 }
             }
             
-            if ($this->stopOnFirstFailure && !$this->passed) break;
+            if ($this->stopOnFirstFailure && !$this->passed)
+                break;
 
             if ($ok)
                 $this->validated[$key] = $req_values[$key];
 
         }
-
-        /* if (!self::$passed)
-        {
-            back()->withErrors($instance->errors)->showFinalResult();
-            exit();
-        } */
 
         return $this;
     }

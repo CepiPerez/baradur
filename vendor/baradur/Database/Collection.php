@@ -2,14 +2,13 @@
 
 Class Collection extends arrayObject
 {
+    protected static $_macros = array();
 
-    protected $_parent = 'Model';
-    protected $_hidden = array();
+    protected $_parent = 'stdClass';
 
     protected $pagination = null;
 
     protected $items = array();
-
 
     /**
      * Creates a new Collection\
@@ -18,40 +17,59 @@ Class Collection extends arrayObject
      * 
      * @param string $classname
      */
-    public function __construct($classname='stdClass', $hidden=array())
+    public function __construct($data=null)
     {
-        $this->_parent = $classname;
-        $this->_hidden = $hidden;
+        if ($data) $this->collect($data);
+
     }
+
+    public function __call($method, $parameters)
+    {
+        if (isset(self::$_macros[$method]))
+        {
+            $class = self::$_macros[$method];
+            
+            if (is_closure($class))
+            {
+                list($c, $m) = getCallbackFromString($class);
+                $class = new $c();
+            }
+            elseif (class_exists($class))
+            {
+                $class = new $class;
+                $m = '__invoke';
+            }
+
+            $class->collect($this);
+            return executeCallback($class, $m, $parameters, $class);
+        }
+        throw new Exception("Method $method does not exist");
+    }
+
+    public function __paramsToArray()
+    {
+        $params = array();
+
+        /* foreach ($this as $key => $val)
+        {
+            if ($key!='_macros' && $key!='grammar')
+                $params[$key] = $val;
+        } */
+
+        return $params;
+    }
+
 
     public function getParent()
     {
         return $this->_parent;
     }
 
-
-    public function arrayToObject($array)
+    public function setParent($parent)
     {
-
-        $obj = new $this->_parent;
-
-        if (count($array)==0)
-            return $obj;
-
-        foreach ($array as $key => $value)
-        {
-            if (is_array($value))
-            {
-                $obj->$key = $this->arrayToObject($value);
-            } 
-            else
-            {
-                $obj->$key = $value; 
-            }
-        }
-        return $obj;
+        $this->_parent = $parent;
+        return $this;
     }
-
 
     /**
      * Returns collection as array
@@ -60,124 +78,9 @@ Class Collection extends arrayObject
      */
     public function toArray($data=null)
     {
-        if (!isset($data))
-            $data = $this;
-
-        //dump($data);
-
-        /* $model = new self::$_parent;
-        $data = CastHelper::processCasts(
-            array_merge($data->attributes, $data->append_attributes, $data->relations),
-            $model,
-            true
-        ); */
-
-        /* if ($data instanceof Model)
-        {
-            if (get_class($data) == 'DB')
-            {
-                $data = CastHelper::processCasts(
-                    array_merge($data->attributes),
-                    $data,
-                    true
-                );
-            }
-            else
-            {
-                $data = CastHelper::processCasts(
-                    array_merge($data->attributes, $data->append_attributes, $data->relations),
-                    $data,
-                    true
-                );
-            }
-        } */
-
-        $res = array();
-        foreach ($data as $key => $val)
-        {
-            if ($val instanceof Collection)
-            {
-                $res[$key] = $val->toArray();
-            }
-            /* elseif ($val instanceof Model)
-            {
-                $res[$key] = $this->_toArray($val);
-            } */
-            elseif (is_array($val) || is_object($val))
-            {
-                $res[$key] = $this->_toArray($val);
-            }
-            else
-            {
-                $res[$key] = $val;
-            }
-        }
-
-        return $res;
-    }
-
-    private function _toArray($model)
-    {
-        //dump($model);
-
-        /* if (get_class($model) == 'DB')
-        {
-            $model = CastHelper::processCasts(
-                array_merge($model->attributes),
-                $model,
-                true
-            );
-        }
-        else
-        {
-            $model = CastHelper::processCasts(
-                array_merge($model->attributes, $model->append_attributes, $model->relations),
-                $model,
-                true
-            );
-        } */
-
-        if ($model instanceof Model && get_class($model) == 'DB')
-        {
-            $model = CastHelper::processCasts(
-                array_merge($model->getAttributes()),
-                $model,
-                true
-            );
-        }
-        elseif ($model instanceof Model)
-        {
-            $model = CastHelper::processCasts(
-                array_merge($model->getAttributes(), $model->getAppends(), $model->getRelations()),
-                $model,
-                true
-            );
-        }
-
-        $arr = array();
-        foreach ($model as $key => $val)
-        {
-            if (!in_array($key, $this->_hidden))
-            {
-                if ($val instanceof Collection)
-                {
-                    $arr[$key] = $val->toArray();
-                }
-                /* elseif ($val instanceof Model)
-                {
-                    $arr[$key] = $this->_toArray($val);
-                } */
-                elseif (is_array($val) || is_object($val))
-                {
-                    $arr[$key] = $this->_toArray($val);
-                }
-                else
-                {
-                    $arr[$key] = $val;
-                }
-            }
-        }
-        return $arr;
+        if (!isset($data)) $data = $this;
+        
+        return Helpers::toArray($data);
     }
 
     public function toArrayObject()
@@ -189,7 +92,6 @@ Class Collection extends arrayObject
         }
         return $arr;
     }
-
 
     public function getPagination()
     {
@@ -302,38 +204,32 @@ Class Collection extends arrayObject
         unset($params['ruta']);
         unset($params['p']);
 
-        
-
         if (count($params)>0)
         {
-            $str = array();
-            foreach ($params as $key => $val)
-                $str[] = $key.'='.$val;
+            $str = http_build_query($params);
 
-            $this->pagination->query = implode('&', $str);
+            $this->pagination->query = $str;
             
             if (isset($this->pagination->first))
-                $this->pagination->first = implode('&', $str) . '&' . $this->pagination->first;
+                $this->pagination->first = $str . '&' . $this->pagination->first;
 
             if (isset($this->pagination->previous))
-                $this->pagination->previous = implode('&', $str) . '&' . $this->pagination->previous;
+                $this->pagination->previous = $str . '&' . $this->pagination->previous;
 
             if (isset($this->pagination->next))
-                $this->pagination->next = implode('&', $str) . '&' . $this->pagination->next;
+                $this->pagination->next = $str . '&' . $this->pagination->next;
 
             if (isset($this->pagination->last))
-                $this->pagination->last = implode('&', $str) . '&' . $this->pagination->last;
-
+                $this->pagination->last = $str . '&' . $this->pagination->last;
         }
 
-        //var_dump($this->pagination);
         return $this;
     }
 
     /**
      * Removes and returns the first item from the collection
      * 
-     * @return Model
+     * @return Model|null
      */
     public function shift()
     {
@@ -341,13 +237,14 @@ Class Collection extends arrayObject
 
         $res = $this[0];
         $this->offsetUnset(0);
+
         return $res;
     }
     
     /**
      * Removes and returns the last item from the collection
      * 
-     * @return Model
+     * @return Model|null
      */
     public function pop()
     {
@@ -355,6 +252,7 @@ Class Collection extends arrayObject
 
         $res = $this[$this->count()-1];
         $this->offsetUnset($this->count()-1);
+
         return $res;
     }
 
@@ -385,7 +283,12 @@ Class Collection extends arrayObject
 
         foreach ($item as $key => $val)
         {
-            if (is_object($val))
+            if ($item instanceof Model)
+            {
+                $obj->$key = $val;
+                $obj->$key->__name = get_class($val);
+            }
+            elseif (is_object($val))
             {
                 $obj->$key = $this->getObjectItemsForClone($val);
                 $obj->$key->__name = get_class($val);
@@ -396,6 +299,7 @@ Class Collection extends arrayObject
             }
 
         }
+
         return $obj;
     }
 
@@ -404,17 +308,21 @@ Class Collection extends arrayObject
      * 
      * @return Collection
      */
-    public function duplicate($collection=null, $parent=null, $hidden=null)
+    public function duplicate($collection=null, $parent=null)
     {
         if (!isset($collection)) $collection = $this;
         if (!isset($parent)) $parent = $this->_parent;
-        if (!isset($hidden)) $hidden = $this->_hidden;
 
-        $col = new Collection($parent, $hidden);
+        $col = new Collection(); //collectWithParent(null, $parent);
         
         foreach ($collection as $k => $item)
         {
-            if (is_object($item))
+            if ($item instanceof Model)
+            {
+                $col[$k] = $item;
+                $col[$k]->__name = get_class($item);
+            }
+            elseif (is_object($item))
             {
                 $col[$k] = $this->getObjectItemsForClone($item);
                 $col[$k]->__name = get_class($item);
@@ -441,7 +349,11 @@ Class Collection extends arrayObject
 
         foreach ($item as $key => $val)
         {
-            if (is_object($val))
+            if ($val instanceof Model)
+            {
+                $obj->$key = $val;
+            }
+            elseif (is_object($val))
             {
                 $obj->$key = $this->getObjectItemsForCollect($val);
             }
@@ -460,7 +372,7 @@ Class Collection extends arrayObject
      * 
      * @return Collection
      */
-    public function collect($data, $parent='stdClass')
+    public function collect($data) //, $parent='stdClass')
     {
         //echo "DATA:"; var_dump($data); echo "<br>";
         if (count($data)==0)
@@ -476,21 +388,22 @@ Class Collection extends arrayObject
                 $pagination->second = $item->__pagination->second;
                 $pagination->third = $item->__pagination->third;
                 $pagination->fourth = $item->__pagination->fourth;
-                //$col->pagination = $pagination;
                 $this->pagination = $pagination;
+            }
+            elseif ($item instanceof Model)
+            {
+                $this[$k] = $item;
             }
             elseif (is_object($item))
             {
-                //$col[$k] = $this->getObjectItemsForCollect($item);
                 $this[$k] = $this->getObjectItemsForCollect($item);
             }
             elseif ($k!=='__name')
             {
-                //$col[] = $item;
                 $this[$k] = $item; //is_array($item)? $this->arrayToObject($item) : $item;
             }
         }
-        //return $col;
+
         return $this;
     }
 
@@ -504,15 +417,19 @@ Class Collection extends arrayObject
      */
     public function map($callback)
     {
-        $res = new Collection($this->_parent, $this->_hidden);
+        if (!is_closure($callback)) {
+            throw new Exception('Invalid callback');
+        }
+
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
         
         list($class, $method, $params) = getCallbackFromString($callback);
+        array_shift($params);
 
-        foreach ($this as $record)
-        {
-            $res[] = executeCallback($class, $method, array_merge(array($record), $params), $this);
-            //$res[] = call_user_func_array(array($class, $method), array_merge(array($record), $params));
+        foreach ($this as $record) {
+            $res[] = executeCallback($class, $method, array_merge(array($record), $params), null);
         }
+        
         return $res;
     }
 
@@ -526,15 +443,18 @@ Class Collection extends arrayObject
      */
     public function implode($callback, $glue)
     {
+        if (!is_closure($callback)) {
+            throw new Exception('Invalid callback');
+        }
+
         $res = array();
         
         list($class, $method, $params) = getCallbackFromString($callback);
 
-        foreach ($this as $record)
-        {
+        foreach ($this as $record) {
             $res[] = executeCallback($class, $method, array_merge(array($record), $params), $this);
-            //$res[] = call_user_func_array(array($class, $method), array_merge(array($record), $params));
         }
+
         return implode($glue, $res);
     }
 
@@ -547,18 +467,22 @@ Class Collection extends arrayObject
      */
     public function filter($callback)
     {
-        $res = new Collection($this->_parent, $this->_hidden);
+        if (!is_closure($callback)) {
+            throw new Exception('Invalid callback');
+        }
+
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
         
         list($class, $method, $params) = getCallbackFromString($callback);
 
         foreach ($this as $record)
         {
             if(executeCallback($class, $method, array_merge(array($record), $params), $this))
+            {
                 $res[] = $record;
-
-            //if (call_user_func_array(array($class, $method), array_merge(array($record), $params)))
-            //    $res[] = $record;
+            }
         }
+
         return $res;
     }
 
@@ -569,20 +493,24 @@ Class Collection extends arrayObject
      * @param  $callback
      * @return bool
      */
-    public function contains($callback)
+    public function contains($key, $operator = null, $value = null)
     {
-        if (strpos($callback, '@')==false)
+        if (!is_closure($key))
         {
-            return in_array($callback, (array)$this);
+            if (!$value) {
+                $value = $operator? $operator : $key;
+                $operator = '==';
+            }
+
+            return $this->where($key, $operator, $value)->count() > 0;
         }
 
         $res = false;
         
-        list($class, $method, $params) = getCallbackFromString($callback);
+        list($class, $method, $params) = getCallbackFromString($key);
 
         foreach ($this as $record)
         {
-            //if (call_user_func_array(array($class, $method), array_merge(array($record), $params)))
             if(executeCallback($class, $method, array_merge(array($record), $params), $this))
             {
                 $res = true;
@@ -599,18 +527,21 @@ Class Collection extends arrayObject
      * Check Laravel documentation
      *
      * @param  $callback
-     * @return bool
+     * @return array
      */
     public function partition($callback)
     {
-        $res1 = new Collection($this->_parent, $this->_hidden);
-        $res2 = new Collection($this->_parent, $this->_hidden);
+        if (!is_closure($callback)) {
+            throw new Exception('Invalid callback');
+        }
+
+        $res1 = new Collection(); //collectWithParent(null, $this->_parent);
+        $res2 = new Collection(); //collectWithParent(null, $this->_parent);
         
         list($class, $method, $params) = getCallbackFromString($callback);
 
         foreach ($this as $record)
         {
-            //if (call_user_func_array(array($class, $method), array_merge(array($record), $params)))
             if(executeCallback($class, $method, array_merge(array($record), $params), $this))
             {
                 $res1[] = $record;
@@ -625,32 +556,94 @@ Class Collection extends arrayObject
     }
 
     /**
+     * Diff the collection with the given items.
+     *
+     * @return Collection
+     */
+    public function diff($items)
+    {
+        if (empty($items)) {
+            return $this;
+        }
+
+        $diff = new Collection;
+
+        $dictionary = $this->getDictionary();
+        $items = $this->getDictionary($items);
+        
+        foreach (array_keys($dictionary) as $item) {
+            if (!isset($items[$item])) {
+                $diff[] = $dictionary[$item];
+            }
+        }
+        return $diff;
+    }
+
+    /**
+     * Execute a callback over each item.
+     *
+     * @return Collection
+     */
+    public function each($callback)
+    {
+        if (!is_closure($callback)) {
+            throw new Exception('Invalid callback');
+        }
+        
+        list($class, $method) = getCallbackFromString($callback);
+
+        foreach ($this as $key => $value) {
+            $result = executeCallback($class, $method, array($value, $key), null);
+
+            if ($result === false) {
+                break;
+            }
+        }
+        
+        return $this;
+    }
+
+    /**
+     * Get all items except for those with the specified keys.
+     *
+     * @return Collection
+     */
+    public function except($keys)
+    {
+        $keys = is_array($keys)? $keys : func_get_args();
+
+        $dictionary = Arr::except($this->getDictionary(), $keys);
+
+        return collect(array_values($dictionary));
+    }
+
+    /**
      * Chunks the collection
      * Check Laravel documentation
      *
      * @param  $value
-     * @return bool
+     * @return array
      */
     public function chunk($value)
     {
-        $arr = array();
-        $res = new Collection($this->_parent, $this->_hidden);
+        $result = array();
+        $col = new Collection; //collectWithParent(null, $this->_parent);
         
         foreach ($this as $record)
         {
-            if (count($arr)==$value)
+            if ($col->count()==$value)
             {
-                $res[] = $arr;
-                $arr = array();
+                $result[] = $col;
+                $col = new Collection;
             }
-            $arr[] = $record;
+            $col[] = $record;
         }
-        if (count($arr)>0)
+        if ($col->count()>0)
         {
-            $res[] = $arr;
+            $result[] = $col;
         }
 
-        return $res;
+        return $result;
     }
 
 
@@ -663,7 +656,11 @@ Class Collection extends arrayObject
      */
     public function mapWithKeys($callback)
     {
-        $res = new Collection($this->_parent, $this->_hidden);
+        if (!is_closure($callback)) {
+            throw new Exception('Invalid callback');
+        }
+
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
 
         list($class, $method, $params) = getCallbackFromString($callback);
 
@@ -678,24 +675,21 @@ Class Collection extends arrayObject
         return $res;
     }
 
-
-
-
     /**
      * Returns the underlying array represented by the collection
      * 
-     * @return Collection
+     * @return array
      */
     public function all()
     {
         $res = array();
-        foreach ($this as $key => $val)
-        {
+
+        foreach ($this as $key => $val) {
             $res[$key] = $val;
         }
+
         return $res;
     }
-
 
     /**
      * Returns a new collection with the keys reset to consecutive integers
@@ -704,18 +698,38 @@ Class Collection extends arrayObject
      */
     public function values()
     {
-        $res = new Collection($this->_parent, $this->_hidden);
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
         $count = 0;
+        
         foreach ($this as $record)
         {
             $res[] = $record;
             ++$count;
         }
+        
         return $res;
     }
 
+    /**
+     * Determine if the collection is empty or not.
+     *
+     * @return bool
+     */
+    public function isEmpty()
+    {
+        return $this->count() == 0;
+    }
 
-    
+    /**
+     * Determine if the collection is not empty.
+     *
+     * @return bool
+     */
+    public function isNotEmpty()
+    {
+        return ! $this->isEmpty();
+    }
+
     /* public function contains($value)
     {
         return in_array($value, (array)$this);
@@ -745,11 +759,12 @@ Class Collection extends arrayObject
             $operator = '=';
         }
 
-        $res = new Collection($this->_parent, $this->_hidden);
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
 
         foreach ($this as $record)
         {
-            $retrieved = $record->$key;
+            $retrieved = is_object($record)? $record->$key : 
+                (is_array($record) ? $record[$key] : $record);
 
             if (is_string($value) && is_string($retrieved))
             {
@@ -777,6 +792,7 @@ Class Collection extends arrayObject
             } */
 
         }
+
         return $res;
     }
 
@@ -792,7 +808,7 @@ Class Collection extends arrayObject
      */
     public function whereNot($key, $value)
     {
-        $res = new Collection($this->_parent, $this->_hidden);
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
         foreach ($this as $record)
         {
             if (isset($record->$key) && $record->$key!=$value)
@@ -808,7 +824,7 @@ Class Collection extends arrayObject
      */
     public function whereNull($key)
     {
-        $res = new Collection($this->_parent, $this->_hidden);
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
         foreach ($this as $record)
         {
             //dump($record->$key);
@@ -825,7 +841,7 @@ Class Collection extends arrayObject
      */
     public function whereNotNull($key)
     {
-        $res = new Collection($this->_parent, $this->_hidden);
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
         foreach ($this as $record)
         {
             //dump($record->$key);
@@ -842,7 +858,7 @@ Class Collection extends arrayObject
      */
     public function whereIn($key, $values, $strict=false)
     {
-        $res = new Collection($this->_parent, $this->_hidden);
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
         foreach ($this as $record)
         {
             if (in_array($record->$key, $values, $strict))
@@ -868,7 +884,7 @@ Class Collection extends arrayObject
      */
     public function whereNotIn($key, $values, $strict=false)
     {
-        $res = new Collection($this->_parent, $this->_hidden);
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
         foreach ($this as $record)
         {
             if (!in_array($record->$key, $values, $strict))
@@ -884,13 +900,15 @@ Class Collection extends arrayObject
      */
     public function shuffle()
     {
-        $array = (array) $this;
+        $array = range(0, $this->count()-1);
         
         shuffle($array);
 
-        $res = new Collection($this->_parent, $this->_hidden);
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
 
-        $res->collect($array, $this->_parent);
+        foreach ($array as $a) {
+            $res->append($this[$a]);
+        }
 
         return $res;
     }
@@ -913,12 +931,14 @@ Class Collection extends arrayObject
      */
     public function whereContains($key, $value)
     {
-        $res = new Collection($this->_parent, $this->_hidden);
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        
         foreach ($this as $record)
         {
             if (isset($record->$key) && $record->$key==$value)
                 $res[] = $record;
         }
+        
         return $res;
     }
 
@@ -930,12 +950,14 @@ Class Collection extends arrayObject
      */
     public function whereNotContains($key, $value)
     {
-        $res = new Collection($this->_parent, $this->_hidden);
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        
         foreach ($this as $record)
         {
             if (strpos($record->$key, $value)==false && substr($record->$key, 0, strlen($value))!=$value)
                 $res[] = $record;
         }
+        
         return $res;
     }
 
@@ -946,20 +968,21 @@ Class Collection extends arrayObject
      */
     public function whereInstanceOf($type)
     {
-        $res = new Collection($this->_parent, $this->_hidden);
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        
         foreach ($this as $record)
         {
             if ($record instanceof $type)
                 $res[] = $record;
         }
+
         return $res;
     }
 
-
-
     public function modelKeys()
     {
-        $keys = $this->first()->getPrimaryKey();
+        $keys = $this->first()->getKeyName();
+        
         return $this->pluck($keys)->toArray();
     }
 
@@ -977,17 +1000,17 @@ Class Collection extends arrayObject
             list($value, $extra) = explode('.', $value);
         }
 
-        $res = array();
+        $array = array();
         foreach ($this as $record)
         {
             if (is_object($record))
             {
-                if ($key) $res[$record->$key] = $record->$value;
+                if ($key) $array[$record->$key] = $record->$value;
                 else 
                 {
                     $val = $record->$value;
-                    if (!in_array($val, $res) && $val)
-                        $res[] = $extra? $val->$extra : $val;
+                    if (!in_array($val, $array) && $val)
+                        $array[] = $extra? $val->$extra : $val;
                 }
             }
             else
@@ -995,18 +1018,18 @@ Class Collection extends arrayObject
                 if ($key) $res[$record[$key]] = $record[$value];
                 else 
                 {
-                    if (!in_array($record[$value], $res))
-                        $res[] = $extra? $record[$value][$extra] : $record[$value];
+                    if (!in_array($record[$value], $array))
+                        $array[] = $extra? $record[$value][$extra] : $record[$value];
                 }
             }
         }
 
-        $final = new Collection($this->_parent, $this->_hidden);
+        $result = new Collection(); //collectWithParent(null, $this->_parent);
 
-        foreach ($res as $key => $val)
-            $final[$key] = $val;
+        foreach ($array as $key => $val)
+            $result[$key] = $val;
 
-        return $final;
+        return $result;
     }
 
     /**
@@ -1016,7 +1039,8 @@ Class Collection extends arrayObject
      */
     public function keys($keys)
     {        
-        $res = new Collection($this->_parent, $this->_hidden);
+        $result = new Collection(); //collectWithParent(null, $this->_parent);
+        
         foreach ($this as $record)
         {
             if ($record instanceof stdClass)
@@ -1029,7 +1053,7 @@ Class Collection extends arrayObject
                         unset($new->$key);
                     }
                 }
-                $res[] = $new;
+                $result[] = $new;
             }
             else
             {
@@ -1041,23 +1065,36 @@ Class Collection extends arrayObject
                         $new->unsetAttribute($key);
                     }
                 }
-                $res[] = $new;
+                $result[] = $new;
             }
         }
-        return $res;
+        return $result;
+    }
+
+    /**
+     * Key an associative array by a field or using a callback.
+     *
+     * @return Collection
+     */
+    public function keyBy($keyBy)
+    {
+        $results = array();
+
+        foreach ($this as $item) {
+            $key = is_array($item) ? $item[$keyBy] : $item->$keyBy;
+            $results[$key] = $item;
+        }
+
+        return collect($results);
     }
 
 
     /**
      * Sets the given item in the collection
      * 
-     * @return Collection
      */
     public function put($item)
     {
-        if (is_array($item))
-            $item = $this->arrayToObject($item);
-
         $this->append($item);
     }
 
@@ -1065,18 +1102,17 @@ Class Collection extends arrayObject
      * Removes and returns an item from the collection 
      * by its index or its key/value pair
      * 
-     * @return Collection
+     * @return mixed
      */
     public function pull($index, $value=null)
     {
-        //echo("Removing: $index > $value<br>");
         if (!is_integer($index))
         {
             $ind = -1;
             $count = 0;
+
             foreach ($this as $record)
             {
-                //print_r($record);
                 if (isset($record->$index) && $record->$index==$value)
                 {
                     $ind = $count;
@@ -1084,7 +1120,10 @@ Class Collection extends arrayObject
                 }
                 ++$count;
             }
-            if ($ind==-1) return null;
+
+            if ($ind==-1) 
+                return null;
+
             $index = $ind;
         }
         
@@ -1093,11 +1132,11 @@ Class Collection extends arrayObject
         
         $res = $this[$index];
         $this->offsetUnset2($index);
+        
         return $res;
-
     }
 
-    function offsetUnset2($offset){
+    private function offsetUnset2($offset){
         $this->offsetUnset($offset);
         $this->exchangeArray(array_values($this->getArrayCopy()));
     }
@@ -1115,14 +1154,16 @@ Class Collection extends arrayObject
     /**
      * Returns an element by its key/value pair
      * 
-     * @return bool
+     * @return mixed
      */
     public function find($key, $value)
     {
         foreach ($this as $record)
         {
             if ($record->getAttribute($key) && $record->getAttribute($key)==$value)
+            {
                 return $record;
+            }
         }
     }
 
@@ -1133,19 +1174,9 @@ Class Collection extends arrayObject
      */
     public function skip($count)
     {
-        /* if ($count > $this->count())
-            $count = $this->count();
-
-        foreach( range(0, $count-1) as $index )
-        {
-            $this->offsetUnset($index);
-        }
-
-        return $this; */
-
         $total = 0;
 
-        $res = new Collection($this->_parent, $this->_hidden);
+        $res = new Collection(); //collectWithParent(null, $this->_parent);
         
         foreach ($this as $record)
         {
@@ -1159,6 +1190,143 @@ Class Collection extends arrayObject
     }
 
     /**
+     * Get a dictionary keyed by primary keys.
+     *
+     * @return array
+     */
+    public function getDictionary($items = null)
+    {
+        $items = is_null($items) ? $this : $items;
+
+        $dictionary = array();
+
+        foreach ($items as $item)
+        {
+            $key = $item instanceof Model ? $item->getKey() : (
+                $item instanceof RouteItem ? $item->url : (
+                    is_array($item) ? reset(array_values($item)) : $item
+                ));
+
+            $dictionary[$key] = $item;
+        }
+
+        return $dictionary;
+    }
+
+    private function _unique($key, $strict = false)
+    {
+        if ($strict === false) {
+            return collect(array_unique((array)$this, SORT_REGULAR));
+        }
+
+        /* $callback = $this->valueRetriever($key);
+
+        $exists = [];
+
+        return $this->reject(function ($item, $key) use ($callback, $strict, &$exists) {
+            if (in_array($id = $callback($item, $key), $exists, $strict)) {
+                return true;
+            }
+
+            $exists[] = $id;
+        }); */
+    }
+
+    /**
+     * Return only unique items from the collection.
+     *
+     * @return Collection
+     */
+    public function unique($key = null, $strict = false)
+    {
+        if (!is_null($key))
+        {
+            return $this->_unique($key, $strict);
+        }
+
+        return collect(array_values($this->getDictionary()));
+    }
+
+    /**
+     * Sort the collection in descending order using the given callback.
+     *
+     * @return Collection
+     */
+    public function sortByDesc($callback, $options = SORT_REGULAR)
+    {
+        return $this->sortBy($callback, $options, true);
+    }
+
+    /**
+     * Sort the collection using the given key
+     *
+     * @return Collection
+     */
+    public function sortBy($keyBy, $options = SORT_REGULAR, $descending = false)
+    {
+        $array = array();
+        $results = array();
+
+        foreach ($this as $item) {
+            $key = is_array($item) ? $item[$keyBy] : $item->$keyBy;
+            $array[$key] = $item;
+        }
+        
+        $array = array_sort($array, $keyBy, $descending ? SORT_DESC : SORT_ASC);
+
+        foreach (array_keys($array) as $key) {
+            $results[] = $array[$key];
+        }
+
+        return collect($results);
+    }
+
+    /**
+     * Intersect the collection with the given items.
+     *
+     * @return Collection
+     */
+    public function intersect($items)
+    {
+        $intersect = new Collection;
+
+        if (empty($items)) {
+            return $intersect;
+        }
+
+        $dictionary = $this->getDictionary();
+        $items = $this->getDictionary($items);
+        
+        foreach (array_keys($items) as $item) {
+            if (isset($dictionary[$item])) {
+                $intersect[] = $dictionary[$item];
+            }
+        }
+        return $intersect;
+    }  
+
+    private function verifedContenType()
+    {
+        $types = array();
+        foreach ($this as $item)
+        {
+            if (is_object($item) && !in_array(get_class($item), $types)) {
+                $types[] = get_class($item); 
+            }
+        }
+        
+        if (count($types)==0) {
+            throw new Exception("This collection doesn't have models");
+        }
+
+        if (count($types)>1) {
+            throw new Exception("This collection have more than one model type");
+        }
+
+        return reset($types);
+    }
+
+    /**
      * Adds records from a sub-query inside the current records\
      * Check Laravel documentation
      * 
@@ -1166,45 +1334,36 @@ Class Collection extends arrayObject
      */
     public function load($relations)
     {
-        /* $res = $this->getParent();
-        $class = new $res;
-        $class->getQuery()->_collection = $this;
-        $class->load( is_string($relations) ? func_get_args() : $relations );
-        return $this; */
-        $class = Model::instance($this->getParent());
+        $class = new Builder($this->verifedContenType());
         $class->_collection = $this;
         $class->load( is_string($relations) ? func_get_args() : $relations );
         return $this;
     }
-    
 
     /**
      * Eager load relation's column aggregations on the model.
      *
-     * @return Model
+     * @return Collection
      */
     public function loadAggregate($relations, $column, $function = null)
     {
-        //$parent = $this->getParent();
-        //$class = new $parent;
-        $class = new Builder($this->getParent());
+        $class = new Builder($this->verifedContenType());
 
         $relations = is_string($relations) ? array($relations) : $relations;
 
         foreach ($relations as $relation)
         {
             $class->_collection = $this;
-            $class->loadAggregate($relation, $column, $function);//->_collection;
+            $class->loadAggregate($relation, $column, $function);
         }
 
         return $this;
     }
-  
 
     /**
      * Eager load relation counts on the model.
      *
-     * @return Model
+     * @return Collection
      */
     public function loadCount($relations)
     {
@@ -1215,7 +1374,7 @@ Class Collection extends arrayObject
     /**
      * Eager load relation max column values on the model.
      *
-     * @return Model
+     * @return Collection
      */
     public function loadMax($relations, $column)
     {
@@ -1225,7 +1384,7 @@ Class Collection extends arrayObject
     /**
      * Eager load relation min column values on the model.
      *
-     * @return Model
+     * @return Collection
      */
     public function loadMin($relations, $column)
     {
@@ -1235,7 +1394,7 @@ Class Collection extends arrayObject
     /**
      * Eager load relation's column summations on the model.
      *
-     * @return Model
+     * @return Collection
      */
     public function loadSum($relations, $column)
     {
@@ -1245,7 +1404,7 @@ Class Collection extends arrayObject
     /**
      * Eager load relation average column values on the model.
      *
-     * @return Model
+     * @return Collection
      */
     public function loadAvg($relations, $column)
     {
@@ -1255,13 +1414,99 @@ Class Collection extends arrayObject
     /**
      * Eager load related model existence values on the model.
      *
-     * @return Model
+     * @return Collection
      */
     public function loadExists($relations)
     {
         $relations = is_string($relations) ? func_get_args() : $relations;
+        
         return $this->loadAggregate($relations, '*', 'exists');
     }
 
-    
+
+    /**
+     * Make the given, typically visible, attributes hidden across the entire collection.
+     *
+     * @param  array|string  $attributes
+     * @return $this
+     */
+    public function makeHidden($attributes)
+    {
+        $attributes = is_array($attributes)? $attributes : func_get_args();
+
+        foreach ($this as $model)
+        {
+            if ($model instanceof Model) $model->makeHidden($attributes);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Make the given, typically hidden, attributes visible across the entire collection.
+     *
+     * @param  array|string  $attributes
+     * @return $this
+     */
+    public function makeVisible($attributes)
+    {
+        $attributes = is_array($attributes)? $attributes : func_get_args();
+
+        foreach ($this as $model)
+        {
+            if ($model instanceof Model) $model->makeVisible($attributes);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Set the visible attributes across the entire collection.
+     *
+     * @param  array $visible
+     * @return $this
+     */
+    public function setVisible($visible)
+    {
+        foreach ($this as $model)
+        {
+            if ($model instanceof Model) $model->setVisible($visible);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Set the hidden attributes across the entire collection.
+     *
+     * @param  array $hidden
+     * @return $this
+     */
+    public function setHidden($hidden)
+    {
+        $hidden = is_array($hidden)? $hidden : func_get_args();
+
+        foreach ($this as $model)
+        {
+            if ($model instanceof Model) $model->setHidden($hidden);
+        }
+
+        return $this;
+    }
+
+    public static function macro($name, $function)
+    {
+        self::$_macros[$name] = $function;
+    }
+
+    public static function hasMacro($name)
+    {
+        return array_key_exists($name, self::$_macros);
+    }
+
+    public static function getMacros()
+    {
+        return self::$_macros;
+    }
+
 }

@@ -36,7 +36,7 @@ Class RedisDB
         {
             $data = json_decode($cached[0], true);
             $data = Helpers::arrayToObject($data);
-            $col = new Collection('stdClass');
+            $col = new Collection;
             $col->collect($data);
             return $col;
         }
@@ -63,7 +63,7 @@ Class RedisDB
     
         } */
         
-        $this->redis->lpush($name, serialize($data));
+        return $this->redis->lpush($name, serialize($data));
     }
 
     public function forget($name)
@@ -87,7 +87,7 @@ Class RedisDB
             list($class, $method, $params) = getCallbackFromString($callback);
             array_shift($params);
             $value = call_user_func_array(array($class, $method), $params);
-            $this->put($key, $value, $seconds);
+            $this->put($key, $value/* , $seconds */);
             return $value;
         }
     }

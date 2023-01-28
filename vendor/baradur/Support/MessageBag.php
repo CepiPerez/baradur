@@ -17,7 +17,7 @@ Class MessageBag
 
     public function any()
     {
-        return count($this->errorBag)>0;
+        return count($this->errorBag) > 0;
     } 
 
     public function all()
@@ -27,7 +27,9 @@ Class MessageBag
 
     public function __get($name)
     {
-        return isset($this->errorBag[$name])? $this->errorBag[$name] : null;
+        return isset($this->errorBag[$name]) ?
+            $this->errorBag[$name] : 
+            null;
     }
 
 

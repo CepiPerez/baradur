@@ -3,17 +3,18 @@
 $_closures = array();
 $_currentClosureFile = null;
 $_arrow_functions = array();
-$_macro_functions = array();
+$_builder_macros = array();
+$_collection_macros = array();
 $_current_classname = array();
 $_functions_to_add = array();
 $_trait_to_add = '';
-$_for_macro = false;
+$_for_macro = null;
 
 function callbackReplaceClosures($match)
 {
     //dump($match);
 
-    global $_arrow_functions, $_current_classname, $_macro_functions, $_for_macro;
+    global $_arrow_functions, $_current_classname, $_builder_macros, $_collection_macros, $_for_macro;
 
     if (count($_current_classname)==0)
         return $match[0];
@@ -58,28 +59,31 @@ function callbackReplaceClosures($match)
                 
         }
     }
+
+    $counter = array();
+    if ($_for_macro == 'Builder')
+        $counter = count($_builder_macros);
+    elseif ($_for_macro == 'Collection')
+        $counter = count($_collection_macros);
+    else
+        $counter = count($_arrow_functions);
     
-    $return = '"' . ($_for_macro? 'baradurMacros' : 'baradurClosures') . '_' . $_current_classname[0] .
-        '@closure_' . count($_arrow_functions) ."(" . implode(', ', array_merge($defparms, $params)) . ')"';
+    $return = '"' . ($_for_macro? 'baradur'. $_for_macro .'Macros' : 'baradurClosures') . '_' . $_current_classname[0] .
+        '@closure_' . $counter ."(" . implode(', ', array_merge($defparms, $params)) . ')"';
 
 
     preg_match_all('/(\$\w*)/x', $match[2], $body_attrs);
 
-    if (isset($body_attrs[0]) && in_array('$this', $body_attrs[0]))
-    {
-        $params[] = '$_self';
-        $res = str_replace('$this', '$_self', $res);
-    }
-
-    
     $res = ltrim(trim($res), '{');
     $res = rtrim(trim($res), '}');
 
-    $method  = 'public static function closure_'.count($_arrow_functions). "(".($default/* !=''?'$'.$default:'' */).(count($params)>0? ($default!=''?', ':'').implode(', ',$params):'').") {\n";
+    $method  = 'public function closure_'.$counter. "(".($default/* !=''?'$'.$default:'' */).(count($params)>0? ($default!=''?', ':'').implode(', ',$params):'').") {\n";
     $method .= /* $match[2]." = Model::instance('DB');\n". */$res."\n}\n";
 
-    if ($_for_macro)
-        $_macro_functions[] = $method;
+    if ($_for_macro == 'Builder')
+        $_builder_macros[] = $method;
+    elseif ($_for_macro == 'Collection')
+        $_collection_macros[] = $method;
     else
         $_arrow_functions[] = $method;
 
@@ -90,23 +94,26 @@ function callbackReplaceClosures($match)
 
 }
 
-function callbackReplaceMacros($match)
+function callbackReplaceBuilderMacros($match)
 {
-    global $_macro_functions, $_for_macro;
-    $_for_macro = true;
+    global $_for_macro;
+    $_for_macro = 'Builder';
     $res = preg_replace_callback('/([=|>|,|\(][\s]*function).*({(?:[^{}]*|(?2))*})/x', 'callbackReplaceClosures', $match[0]);
-    $_for_macro = false;
+    $_for_macro = null;
     return $res;
-
 }
 
+function callbackReplaceCollectionMacros($match)
+{
+    global $_for_macro;
+    $_for_macro = 'Collection';
+    $res = preg_replace_callback('/([=|>|,|\(][\s]*function).*({(?:[^{}]*|(?2))*})/x', 'callbackReplaceClosures', $match[0]);
+    $_for_macro = null;
+    return $res;
+}
 
 function callbackReplaceNewArray($match)
 {
-    //$res = $match['query'];
-    //$res = preg_replace_callback('/(?<sign>[\s|\(|,|=])(?<main>[^\[\]]*){0}(?<query>\[\g<main>\]|\[(?:\g<main>\g<query>\g<main>)*\])/x', 'callbackReplaceNewArray', $res);
-    //return $match['sign'].$res;
-
     if(!$match[1])
         return $match[0];
 
@@ -114,8 +121,16 @@ function callbackReplaceNewArray($match)
     $res = 'array('. $res . ')';
     $res = preg_replace_callback('/([\s|\(|,|=|>]*)(\[(?>[^\[\]]|(?R))*])/x', 'callbackReplaceNewArray', $res);
     return $match[1].$res;
-
 }
+
+function callbackReplaceNewArraySet($match)
+{
+    if(!$match[1])
+        return $match[0];
+
+    return "\nlist(" . str_replace('[', '', str_replace(']', '', $match[1])) . ') =';
+}
+
 
 function callbackReplaceArrayStart($match)
 {
@@ -270,16 +285,63 @@ function executeCallback($class, $method, $parameters, $parent=null)
 
     if (is_string($class))
         $class = new $class;
-    
-    foreach ($paramNames as $parameter)
+
+    if (($class instanceof Builder || $class instanceof Collection) && $parent)
     {
-        if ($parameter->getName()=='_self')
+        $test = $parent->__paramsToArray();
+        
+        foreach ($test as $key => $val)
         {
-            $parameters[] = $parent;
+            $property = new \ReflectionProperty(get_class($class), $key);
+            $property->setAccessible(true);
+            $property->setValue($class, $val);
+        }
+        //dump(get_class($class) . " ::::: " . $method);
+
+    }
+    
+    $fp = array();
+
+    //dump($fp);
+    
+    for ($i=0; $i<count($paramNames); $i++)
+    {
+        if (isset($parameters[$i])) {
+            $fp[] = $parameters[$i];
+        }
+        else {
+            $fp[] = $paramNames[$i]->isDefaultValueAvailable() ? 
+                $paramNames[$i]->getDefaultValue() : 
+                null;
         }
     }
     
-    return $reflectionMethod->invokeArgs($class, $parameters);
+
+    switch (count($fp)) {
+        case 0: return $class->$method();
+        case 1: return $class->$method($fp[0]);
+        case 2: return $class->$method($fp[0], $fp[1]);
+        case 3: return $class->$method($fp[0], $fp[1], $fp[2]);
+        case 4: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3]);
+        case 5: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4]);
+        case 6: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5]);
+        case 7: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6]);
+        case 8: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7]);
+        case 9: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7], $fp[8]);
+        case 10: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7], $fp[8], $fp[9]);
+        case 11: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7], $fp[8], $fp[9], $fp[10]);
+        case 12: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7], $fp[8], $fp[9], $fp[10], $fp[11]);
+        case 13: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7], $fp[8], $fp[9], $fp[10], $fp[11], $fp[12]);
+        case 14: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7], $fp[8], $fp[9], $fp[10], $fp[11], $fp[12], $fp[13]);
+        case 15: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7], $fp[8], $fp[9], $fp[10], $fp[11], $fp[12], $fp[13], $fp[14]);
+        case 16: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7], $fp[8], $fp[9], $fp[10], $fp[11], $fp[12], $fp[13], $fp[14], $fp[15]);
+        case 17: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7], $fp[8], $fp[9], $fp[10], $fp[11], $fp[12], $fp[13], $fp[14], $fp[15], $fp[16]);
+        case 18: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7], $fp[8], $fp[9], $fp[10], $fp[11], $fp[12], $fp[13], $fp[14], $fp[15], $fp[16], $fp[17]);
+        case 19: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7], $fp[8], $fp[9], $fp[10], $fp[11], $fp[12], $fp[13], $fp[14], $fp[15], $fp[16], $fp[17], $fp[18]);
+        case 20: return $class->$method($fp[0], $fp[1], $fp[2], $fp[3], $fp[4], $fp[5], $fp[6], $fp[7], $fp[8], $fp[9], $fp[10], $fp[11], $fp[12], $fp[13], $fp[14], $fp[15], $fp[16], $fp[17], $fp[18], $fp[19]);
+        default: return null;
+    }
+
 }
 
 
@@ -297,32 +359,30 @@ function callbackReplaceTraits($match)
         $trait = trim($trait);
         $newclass = $_class_list[$trait];
 
-        if (!$newclass)
-            return $match[0];
-
-        $text = file_get_contents($newclass);
-
-        $text = preg_replace('/\)([\s]*)\{/x', ') {', $text);
-        //echo '<pre>'. htmlentities($text).'</pre>';
-
-        preg_match('/\bTrait|trait\b[\s]*.*[\s]*\{/x', $text, $content);
-        $content = substr($text, strpos($text, $content[0])+strlen($content[0]));
-        $_trait_to_add .= rtrim(trim($content), '}');
-
-        # Check Traits functions
-        preg_match_all('/\b(public|private|protected)\b[\s]*function.*({(?:[^{}]*|(?2))*})/x', $text, $matches);
-
-        foreach ($matches[0] as $m)
+        if ($newclass)
         {
-            //echo '<pre>'. htmlentities($m).'</pre>';
-            preg_match('/\b(public|private|protected)\b[\s]*function[\s]*([^\(]*)/', $m, $res);
-            $_functions_to_add[trim($res[2])] = $m;
+            $text = file_get_contents($newclass);
+    
+            $text = preg_replace('/\)([\s]*)\{/x', ') {', $text);
+            //echo '<pre>'. htmlentities($text).'</pre>';
+    
+            preg_match('/\bTrait|trait\b[\s]*.*[\s]*\{/x', $text, $content);
+            $content = substr($text, strpos($text, $content[0])+strlen($content[0]));
+            $_trait_to_add .= rtrim(trim($content), '}');
+    
+            # Check Traits functions
+            preg_match_all('/\b(public|private|protected)\b[\s]*function.*({(?:[^{}]*|(?2))*})/x', $text, $matches);
+    
+            foreach ($matches[0] as $m)
+            {
+                //echo '<pre>'. htmlentities($m).'</pre>';
+                preg_match('/\b(public|private|protected)\b[\s]*function[\s]*([^\(]*)/', $m, $res);
+                $_functions_to_add[trim($res[2])] = $m;
+            }
         }
-
     }
     
     return '';
-
 }
 
 function callbackReplaceHandle($match)
@@ -402,7 +462,7 @@ function callbackReplaceArrowFunctions($match)
     $use = array();
     foreach ($attributes[0] as $attr)
     {
-        if ($attr=='$this') $attr=='$_self';
+        //if ($attr=='$this') $attr=='$_self';
 
         if (!in_array($attr, $default[0]))
             $use[] = $attr;
@@ -424,21 +484,51 @@ function callbackReplaceArrowFunctions($match)
     return $result;
 }
 
+function callbackReplaceInvokable($match)
+{
+    return str_replace('(', '', $match[0]) . '->__invoke(';
+}
+
+function callbackReplaceClasses($match)
+{
+    $array = explode('\\', $match[1]);
+    return "'" . end($array) . "'";
+}
 
 function replaceNewPHPFunctions($text, $classname=null, $dir=null)
 {
     global $_arrow_functions, $_current_classname, $_trait_to_add, 
-        $_functions_to_add, $_macro_functions, $_model_list;
+        $_functions_to_add, $_builder_macros, $_collection_macros, $_model_list, $_class_list;
     
     if ($classname) $_current_classname[] = $classname;
 
+
     # Replace commented code
-    $text = preg_replace('/(?:(?:\/\*(?:[^*]|(?:\*+[^*\/]))*\*+\/)|(?:(?<!\:|\\\|\'|\")\/\/.*))/x', '', $text);
+    $text = preg_replace('/(?:(?:\B\/\*(?:[^*]|(?:\*+[^*\/]))*\*+\/)|(?:(?<!\:|\\\|\'|\")\/\/.*))/x', '', $text);
     while (preg_match('/\n[\s]*\n[\s]*\n/x', $text))
         $text = preg_replace('/\n[\s]*\n[\s]*\n/x', "\n\n", $text);
     
+    # const CREATED_AT - UPDATED_AT - DELETED_AT
+    if (in_array($classname, $_model_list))
+    {
+        //$text = preg_replace('/protected[\s]*\$attributes[\s]*=/x', 'public \$attributes =', $text);
+        $text = preg_replace('/const[\s]*CREATED_AT/x', 'protected $_CREATED_AT', $text);
+        $text = preg_replace('/const[\s]*UPDATED_AT/x', 'protected $_UPDATED_AT', $text);
+        $text = preg_replace('/const[\s]*DELETED_AT/x', 'protected $_DELETED_AT', $text);
+    }
+    
     # Find Traits inside classes
     $text = preg_replace_callback('/use\s[\s]*([a-zA-Z, ]*);/x', 'callbackReplaceTraits', $text);
+
+    # Remove DELETED_AT in softDelete if setted in model
+    if (in_array($classname, $_model_list))
+    {
+        preg_match_all('/protected[\s]*\$_DELETED_AT.*/x', $text, $cant);
+        if (count($cant[0]) > 0) {
+            $_trait_to_add = str_replace("protected ".'$_DELETED_AT'." = 'deleted_at';", '', $_trait_to_add);
+        }
+    }
+
 
     # Add trait inside class, removing existent functions;
     if (count($_functions_to_add)>0)
@@ -463,24 +553,20 @@ function replaceNewPHPFunctions($text, $classname=null, $dir=null)
     # something ?? else  -> isset(something)? something : else
     $text = preg_replace('/\s([^\s]*.?[^\b.*[^\?{2}])(\?{2})/x', " isset($1) ? $1 : ", $text);
 
-    # const CREATED_AT and UPDATED_AT
-    if (in_array($classname, $_model_list))
-    {
-        //$text = preg_replace('/protected[\s]*\$attributes[\s]*=/x', 'public \$attributes =', $text);
-        $text = preg_replace('/const[^\s]*CREATED_AT/x', 'protected $_CREATED_AT', $text);
-        $text = preg_replace('/const[^\s]*UPDATED_AT/x', 'protected $_UPDATED_AT', $text);
-    }
-
-
     # Someclass::class to 'Someclass' and \Path\To\SomeClass::class to 'SomeClass"
-    $text = str_replace('::class', '', preg_replace('/(?:[\\\|\w].*?[$\\\])?(\w*)(::class)/x', "'$1'", $text));
+    $text = preg_replace_callback('/([\w|\\\]*)(::class)/x', 'callbackReplaceClasses', $text);
 
     # static:: to self::
     $text = preg_replace('/protected[\s]*static[\s]*function[\s]*booted/x', 'public function booted', $text);
     $text = str_replace('static::', '$this->', $text);
 
-    # resources static wrap to _wrap
+    # Resources static wrap to _wrap
     $text = preg_replace('/public[\s]*static[\s]*\$wrap/x', 'protected $_wrap', $text);
+
+    # RateLimiter functions
+    $text = str_replace('RateLimiter::for', 'RateLimiter::instanceFor', $text);
+    $text = preg_replace('/protected[\s]*function[\s]*configureRateLimiting/x', 'public function configureRateLimiting', $text);
+
 
     # __DIR__ to dirname(__FILE__)
     $text = str_replace('__DIR__', 'dirname(__FILE__)', $text);
@@ -491,8 +577,8 @@ function replaceNewPHPFunctions($text, $classname=null, $dir=null)
     # Convert [] to array()
     // this one doesn't work on PHP 5.1.6
     //$text = preg_replace_callback('/(?<sign>[\s|\(|,|=])(?<main>[^\[\]]*){0}(?<query>\[\g<main>\]|\[(?:\g<main>\g<query>\g<main>)*\])/x', 'callbackReplaceNewArray', $text);
+    $text = preg_replace_callback('/[^\]|\S](\[(?>[^\[\]]|(?R))*])[\s]*=/x', 'callbackReplaceNewArraySet', $text);
     $text = preg_replace_callback('/([\s|\(|,|=|>]*)(\[(?>[^\[\]]|(?R))*])/x', 'callbackReplaceNewArray', $text);
-
 
     # New accessors and mutators: Arrow functions
     $text = preg_replace_callback('/(\w*)[\s]*function[\s]*(\w*)\(\)\s*:\s*Attribute[^{]*{([^}]*)}/x', 'callbackReplaceAccessors', $text);
@@ -512,8 +598,11 @@ function replaceNewPHPFunctions($text, $classname=null, $dir=null)
     # '$next($request)' to '$request' 
     $text = preg_replace_callback('/(public[\s]*function[\s]*handle[\s]*\().*({(?:[^{}]*|(?2))*})/x', 'callbackReplaceHandle', $text);
 
-    # macros
-    $text = preg_replace_callback('/Builder\:\:macro[\s]*\((.*)function.*({(?:[^{}]*|(?2))*})/x', 'callbackReplaceMacros', $text);
+    # Builder macros
+    $text = preg_replace_callback('/Builder\:\:macro[\s]*\((.*)function.*({(?:[^{}]*|(?2))*})/x', 'callbackReplaceBuilderMacros', $text);
+
+    # Collection macros
+    $text = preg_replace_callback('/Collection\:\:macro[\s]*\((.*)function.*({(?:[^{}]*|(?2))*})/x', 'callbackReplaceCollectionMacros', $text);
 
     # query() annonymous functions
     if ($classname)
@@ -535,11 +624,22 @@ function replaceNewPHPFunctions($text, $classname=null, $dir=null)
     # clone() to _clone()
     $text = str_replace('->clone(', '->_clone(', $text);
 
+    # Invokable: $someClass($value) to $someClass->__invoke($value)
+    $text = preg_replace_callback('/[^\w]\$[a-zA-Z]*\(/x', 'callbackReplaceInvokable', $text);
+
 
     # Generates new class for closures
     if (count($_arrow_functions)>0 && $classname)
     {
-        $controller = "<?php\n\nclass baradurClosures_$_current_classname[0] {\n\n";
+        $controller = "<?php\n\nclass baradurClosures_$_current_classname[0]";
+        
+        if (array_key_exists($_current_classname[0], $_class_list))
+        {
+            $controller .= " extends $_current_classname[0]";
+        }
+        
+        $controller .= " {\n\n";
+            
         foreach ($_arrow_functions as $closure)
         {
             $controller .= $closure."\n\n";
@@ -560,24 +660,44 @@ function replaceNewPHPFunctions($text, $classname=null, $dir=null)
         $_arrow_functions = array();
     }
 
-    # Generates new class for macros
-    if (count($_macro_functions)>0 && $classname)
+    # Generates new class for Builder macros
+    if (count($_builder_macros)>0 && $classname)
     {
-        $controller = "<?php\n\nclass baradurMacros_$_current_classname[0] extends Builder {\n\n";
-        foreach ($_macro_functions as $closure)
+        $controller = "<?php\n\nclass baradurBuilderMacros_$_current_classname[0] extends Builder {\n\n";
+        foreach ($_builder_macros as $closure)
         {
-            $controller .= str_replace('public static', 'public ', $closure)."\n\n";
+            $controller .= $closure; //str_replace('public static', 'public ', $closure)."\n\n";
         }
         $controller .= "}";
         
         Cache::store('file')
-            ->plainPut($dir.'/storage/framework/classes/baradurMacros_'.$_current_classname[0].'.php', $controller);
+            ->plainPut($dir.'/storage/framework/classes/baradurBuilderMacros_'.$_current_classname[0].'.php', $controller);
 
-        require_once(_DIR_.'storage/framework/classes/baradurMacros_'.$_current_classname[0].'.php');
+        //require_once(_DIR_.'storage/framework/classes/baradurMacros_'.$_current_classname[0].'.php');
 
         $controller = null;
-        $_macro_functions = array();
+        $_builder_macros = array();
     }
+
+    # Generates new class for Collection macros
+    if (count($_collection_macros)>0 && $classname)
+    {
+        $controller = "<?php\n\nclass baradurCollectionMacros_$_current_classname[0] extends Collection {\n\n";
+        foreach ($_collection_macros as $closure)
+        {
+            $controller .= $closure; //str_replace('public static', 'public ', $closure)."\n\n";
+        }
+        $controller .= "}";
+        
+        Cache::store('file')
+            ->plainPut($dir.'/storage/framework/classes/baradurCollectionMacros_'.$_current_classname[0].'.php', $controller);
+
+        //require_once(_DIR_.'storage/framework/classes/baradurMacros_'.$_current_classname[0].'.php');
+
+        $controller = null;
+        $_collection_macros = array();
+    }
+    
     array_shift($_current_classname);
 
     # Convert static functions in models/resources

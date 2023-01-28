@@ -13,7 +13,6 @@ Class Worker
         if ($res)
         {
             printf("processing job...\n");
-            #print_r(unserialize($res->content));
             
             $mail = unserialize($res->content);
             

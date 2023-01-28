@@ -2,6 +2,19 @@
 
 Class Column {
 
+    public $unique = false;
+    public $nullable = false;
+    public $name = null;
+    public $type = null;
+    public $increments = null;
+    public $length = null;
+    public $precision = null;
+    public $scale = null;
+    public $default = null;
+    public $update = null;
+    public $primary = null;
+    public $unsigned = null;
+
     public function unique()
     {
         $this->unique = true;
@@ -16,7 +29,16 @@ Class Column {
 
 }
 
-Class ForeignKey {
+Class ForeignKey
+{
+    public $name = null;
+    public $type = null;
+    public $unsigned = false;
+    public $onDelete = null;
+    public $onUpdate = null;
+    public $nullable = false;
+    public $references = null;
+    public $on = null;
 
     public function onDelete($action)
     {
@@ -60,12 +82,10 @@ Class ForeignKey {
         $this->nullable = true;
         return $this;
     }
-
-
 }
 
-Class Foreign extends ForeignKey {
-
+Class Foreign extends ForeignKey
+{
     public function references($id)
     {
         $this->references = $id;
@@ -77,12 +97,10 @@ Class Foreign extends ForeignKey {
         $this->on = $table;
         return $this;
     }
-
-
 }
 
-Class ForeignId extends ForeignKey {
-
+Class ForeignId extends ForeignKey
+{
     private function _references($id)
     {
         $this->references = $id;
@@ -107,12 +125,19 @@ Class ForeignId extends ForeignKey {
 
 }
 
-Class PrimaryKey {
-
+Class PrimaryKey
+{
+    public $name = null;
+    public $value = null;
+    public $type = null;
 }
 
-Class UniqueKey {
-
+Class UniqueKey
+{
+    public $index_name = null;
+    public $name = null;
+    public $value = null;
+    public $type = null;
 }
 
 class Blueprint extends ArrayObject

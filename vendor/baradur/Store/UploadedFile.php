@@ -1,15 +1,20 @@
 <?php
 
-Class StorageFile
+Class UploadedFile
 {
+    public $name;
+    public $type;
+    public $path;
+    public $error;
+    public $size; 
 
-    public function __construct($file)
+    public function __construct($fileinfo)
     {
-        foreach($file as $key => $val)
-        {
-            $this->$key = $val;
-        }
-
+        $this->name = $fileinfo['name'];
+        $this->type = $fileinfo['type'];
+        $this->path = $fileinfo['path'];
+        $this->error = $fileinfo['error'];
+        $this->size = $fileinfo['size'];
     }
 
     public function isValid()
@@ -19,7 +24,7 @@ Class StorageFile
 
     public function path()
     {
-        return $this->tmp_name;
+        return $this->path;
     }
 
     public function extension()
@@ -37,13 +42,14 @@ Class StorageFile
     public function store($path)
     {
         $this->checkPath($path);
-        return Storage::put($path.'/'.$this->name, file_get_contents($this->tmp_name));
+        return Storage::put($path.'/'.$this->name, file_get_contents($this->path));
+        
     }
 
     public function storeAs($path, $name)
     {
         $this->checkPath($path);
-        return Storage::put($path.'/'.$name, file_get_contents($this->tmp_name));
+        return Storage::put($path.'/'.$name, file_get_contents($this->path));
     }
 
     private function checkPath($path)

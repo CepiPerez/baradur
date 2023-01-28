@@ -5,7 +5,7 @@
 <h3>Getting started</h3>
 <hr>
 <p>
-    <b>Baradur</b> is a small framework for PHP 5.1<br>
+    <b>{{$title}}</b> is a small framework for PHP 5.1<br>
     It allows you to use the same Laravel's functionallity.
     Of course, just a small part of their power is available here.
     <br><br>

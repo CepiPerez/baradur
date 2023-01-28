@@ -4,17 +4,9 @@ function env($val, $default=null) {
     return defined($val)? constant($val) : $default;
 }
 
-$base = '/'. rtrim(env('PUBLIC_FOLDER'), '/');
+$home = env('APP_URL');
 
-/* $home = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off' ? 'https' : 'http') .
-        "://" . $_SERVER['SERVER_NAME'] . $base; */
-
-$home = rtrim(env('APP_URL'), '/') . $base;
-
-#define('_ASSETS', 'assets');
 define('HOME', rtrim($home, '/'));
-
-#define('HOME', env('APP_URL'));
 
 $locale = 'en';
 
@@ -30,7 +22,7 @@ if ( !function_exists('json_decode') )
         return $json->decode($content);
     }
 }
-else
+/* else
 {
     function json_decode2($content, $assoc=false){
         include(_DIR_.'vendor/json/json.php');
@@ -41,7 +33,7 @@ else
         }
         return $json->decode($content);
     }
-}
+} */
 
 if ( !function_exists('json_encode') )
 {
@@ -52,7 +44,7 @@ if ( !function_exists('json_encode') )
         return $json->encode($content);
     }
 }
-else
+/* else
 {
     function json_encode2($content){
         //var_dump($content);
@@ -61,7 +53,8 @@ else
         return $json->encode($content);
     }
 
-}
+} */
+
 if ( !function_exists('lcfirst') )
 {
     function lcfirst($content){
@@ -103,19 +96,7 @@ if (!function_exists('str_ends_with'))
 
         return $needleLength <= \strlen($haystack) && 0 === substr_compare($haystack, $needle, -$needleLength);
     }
-
 }
 
-/* if(!function_exists('array_column'))
-{
-
-    function array_column($array,$column_name)
-    {
-
-        return array_map(function($element) use($column_name){return $element[$column_name];}, $array);
-
-    }
-
-} */
 
 ?>

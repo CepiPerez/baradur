@@ -53,7 +53,7 @@ Class Relations
 
         if (!$foreign)
         {
-            $foreign = Helpers::camelCaseToSnakeCase($parent->_parent, false).'_id';
+            $foreign = $parent->_model->getForeignKey();
         }
         
         if (!$primary) 
@@ -72,7 +72,7 @@ Class Relations
         {
             $wherein = array();
             $wherein = (array)$parent->_collection->pluck($primary);
-            $res->whereIn($res->_table.'.'.$foreign, $wherein);
+            $res->whereIn($res->table.'.'.$foreign, $wherein);
             $res->_relationVars['where_in'] = $wherein;
         }
 
@@ -118,7 +118,7 @@ Class Relations
         {
             $wherein = array();
             $wherein = (array)$parent->_collection->pluck($primary);
-            $res->whereIn($res->_table.'.'.$foreign, $wherein);
+            $res->whereIn($res->table.'.'.$foreign, $wherein);
             $res->_relationVars['where_in'] = $wherein;
         }
 
@@ -133,15 +133,17 @@ Class Relations
     
     public static function hasOneThrough($parent, $class, $classthrough, $foreignthrough, $foreign, $primary, $primarythrough)
     {
+        
         $res = self::getInstance($class, $parent);
 
+        $primarytable = Model::instance($class)->table;
         $secondarytable = Helpers::camelCaseToSnakeCase($classthrough, false);
 
         if (class_exists($classthrough))
             $secondarytable = call_user_func(array($classthrough, 'getTable'), array());
         
 
-        $res = $res->join($secondarytable, $primarythrough, '=', $foreign);
+        $res = $res->join($secondarytable, $secondarytable.'.'.$primarythrough, '=', $primarytable.'.'.$foreign);
 
         $res->_relationVars = array(
             'relationship' => 'hasOneThrough',
@@ -183,31 +185,26 @@ Class Relations
         sort($array);                 
         $classthrough = Helpers::camelCaseToSnakeCase(implode('', $array), false);
 
-        if (!$foreignthrough)
-        {
+        if (!$foreignthrough) {
             $foreignthrough = Helpers::camelCaseToSnakeCase($parent->_parent, false).'_'.$parent->_routeKey;
         } 
 
-        if (!$primarythrough)
-        {
+        if (!$primarythrough) {
             $primarythrough = Helpers::camelCaseToSnakeCase($class, false).'_'.$parent->_routeKey;
         }
 
-        if (!$foreign)
-        {
+        if (!$foreign) {
             $foreign = 'id';
         }
 
-        if (!$primary) 
-        {
+        if (!$primary) {
             $primary = is_array($parent->_primary)? $parent->_primary[0] : $parent->_primary;
         }
 
         $res = self::hasOneThrough($parent, $class, $classthrough, $foreignthrough, $foreign, $primary, $primarythrough);
         $res->_relationVars['relationship'] = 'belongsToMany';
 
-        if ($parent->_collection->count()==1)
-        {
+        if ($parent->_collection->count()==1) {
             $current = $parent->_collection->first()->$primary;
             $res->_relationVars['current'] = $current;
         }
@@ -377,8 +374,7 @@ Class Relations
         $pivot_name = isset($res->_relationVars['pivot_name'])?
             $res->_relationVars['pivot_name'] : 'pivot';
         
-        if (isset($parent->_eagerLoad[$relation]['_constraints'])
-            && !isset($res->_eagerLoad))
+        if (isset($parent->_eagerLoad[$relation]['_constraints']) && !isset($res->_eagerLoad))
         {
             $res->_eagerLoad = $parent->_eagerLoad[$relation]['_constraints']->_eagerLoad;
         }
@@ -435,7 +431,6 @@ Class Relations
                 $res->addSelect("$classthrough.$ec as pivot_$ec");
         }
 
-        //dump($res);
         $res = $res->get();
         //dump($res); //dump($parent);
 
@@ -443,10 +438,6 @@ Class Relations
         {
             $primary = $parent->_primary[0];
         }
-
-        //dump("KEY: $key");
-        //dump($res);
-        //dump($parent);
 
         $to_remove = array();
 
@@ -486,7 +477,6 @@ Class Relations
                             if (strpos($k, 'pivot_')!==false)
                             {
                                 $child = str_replace('pivot_', '', $k);
-                                $pivot->_setOriginalKey($child, $v);
                                 $pivot->$child = $v;
     
                                 if (!in_array($k, $to_remove))
@@ -494,6 +484,7 @@ Class Relations
                             }
                             $pivot->setAppends(null);
                             $pivot->setRelations(null);
+                            $pivot->syncOriginal();
                             unset($pivot->_global_scopes);
                             $pivot->setQuery(null);
                         }
@@ -519,8 +510,6 @@ Class Relations
                 $results = $columns!='*'
                     ? $res->where($key, $current->$primary)->keys($columns) 
                     : $res->where($key, $current->$primary);
-
-                //$results = $results;
             }
 
             if ($current instanceof Model)
@@ -529,8 +518,6 @@ Class Relations
                 $current->{$relation} = $results;
             
         }
-
-        //dd($parent);
 
         if (count($to_remove)>0)
         {
@@ -542,13 +529,10 @@ Class Relations
                     {
                         foreach ($to_remove as $remove)
                         {
-                            if ($it instanceof Model)
-                            {
+                            if ($it instanceof Model) {
                                 $it->unsetAttribute($remove);
-                                $it->unsetOriginal($remove);
-                            }
-                            else
-                            {
+                                $it->syncOriginal();
+                            } else {
                                 unset($it->$remove);
                             }
                         }
@@ -558,13 +542,10 @@ Class Relations
                 {
                     foreach ($to_remove as $remove)
                     {
-                        if ($item instanceof Model)
-                        {
+                        if ($item instanceof Model) {
                             $item->unsetAttribute($remove);
-                            $item->unsetOriginal($remove);
-                        }
-                        else
-                        {
+                            $item->syncOriginal();
+                        } else {
                             unset($item->$remove);
                         }
                     }
@@ -572,10 +553,7 @@ Class Relations
             }
         }
 
-
         $parent->_loadedRelations[] = $relation;
-
-        //dump($parent->_collection);
     }
 
 

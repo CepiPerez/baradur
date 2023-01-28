@@ -36,7 +36,6 @@ class Paginator
 		return self::$pagination;
 	}
 
-
     public function currentPage()
     {
         return $this->meta['current'];

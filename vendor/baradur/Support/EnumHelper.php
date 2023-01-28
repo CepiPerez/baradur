@@ -11,11 +11,6 @@ class EnumItem
         $this->value = $value;
     }
 
-    /* public function __toString()
-    {
-        return $this->value;
-    } */
-
     public function __get($name)
     {
         return $this->$name;
@@ -38,12 +33,12 @@ class EnumHelper
     public function cases()
     {
         $arr = array();
-        foreach ($this as $k => $v)
-        {
+
+        foreach ($this as $k => $v){
             $arr[] = get_class($this)."::".$k;
         }
+
         return $arr;
     }
-
-    
+   
 }

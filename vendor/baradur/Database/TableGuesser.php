@@ -31,5 +31,7 @@ class TableGuesser
                 return [$matches[2], $create = false];
             }
         }
+
+        return null;
     }
 }

@@ -2,6 +2,7 @@
 
 class CsrfMiddleware
 {
+    protected $except = array();
 
     public function handle($request)
     {
@@ -27,7 +28,7 @@ class CsrfMiddleware
         }
 
         //echo "Verifying token";
-        $this->_checkToken(Route::getCurrentRoute());
+        $this->_checkToken(Route::current());
         $this->_removeOldTokens();
         
         return $request;
@@ -37,14 +38,23 @@ class CsrfMiddleware
     {
         if ($ruta->method=='POST' || $ruta->method=='PUT' || $ruta->method=='DELETE')
         {
-            $date1 = strtotime(env('HTTP_TOKENS'), strtotime($_SESSION['tokens'][$_POST['csrf']]['timestamp']));
-            $date2 = strtotime(date('Y-m-d H:i:s'));
             if (!isset($_SESSION['tokens'][$_POST['csrf']]))
             {
                 # Token doesn't exist
                 abort(403);
             }
-            elseif ($date1 < $date2)
+
+            $lifetime = env('HTTP_TOKENS')? env('HTTP_TOKENS') : 30;
+
+            $date1 = Carbon::parse($_SESSION['tokens'][$_POST['csrf']]['timestamp'])
+                ->addMinutes($lifetime)->getTimestamp();
+            
+            $date2 = Carbon::now()->getTimestamp();
+
+            //$date1 = strtotime(env('HTTP_TOKENS'), strtotime($_SESSION['tokens'][$_POST['csrf']]['timestamp']));
+            //$date2 = strtotime(date('Y-m-d H:i:s'));
+            
+            if ($date1 < $date2)
             {
                 # Token expired
                 abort(403);

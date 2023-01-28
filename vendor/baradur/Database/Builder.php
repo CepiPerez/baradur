@@ -4,9 +4,8 @@ Class Builder
 {
     protected static $_macros = array();
 
-
     public $_model = null;
-    public $_table;
+    public $table;
     public $_primary;
     public $_parent = null;
     public $_fillable;
@@ -30,7 +29,7 @@ Class Builder
     public $_method = '';
     public $_where = '';
     public $_bindings = array();
-    public $_join = '';
+    public $joins = array();
     public $_limit = null;
     public $_offset = null;
     public $_order = '';
@@ -52,59 +51,93 @@ Class Builder
     public $_relationVars = null;
     public $_loadedRelations = array();
 
-    private $_scopes = array();
+    public $_scopes = array();
 
-    private $_lastInsert = null;
+    protected $grammar;
+
+    public $_lastInsert = null;
 
     public $_hasConstraints = null;
 
     public $_toBase = false;
 
+    protected $sql_connector = null;
+
+    public $distinct = false;
+
 
     public function __construct($model, $table = null)
     {
-        $this->_model = new $model;
-        $this->_table = $table? $table : $this->_model->getTable();
-        $this->_connector = $this->_model->getConnector();
-        $this->_primary = is_array($this->_model->getPrimaryKey())? $this->_model->getPrimaryKey() : array($this->_model->getPrimaryKey());
+        if ($model instanceof Builder) {
+            $base = $model->_model;
+            $model = $model->_parent;
+        }
+        else
+        {
+            $base = new $model;
+        }
+
+        $this->_model = $base;
+        $this->table = $table? $table : $base->getTable();
+        $this->_connector = $base->getConnectionName();
+        $this->_primary = is_array($base->getKeyName())? $base->getKeyName() : array($base->getKeyName());
         $this->_parent = $model;
-        $this->_fillable = $this->_model->getFillable();
-        $this->_guarded = $this->_model->getGuarded();
-        $this->_hidden = $this->_model->getHidden();
-        $this->_appends = $this->_model->getAppends();
-        $this->_routeKey = $this->_model->getRouteKeyName();
-        $this->_softDelete = $this->_model->usesSoftDeletes()? 1 : 0;
-        $this->_collection = new Collection($model, $this->_model->getHidden());
-        $this->_timestamps = $this->_model->getTimestamps();
+        $this->_fillable = $base->getFillable();
+        $this->_guarded = $base->getGuarded();
+        $this->_hidden = $base->getHidden();
+        $this->_appends = $base->getAppends();
+        $this->_routeKey = $base->getRouteKeyName();
+        $this->_softDelete = $base->usesSoftDeletes()? 1 : 0;
+        $this->_collection = new Collection(); //collectWithParent(null, $model);
+        $this->_timestamps = $base->getTimestamps();
+
+        $this->grammar = new Grammar();
         
-        $this->_timestamp_created = $this->_model->getCreatedAt();
-        $this->_timestamp_updated = $this->_model->getUpdatedAt();
+        $this->_timestamp_created = $base->getCreatedAt();
+        $this->_timestamp_updated = $base->getUpdatedAt();
+
+        foreach ($base->__getWith() as $with)
+        {
+            $this->_eagerLoad[$with] = array();
+        }
 
         if ($model=='DB')
         {
             $this->_fillableOff = true;
         }
-
-        $this->_method = "SELECT `$this->_table`.*";
+        
+        $this->_method = "SELECT `$this->table`.*";
 
     }
 
 
     public function __call($method, $parameters)
     {
+        global $_class_list;
 
         if (method_exists($this->_parent, 'scope'.lcfirst($method)))
         {
-            //return Model::instance($this->_parent)->callScope(lcfirst($method), $parameters);
             return $this->callScope(lcfirst($method), $parameters); 
         }
 
         if (isset(self::$_macros[$method]))
         {
-            list($c, $m, $p) = getCallbackFromString(self::$_macros[$method]);
-            $class = new $c($this->_parent);
+            $class = self::$_macros[$method];
+
+            if (is_closure($class))
+            {
+                list($c, $m) = getCallbackFromString($class);
+                $class = new $c($this->_parent);
+
+            }
+            elseif (isset($_class_list[$class]))
+            {
+                $class = new $class;
+                $m = '__invoke';
+            }
+
+            $this->_clone($class);
             return executeCallback($class, $m, $parameters, $this);
-            //return call_user_func_array(array($class, $m), array_merge($parameters, array($this)));
         }
 
         if (Str::startsWith($method, 'where'))
@@ -117,13 +150,27 @@ Class Builder
             return $this->_as($parameters);
         }
 
-
         throw new Exception("Method $method does not exist");
     }
 
-    public function _clone()
+    public function __paramsToArray()
     {
-        $cloned = new Builder($this->_parent, $this->_table);
+        $params = array();
+
+        foreach ($this as $key => $val)
+        {
+            if ($key!='_macros' && $key!='grammar')
+                $params[$key] = $val;
+        }
+
+        return $params;
+    }
+
+    public function _clone($cloned=null)
+    {
+        if (!$cloned) {
+            $cloned = new Builder($this->_parent, $this->table);
+        }
 
         $cloned->_foreign = $this->_foreign; 
         $cloned->_fillableOff = $this->_fillableOff; 
@@ -132,7 +179,7 @@ Class Builder
         $cloned->_method = $this->_method; 
         $cloned->_where = $this->_where; 
         $cloned->_bindings = $this->_bindings; 
-        $cloned->_join = $this->_join; 
+        $cloned->joins = $this->joins; 
         $cloned->_limit = $this->_limit; 
         $cloned->_offset = $this->_offset; 
         $cloned->_order = $this->_order; 
@@ -154,22 +201,16 @@ Class Builder
         $cloned->_timestamp_created = $this->_timestamp_created;
         $cloned->_timestamp_updated = $this->_timestamp_updated;
         $cloned->_toBase = $this->_toBase;
+        $cloned->distinct = $this->distinct;
 
         return $cloned;
     }
 
-    /* public function __clone()
-    {
-        die("HOLA");
-        $cloned = new Builder($this->_parent, $this->_table);
-        return $cloned;
-    }  */
-
     private function clear()
     {
-        $this->_method = "SELECT `$this->_table`.*";
+        $this->_method = "SELECT `$this->table`.*";
         $this->_where = '';
-        $this->_join = '';
+        $this->joins = array();
         $this->_limit = null;
         $this->_offset = null;
         $this->_group = '';
@@ -182,23 +223,17 @@ Class Builder
         $this->_bindings = array();
     }
 
-    private $sql_connector = null;
-
-
     protected function setConnectorDriver($driver, $host, $user, $password, $database, $port=3306)
     {
-        if ($driver=='mysql')
-        {
+        if ($driver=='mysql') {
             return new PdoConnector($host, $user, $password, $database, $port);
         }
 
-        if ($driver=='mysqli')
-        {
+        if ($driver=='mysqli') {
             return new MysqliConnector($host, $user, $password, $database, $port);
         }
 
-        if ($driver=='oracle')
-        {
+        if ($driver=='oracle') {
             return new OracleConnector($host, $user, $password, $database, $port);
         }
     }
@@ -250,45 +285,21 @@ Class Builder
     }
 
 
-
-    private function arrayToObject($array)
-    {
-        if (count($array)==0)
-            return array();
-
-        $obj = new stdClass;
-        foreach ($array as $key => $value)
-        {
-            if (is_array($value))
-            {
-                $obj->$key = $this->arrayToObject($value);
-            } 
-            else
-            {
-                $obj->$key = $value; 
-            }
-        }
-        return $obj;
-    }
-
-
     private function buildQuery()
     {
-        if (strpos($this->_join, '!WHERE!')>0)
-        {
-            $this->_join = str_replace('!WHERE!', $this->_where, $this->_join);
-            $this->_where = '';
+        if ($this->distinct) {
+            $this->_method = str_replace('SELECT ', 'SELECT DISTINCT ', $this->_method);
         }
 
         $res = $this->_method;
         if ($this->_fromSub!='') $res .= ' FROM ' . $this->_fromSub . ' ';
         else {
-            if (strpos($this->_table, 'information_schema')===false)
-                $res .= ' FROM `' . $this->_table . '` ';
+            if (strpos($this->table, 'information_schema')===false)
+                $res .= ' FROM `' . $this->table . '` ';
             else
-                $res .= ' FROM ' . $this->_table . ' ';
+                $res .= ' FROM ' . $this->table . ' ';
         }
-        if ($this->_join != '') $res .= $this->_join . ' ';
+        if (!empty($this->joins)) $res .= $this->implodeJoinClauses() . ' ';
         if ($this->_where != '') $res .= $this->_where . ' ';
         if ($this->_union != '') $res .= $this->_union . ' ';
         if ($this->_group != '') $res .= $this->_group . ' ';
@@ -301,11 +312,42 @@ Class Builder
 
         if (strpos(strtolower($res), ' join ')===false && count($this->_loadedRelations)==0)
         {
-            $res = str_replace("`$this->_table`.", '', $res);
+            $res = str_replace("`$this->table`.", '', $res);
+        }
+
+        return trim(str_replace('  ', ' ', str_replace(' )', ')', $res)));
+    }
+
+    private function implodeJoinClauses()
+    {
+        $res = '';
+        
+        foreach ($this->joins as $query)
+        {
+            if ($query instanceof JoinClause)
+            {
+                $res .= ' ' . strtoupper($query->type) . ' JOIN ';
+
+                if ($query->table instanceof Expression) {
+                    $res .= (string)$query->table;
+                } else {
+                    $res .= '`'.$query->table.'`';
+                }
+                              
+                if ($query->_where) {
+                    $res .= ' ON' . ltrim($query->_where, 'WHERE');
+                }
+            }
+            else
+            {
+                $res .= ' ' . $query;
+            }
         }
 
         return $res;
     }
+
+
 
     private function checkObserver($function, $model)
     {
@@ -324,58 +366,94 @@ Class Builder
         }
     }
 
+    private function __mergeBindings($clause, $bindings, $remove_actual_values = false)
+    {
+        if (!isset($this->_bindings[$clause])) $this->_bindings[$clause] = array();
+        
+        $this->_bindings[$clause] = $remove_actual_values? 
+            $bindings : array_merge($this->_bindings[$clause], $bindings);
+    }
 
+    public static function __joinBindings($bindings)
+    {
+        if (!is_assoc($bindings))
+            return $bindings;
+
+        $array = array();
+        if (!empty($bindings['select'])) foreach ($bindings['select'] as $b) $array[] = $b;
+        if (!empty($bindings['join'])) foreach ($bindings['join'] as $b) $array[] = $b;
+        if (!empty($bindings['where'])) foreach ($bindings['where'] as $b) $array[] = $b;
+        if (!empty($bindings['union'])) foreach ($bindings['union'] as $b) $array[] = $b;
+        if (!empty($bindings['group'])) foreach ($bindings['union'] as $b) $array[] = $b;
+        if (!empty($bindings['having'])) foreach ($bindings['having'] as $b) $array[] = $b;
+        if (!empty($bindings['order'])) foreach ($bindings['order'] as $b) $array[] = $b;
+        
+        return $array;
+    }
+
+    public static function __getPlainSqlQuery($query, $bindings)
+    {
+        $bind = self::__joinBindings($bindings);
+
+        foreach ($bind as $val)
+        {
+            if (is_string($val)) $val = "'$val'";
+            $query = preg_replace('/\?/', $val, $query, 1);
+        }
+
+        return $query;
+    }
+
+    
+    /**
+     * Returns an array with the full query as a string
+     * and binded values
+     * 
+     * @return array
+     */
+    public function toSql()
+    {
+        $res = $this->buildQuery();
+
+        return array($res, json_encode(self::__joinBindings($this->_bindings)));
+    }
+
+    /**
+     * Returns with the full query as a string
+     * without binded values
+     * 
+     * @return string
+     */
     private function toSqlFirst()
     {
         $res = $this->toSql();
         return $res[0];
     }
 
-    
     /**
      * Returns the full query as a string
+     * including binded values
      * 
      * @return string
      */
-    public function toSql()
+    public function toPlainSql($query=null, $bindings=null)
     {
-        $res = $this->buildQuery();
+        if (!$query) $query = $this->buildQuery();
 
-        /* foreach ($this->_bindings as $val)
-        {
-            if (is_string($val)) $val = "'$val'";
-            $res = preg_replace('/\?/', $val, $res, 1);
-        } */
+        if (!$bindings) $bindings = $this->_bindings;
 
-        return array($res, $this->_bindings);
+        return self::__getPlainSqlQuery($query, $bindings);
     }
 
-    /**
-     * Returns the full query as a string
-     * 
-     * @return string
-     */
-    public function toPlainSql()
+    public function getBindings()
     {
-        //dump($this);
-        $res = $this->buildQuery();
-
-        $bind = array();
-        foreach ($this->_bindings['select'] as $b) $bind[] = $b;
-        foreach ($this->_bindings['join'] as $b) $bind[] = $b;
-        foreach ($this->_bindings['where'] as $b) $bind[] = $b;
-        foreach ($this->_bindings['union'] as $b) $bind[] = $b;
-        foreach ($this->_bindings['having'] as $b) $bind[] = $b;
-
-        foreach ($bind as $val)
-        {
-            if (is_string($val)) $val = "'$val'";
-            $res = preg_replace('/\?/', $val, $res, 1);
-        }
-
-        return $res;
+        return self::__joinBindings($this->_bindings);
     }
 
+    public function addBinding($bindings, $clause)
+    {
+        return self::__mergeBindings('join', $bindings, false);
+    }
 
     /**
      * Hidrates the result using Objects instead of Models
@@ -388,24 +466,17 @@ Class Builder
         return $this;
     }
 
-
     /**
      * Specifies the SELECT clause\
      * Returns the Query builder
      * 
-     * @param string $columns String containing colums divided by comma
      * @return Builder
      */
-    public function selectRaw($query = '*', $bindings = array())
+    public function selectRaw($sql = '*', $bindings = array())
     {
-        $this->_bindings['select'] = array();
-        foreach ($bindings as $v)
-        {
-            //$val = preg_replace('/\?/', $v, $val, 1);
-            $this->_bindings['select'][] = $v;
-        }
+        $this->__mergeBindings('select', $bindings, true);
 
-        $this->_method = 'SELECT ' . $query;
+        $this->_method = 'SELECT ' . $sql;
 
         return $this;
     }
@@ -425,24 +496,13 @@ Class Builder
             }
             elseif (is_numeric($key))
             {
-                list($col, $as, $alias) = explode(' ', $value);
-                list($db, $col) = explode('.', $col);
-    
-                $col = trim($col);
-                $as = trim($as); 
-                $alias = trim($alias); 
-                $db = trim($db);
-    
-                $columns[] = ($db=='*'? '`'.$this->_table.'`.*' : '`'.$db.'`') . 
-                    ($col? '.' . ($col=='*'? '*' : '`'.$col.'`') : '') . 
-                    (trim(strtolower($as))=='as'? ' as `'.$alias.'`':'');
+                $columns[] = $this->grammar->setTablePrefix($this->table)->wrapTable($value);           
             }
             
         }
 
         return $columns;
     }
-
 
     /**
      * Specifies the SELECT clause\
@@ -476,6 +536,24 @@ Class Builder
     }
 
     /**
+     * Force the query to only return distinct results.
+     *
+     * @return $this
+     */
+    public function distinct()
+    {
+        $columns = func_get_args();
+
+        if (count($columns) > 0) {
+            $this->distinct = is_array($columns[0]) || is_bool($columns[0]) ? $columns[0] : $columns;
+        } else {
+            $this->distinct = true;
+        }
+
+        return $this;
+    }
+
+    /**
      * Specifies custom from\
      * Returns the Query builder
      * 
@@ -488,7 +566,6 @@ Class Builder
         $this->_fromSub = ' (' . $subquery->toSqlFirst() . ') ' . $alias;
         return $this;
     }
-
 
     /**
      * Specifies the WHERE clause\
@@ -551,8 +628,6 @@ Class Builder
                 $this->_where = 'WHERE (' . str_replace('WHERE ', '', $this->_where) . ')';
         }
 
-        //dump($this);
-
         return $this;
     }
 
@@ -599,41 +674,21 @@ Class Builder
             $cond = '=';
         }
 
-        list ($table, $col) = explode('.', $column);
-        if ($col) $column = '`'.$table.'`.`'.$col.'`';
-        else $column = '`'.$this->_table.'`.`'.$table.'`';
-
-        /* $vtype = 'i';
-        if (is_string($val))
-        {
-            $vtype = 's';   
-        }
-
-        $this->_bindings[] = array($vtype => $val); */
-
-        /* if (is_string($val))
-        {
-            $val = rtrim(ltrim($val, "'"), "'");
-            $val = "'$val'";
-        } */
+        $column = $this->grammar->setTablePrefix($this->table)->wrapTable($column);
 
         $this->_bindings[$class][] = $val;
 
         return $column . ' ' . $cond . ' ?';// . $val;
 
-
     }
 
     private function addWhere($column, $cond='', $val='', $boolean='AND')
     {
-        //dump(func_get_args());
-        //dump(get_class($this));
-        //dump($this->_bindings);
         if (is_array($column))
         {
             $result = $this->getArrayOfWheres($column, $boolean);
         }
-        elseif (strpos($column, '@')!==false)
+        elseif (is_closure($column))
         {
             $prev_where = $this->_where;
             $this->_where = '';
@@ -654,12 +709,11 @@ Class Builder
         return $this;
     }
 
-
     /**
      * Adds a basic WHERE clause\
      * Returns the Query builder
      * 
-     * @param string $column 
+     * @param string|Closure $column 
      * @param string $condition Can be ommited for '='
      * @param string $value
      * @return Builder
@@ -704,7 +758,6 @@ Class Builder
         return $this;
     }
 
-
     private function splitStringIntoArray($string)
     {
         $array = array();
@@ -728,16 +781,11 @@ Class Builder
 
         foreach ($values as $val)
         {
-            /* if (is_string($val))
-                $val = "'".$val."'"; */
-            
             $final_array[] = '?';
             $this->_bindings['where'][] = $val;
         }
 
-        list ($table, $col) = explode('.', $column);
-        if ($col) $column = '`'.$table.'`.`'.$col.'`';
-        else $column = '`'.$table.'`';
+        $column = $this->grammar->setTablePrefix(null)->wrapTable($column);
 
         if ($this->_where == '')
             $this->_where = 'WHERE ' . $column . ($not? ' NOT' : '') . ' IN ('. implode(',', $final_array) .')';
@@ -800,7 +848,6 @@ Class Builder
         return $this->addWhereIn($column, $values, 'OR', true);
     }
 
-
     private function addWhereBetween($column, $values, $boolean)
     {
         $final_array = array();
@@ -825,9 +872,7 @@ Class Builder
             $final_array[] = $val;
         }
 
-        list ($table, $col) = explode('.', $column);
-        if ($col) $column = '`'.$table.'`.`'.$col.'`';
-        else $column = '`'.$table.'`';
+        $column = $this->grammar->setTablePrefix(null)->wrapTable($column);
         
         if ($this->_where == '')
             $this->_where = "WHERE $column BETWEEN '$final_array[0]' AND '$final_array[1]'";
@@ -939,13 +984,8 @@ Class Builder
             $operator = '=';
         }
 
-        list ($table, $col) = explode('.', $first);
-        if ($col) $first = '`'.$table.'`.`'.$col.'`';
-        else $first = '`'.$table.'`';
-
-        list ($table, $col) = explode('.', $second);
-        if ($col) $second = '`'.$table.'`.`'.$col.'`';
-        else $second = '`'.$table.'`';
+        $first = $this->grammar->setTablePrefix(null)->wrapTable($first);
+        $second = $this->grammar->setTablePrefix(null)->wrapTable($second);
 
         if ($this->_where == '')
             $this->_where = "WHERE $first $operator $second";
@@ -1056,11 +1096,10 @@ Class Builder
     {
         if (is_array($reference))
         {
-            foreach ($reference as $co)
+            foreach ($reference as $item)
             {
-                //var_dump($co); echo "<br>";
-                list($var1, $var2, $var3) = $co;
-                $this->having($var1, $var2, $var3);
+                list($reference, $operator, $value) = $item;
+                $this->having($reference, $operator, $value);
             }
             return $this;
         }
@@ -1071,22 +1110,9 @@ Class Builder
             $operator = '=';
         }
 
-        list ($table, $col) = explode('.', $reference);
-        if ($col) $reference = '`'.$table.'`.`'.$col.'`';
-        else $reference = '`'.$table.'`';
+        $reference = $this->grammar->setTablePrefix(null)->wrapTable($reference);
 
-        /* $vtype = 'i';
-        if (is_string($value))
-        {
-            $vtype = 's';   
-        }
-
-        $this->_bindings[] = array($vtype => $value); */
-
-
-        //if (is_string($value)) $value = "'$value'";
-
-        $this->_bindings['having'][] = $value;
+        $this->__mergeBindings('having', array($value));
 
         return $reference . ' ' . $operator . ' ?';// . $value;
 
@@ -1106,9 +1132,9 @@ Class Builder
         $result = $this->getHaving($reference, $operator, $value);
 
         if ($this->_having == '')
-            $this->_having = 'HAVING ' . $reference . ' ' . $operator . ' ' . $value; // ' ?';
+            $this->_having = 'HAVING ' . $result; //$reference . ' ' . $operator . ' ' . $value;
         else
-            $this->_having .= ' ' . $boolean . ' ' . $reference . ' ' .$operator . ' ' . $value; // ' ?';
+            $this->_having .= ' ' . $result; //$boolean . ' ' . $reference . ' ' .$operator . ' ' . $value;
 
         return $this;
     }
@@ -1189,21 +1215,21 @@ Class Builder
      */
     public function havingBetween($reference, $values)
     {
-        $win = array();
+        $bindings = array();
         foreach ($values as $val)
         {
             if (is_string($val)) $val = "'".$val."'";
-            array_push($win, $val);
+            array_push($bindings, $val);
         }
 
-        list ($table, $col) = explode('.', $reference);
-        if ($col) $reference = '`'.$table.'`.`'.$col.'`';
-        else $reference = '`'.$table.'`';
+        $reference = $this->grammar->setTablePrefix(null)->wrapTable($reference);
+
+        $this->__mergeBindings('having', $bindings);
 
         if ($this->_having == '')
-            $this->_having = "HAVING $reference BETWEEN '$win[0]' AND '$win[1]'";
+            $this->_having = "HAVING $reference BETWEEN ? AND ?";
         else
-            $this->_having = " AND $reference BETWEEN '$win[0]' AND '$win[1]'";
+            $this->_having = " AND $reference BETWEEN ? AND ?";
 
         return $this;
     }
@@ -1218,11 +1244,7 @@ Class Builder
      */
     public function havingRaw($sql, $bindings = array(), $boolean = 'AND')
     {
-        foreach ($bindings as $v)
-        {
-            $this->_bindings['having'] = $v;
-            //$val = preg_replace('/\?/', $v, $sql, 1);
-        }
+        $this->__mergeBindings('having', $bindings);
 
         if ($this->_having == '')
             $this->_having = 'HAVING ' . $sql;
@@ -1244,246 +1266,244 @@ Class Builder
         return $this->havingRaw($sql, $bindings, 'OR');
     }
 
-
     private function getCallback($callback, $query)
     {
-        if (strpos($callback, '@')!==false)
+        if (is_closure($callback))
         {
             list($class, $method, $params) = getCallbackFromString($callback);
             array_shift($params);
-            executeCallback($class, $method, array_merge(array($query), $params), $this);
-            //call_user_func_array(array($class, $method), array_merge(array($query), $params));
+            return executeCallback($class, $method, array_merge(array($query), $params), $this);
         }
     }
 
 
     public function when($value, $callback, $default = null)
     {
-        if ($value)
-        {
+        if ($value) {
             $this->getCallback($callback, $this);
         }
-        elseif ($default)
-        {
+
+        elseif ($default) {
             $this->getCallback($default, $this);
         }
 
         return $this;
     }
 
-    private function _joinCallback($side, $name, $column)
+
+    /**
+     * Add a join clause to the query.
+     *
+     * @param  string  $table
+     * @param  \Closure|string  $first
+     * @param  string|null  $operator
+     * @param  string|null  $second
+     * @param  string  $type
+     * @param  bool  $where
+     * @return Builder
+     */
+    public function join($table, $first, $operator = null, $second = null, $type = 'inner', $where = false)
     {
-        $join = new JoinClause($name);
-        $this->getCallback($column, $join);
+        $join = $this->newJoinClause($this, $type, $table);
 
-        if (!$this->_bindings['join']) $this->_bindings['join'] = array();
-        $this->_bindings['join'] = array_merge($this->_bindings['join'], $join->_bindings['join']);
-        
-        $result = str_replace('WHERE', '', $join->_where);
-        unset($join);
-
-        if ($this->_join == '')
-            $this->_join = $side . ' JOIN `' . $name . '` ON ' . $result;
-        else
-            $this->_join .= ' ' . $side . ' JOIN `' . $name . '` ON ' . $result;
-        
-        //dump($this);
-        return $this;
-
-    }
-
-
-    private function _joinResult($side, $name, $column, $comparator, $ncolumn)
-    {
-        if (strpos($column, '@')>0)
+        if (is_closure($first))
         {
-            return $this->_joinCallback($side, $name, $column);
-        }
-
-        list($name, $as, $alias) = explode(' ', $name);
-
-        $side = trim($side);
-        $as = trim($as);
-        $name = trim($name);
-        $alias = trim($alias);
-        $column =  strpos($column, '.')!==false? $column : '`' . ($as? $alias : $name) . '`.`' . trim($column) . '`';
-        $ncolumn =  strpos($ncolumn, '.')!==false? $ncolumn : '`' . $this->_table . '`.`' . trim($ncolumn) . '`';
-
-        if ($this->_join == '')
-            $this->_join = $side.' JOIN ' . $name . ($as?' AS '.$alias:'') . ' ON ' . $ncolumn .' '.$comparator.' ' . $column;
-        else
-            $this->_join .= ' ' . $side.' JOIN ' . $name . ($as?' AS '.$alias:'') . ' ON ' . $ncolumn .' '.$comparator.' ' . $column;
-  
-        return $this;
-    }
-
-    /**
-     * Specifies the INNER JOIN clause\
-     * Returns the Query builder
-     * 
-     * @param string $join_table 
-     * @param string $column
-     * @param string $comparator
-     * @param string $join_column
-     * @return Builder
-     */
-    public function join($join_table, $column, $comparator=null, $join_column=null)
-    {
-        return $this->_joinResult('INNER', $join_table, $column, $comparator, $join_column);
-    }
-
-    /**
-     * Specifies the LEFT JOIN clause\
-     * Returns the Query builder
-     * 
-     * @param string $join_table 
-     * @param string $column
-     * @param string $comparator
-     * @param string $join_column
-     * @return Builder
-     */
-    public function leftJoin($join_table, $column, $comparator=null, $join_column=null)
-    {
-        return $this->_joinResult('LEFT', $join_table, $column, $comparator, $join_column);
-    }
-
-    /**
-     * Specifies the RIGHT JOIN clause\
-     * Returns the Query builder
-     * 
-     * @param string $join_table 
-     * @param string $column
-     * @param string $comparator
-     * @param string $join_column
-     * @return Builder
-     */
-    public function rightJoin($join_table, $column, $comparator=null, $join_column=null)
-    {
-        return $this->_joinResult('RIGHT', $join_table, $column, $comparator, $join_column);
-    }
-
-    /**
-     * Specifies the CROSS JOIN clause\
-     * Returns the Query builder
-     * 
-     * @param string $join_table 
-     * @param string $column
-     * @param string $comparator
-     * @param string $join_column
-     * @return Builder
-     */
-    public function crossJoin($join_table, $column, $comparator=null, $join_column=null)
-    {
-        return $this->_joinResult('CROSS', $join_table, $column, $comparator, $join_column);
-    }
-
-
-    private function _joinSubResult($side, $query, $alias, $filter)
-    {
-        $side = trim($side);
-        $alias = '`' . trim($alias) . '`';
-
-        if ($query instanceof Builder)
-        {
-            if (!$this->_bindings['select']) $this->_bindings['select'] = array();
-            if (!$this->_bindings['where']) $this->_bindings['where'] = array();
-            if (!$this->_bindings['join']) $this->_bindings['join'] = array();
-
-            if (is_array($query->_bindings['select']) && count($query->_bindings['select'])>0) {
-                $this->_bindings['join'] = array_merge($this->_bindings['join'], $query->_bindings['select']);
-            }
-            if (is_array($query->_bindings['join']) && count($query->_bindings['join'])>0) {
-                $this->_bindings['join'] = array_merge($this->_bindings['join'], $query->_bindings['join']);
-            }
-            
-            if (is_array($query->_bindings['where']) && count($query->_bindings['where'])>0) {
-                $this->_bindings['join'] = array_merge($this->_bindings['join'], $query->_bindings['where']);
-            }
-
-            $query = $query->toSqlFirst();
-        }
-
-
-        if ($this->_join == '')
-            $this->_join = $side.' JOIN (' . $query . ') as ' . $alias . ' ' . $filter;
-        else
-            $this->_join .= ' '.$side.' JOIN (' . $query . ') as ' . $alias . ' ' . $filter;
-
-        return $this;
-    }
-
-    private function getSubJoinFilter($first, $operator, $second = null)
-    {
-        $filter = '';
-
-        if (strpos($first, '@') > 0)
-        {
-            $join = new JoinClause(null);
             $this->getCallback($first, $join);
 
-            $filter = str_replace('WHERE', 'ON', $join->_where);
-            unset($join);
+            $this->joins[] = $join;
 
-            return $filter;
+            $this->addBinding($join->getBindings(), 'join');
         }
-
-        if (!isset($second) && isset($operator))
+        else
         {
-            $operator = '=';
-            $second = $operator;
+            $method = $where ? 'where' : 'on';
+
+            $this->joins[] = $join->$method($first, $operator, $second);
+
+            $this->addBinding($join->getBindings(), 'join');
         }
-        if (isset($second) && isset($operator))
+
+        return $this;
+    }
+
+    /**
+     * Add a "join where" clause to the query.
+     *
+     * @param  string  $table
+     * @param  \Closure|string  $first
+     * @param  string  $operator
+     * @param  string  $second
+     * @param  string  $type
+     * @return Builder
+     */
+    public function joinWhere($table, $first, $operator, $second, $type = 'inner')
+    {
+        return $this->join($table, $first, $operator, $second, $type, true);
+    }
+
+    /**
+     * Add a subquery join clause to the query.
+     *
+     * @param  \Closure|Builder|string  $query
+     * @param  string  $as
+     * @param  \Closure|string  $first
+     * @param  string|null  $operator
+     * @param  string|null  $second
+     * @param  string  $type
+     * @param  bool  $where
+     * @return Builder
+     */
+    public function joinSub($query, $as, $first, $operator = null, $second = null, $type = 'inner', $where = false)
+    {
+        list($query, $bindings) = $this->createSub($query);
+
+        $expression = '('.$query.') as '.$this->grammar->wrapTable($as);
+
+        $this->addBinding($bindings, 'join');
+
+        return $this->join(new Expression($expression), $first, $operator, $second, $type, $where);
+    }
+
+    /**
+     * Add a left join to the query.
+     *
+     * @param  string  $table
+     * @param  \Closure|string  $first
+     * @param  string|null  $operator
+     * @param  string|null  $second
+     * @return Builder
+     */
+    public function leftJoin($table, $first, $operator = null, $second = null)
+    {
+        return $this->join($table, $first, $operator, $second, 'left');
+    }
+
+    /**
+     * Add a "join where" clause to the query.
+     *
+     * @param  string  $table
+     * @param  \Closure|string  $first
+     * @param  string  $operator
+     * @param  string  $second
+     * @return Builder
+     */
+    public function leftJoinWhere($table, $first, $operator, $second)
+    {
+        return $this->joinWhere($table, $first, $operator, $second, 'left');
+    }
+
+    /**
+     * Add a subquery left join to the query.
+     *
+     * @param  \Closure|Builder|string  $query
+     * @param  string  $as
+     * @param  \Closure|string  $first
+     * @param  string|null  $operator
+     * @param  string|null  $second
+     * @return Builder
+     */
+    public function leftJoinSub($query, $as, $first, $operator = null, $second = null)
+    {
+        return $this->joinSub($query, $as, $first, $operator, $second, 'left');
+    }
+
+    /**
+     * Add a right join to the query.
+     *
+     * @param  string  $table
+     * @param  \Closure|string  $first
+     * @param  string|null  $operator
+     * @param  string|null  $second
+     * @return Builder
+     */
+    public function rightJoin($table, $first, $operator = null, $second = null)
+    {
+        return $this->join($table, $first, $operator, $second, 'right');
+    }
+
+    /**
+     * Add a "right join where" clause to the query.
+     *
+     * @param  string  $table
+     * @param  \Closure|string  $first
+     * @param  string  $operator
+     * @param  string  $second
+     * @return Builder
+     */
+    public function rightJoinWhere($table, $first, $operator, $second)
+    {
+        return $this->joinWhere($table, $first, $operator, $second, 'right');
+    }
+
+    /**
+     * Add a subquery right join to the query.
+     *
+     * @param  \Closure|Builder|string  $query
+     * @param  string  $as
+     * @param  \Closure|string  $first
+     * @param  string|null  $operator
+     * @param  string|null  $second
+     * @return Builder
+     */
+    public function rightJoinSub($query, $as, $first, $operator = null, $second = null)
+    {
+        return $this->joinSub($query, $as, $first, $operator, $second, 'right');
+    }
+
+    /**
+     * Add a "cross join" clause to the query.
+     *
+     * @param  string  $table
+     * @param  \Closure|string|null  $first
+     * @param  string|null  $operator
+     * @param  string|null  $second
+     * @return $this
+     */
+    public function crossJoin($table, $first = null, $operator = null, $second = null)
+    {
+        if ($first) {
+            return $this->join($table, $first, $operator, $second, 'cross');
+        }
+
+        $this->joins[] = $this->newJoinClause($this, 'cross', $table);
+
+        return $this;
+    }
+
+    /**
+     * Add a subquery cross join to the query.
+     *
+     * @param  \Closure|Builder|string  $query
+     * @param  string  $as
+     * @return Builder
+     */
+    public function crossJoinSub($query, $as)
+    {
+        list($query, $bindings) = $this->createSub($query);
+
+        $expression = '('.$query.') as '.$this->grammar->wrapTable($as);
+
+        $this->addBinding($bindings, 'join');
+
+        $this->joins[] = $this->newJoinClause($this, 'cross', new Expression($expression));
+
+        return $this;
+    }
+
+
+    public function newJoinClause($parentQuery, $type, $table)
+    {
+        return new JoinClause($parentQuery, $type, $table);
+    }
+
+    protected function createSub($query)
+    {
+        if (is_string($query) && is_closure($query))
         {
-            $filter = ' ON ' . $first . ' ' . $operator . ' ' . $second;  
+            $query = $this->getCallback($query, $this);
         }
 
-        return $filter;
-    }
-
-
-    /**
-     * INNER Joins as subquery\
-     * Returns the Query builder
-     * 
-     * @param string $query 
-     * @param string $alias
-     * @param Query $filter
-     * @return Builder
-     */
-    public function joinSub($query, $alias, $first, $operator = null, $second = null, $type = 'INNER', $where = false)
-    {
-        $filter = $this->getSubJoinFilter($first, $operator, $second);
-        return $this->_joinSubResult($type, $query, $alias, $filter);
-    }
-
-    /**
-     * LEFT Joins as subquery\
-     * Returns the Query builder
-     * 
-     * @param string $query 
-     * @param string $alias
-     * @param Query $filter
-     * @return Builder
-     */
-    public function leftJoinSub($query, $alias, $first, $operator = null, $second = null)
-    {
-        $filter = $this->getSubJoinFilter($first, $operator, $second);
-        return $this->_joinSubResult('LEFT', $query, $alias, $filter);
-    }
-
-    /**
-     * RIGHT Joins as subquery\
-     * Returns the Query builder
-     * 
-     * @param string $query 
-     * @param string $alias
-     * @param Query $filter
-     * @return Builder
-     */
-    public function rightJoinSub($query, $alias, $first, $operator = null, $second = null)
-    {
-        $filter = $this->getSubJoinFilter($first, $operator, $second);
-        return $this->_joinSubResult('RIGHT', $query, $alias, $filter);
+        return array($query->toSqlFirst(), $query->getBindings());
     }
 
 
@@ -1517,33 +1537,11 @@ Class Builder
     {
         $this->_union = 'UNION ALL ' . $query->toSqlFirst();
 
-        if (count($query->_bindings['union'])>0) {
-            $this->_bindings['union'] = array_merge($this->_bindings['union'], $query->_bindings['union']);
-        }
+        $bindings = self::__joinBindings($query->_bindings);
+        $this->__mergeBindings('union', $bindings);
 
         return $this;
     }
-
-    /**
-     * Search in reconds for $value in several $colums\
-     * Uses WHERE CONTACT($columns) LIKE $value\
-     * Returns the records
-     * 
-     * @param string $columns
-     * @param string $value
-     * @return $array
-     */
-    /* public function search($var, $val)
-    {
-        $var = str_replace(',','," ",',$var);
-
-        if ($this->_where == '')
-            $this->_where = 'WHERE CONCAT(' . $var . ') LIKE "%'.$val.'%"';
-        else
-            $this->_where .= ' OR CONCAT(' . $var . ') LIKE "%'.$val.'%"';
-            
-        return $this;
-    } */
 
     /**
      * Specifies the GROUP BY clause\
@@ -1554,10 +1552,12 @@ Class Builder
      */
     public function groupBy($val)
     {
-        if ($this->_group == '')
-            $this->_group = 'GROUP BY ' . $val;
-        else
-            $this->_group .= ', ' . $val;
+        if ($this->_group == '') {
+            $this->_group = 'GROUP BY ' . $this->grammar->wrapTable($val);
+        }
+        else {
+            $this->_group .= ', ' . $this->grammar->wrapTable($val);
+        }
 
         return $this;
     }
@@ -1569,12 +1569,16 @@ Class Builder
      * @param string $order
      * @return Builder
      */
-    public function groupByRaw($val)
+    public function groupByRaw($val, $bindings=array())
     {
-        if ($this->_group == '')
+        $this->__mergeBindings('group', $bindings);
+
+        if ($this->_group == '') {
             $this->_group = 'GROUP BY ' . $val;
-        else
+        }
+        else {
             $this->_group .= ', ' . $val;
+        }
 
         return $this;
     }
@@ -1615,6 +1619,7 @@ Class Builder
      * Specifies the ORDER BY clause\
      * Returns the Query builder
      * 
+     * @param string|Builder $column
      * @param string $order
      * @return Builder
      */
@@ -1622,10 +1627,15 @@ Class Builder
     {
         if ($column instanceof Builder)
         {
-            $column = '(' . $column->buildQuery() . ')';
+            $bindings = self::__joinBindings($column->_bindings);
+            $this->__mergeBindings('order', $bindings);
+
+            $column = new Expression('(' . $column->buildQuery() . ')');
         }
 
-        if ($this->_order == '')
+        $column = $this->grammar->setTablePrefix($this->table)->wrapTable($column);
+
+        if ($this->_order == '') 
             $this->_order = "ORDER BY $column $order";
         else
             $this->_order .= ", $column $order";
@@ -1637,15 +1647,18 @@ Class Builder
      * Specifies the ORDER BY clause without changing it\
      * Returns the Query builder
      * 
-     * @param string $order
+     * @param string $sql
+     * @param array $bindings
      * @return Builder
      */
-    public function orderByRaw($order)
+    public function orderByRaw($sql, $bindings = array())
     {
+        $this->__mergeBindings('order', $bindings);
+
         if ($this->_order == '')
-            $this->_order = "ORDER BY $order";
+            $this->_order = "ORDER BY $sql";
         else
-            $this->_order .= " ORDER BY $order";
+            $this->_order .= " ORDER BY $sql";
 
         return $this;
     }
@@ -1726,30 +1739,18 @@ Class Builder
 
             if (method_exists($this->_parent, 'set'.ucfirst($camel).'Attribute'))
             {
-                $fn = 'set'.ucfirst($camel).'Attribute';
-                $newmodel = new $this->_parent;
-                $val = $newmodel->$fn($val);
+                $method = 'set'.ucfirst($camel).'Attribute';
+                $model = new $this->_parent;
+                $val = $model->$method($val);
             }
 
             if (method_exists($this->_parent, $camel.'Attribute'))
             {
-                #echo "Value:$val<br>";
-                $fn = $camel.'Attribute';
-                $newmodel = new $this->_parent;
-                $nval = $newmodel->$fn($val, (array)$newmodel);
-                if (isset($nval['set'])) $val = $nval['set'];
-                #echo "NEW value:$val<br>";
+                $method = $camel.'Attribute';
+                $model = new $this->_parent;
+                $modelvalue = $model->$method($val, (array)$model);
+                if (isset($modelvalue['set'])) $val = $modelvalue['set'];
             }
-
-            /* if ($val instanceof Carbon)
-            {
-                $val = $val->toDateTimeString();
-            } */
-            
-            /* if (is_string($val)) 
-            {
-                $val = "'".$val."'";
-            } */
 
             array_push($this->_values, isset($val)? $val : "NULL");
         }
@@ -1766,16 +1767,13 @@ Class Builder
      */
     public function insert($values)
     {
-
         if (!is_array(reset($values)))
-        {    
-            $this->clear();
+        {
             return $this->_insert($values);
         }
 
         foreach ($values as $value)
         {
-            $this->clear();
             $res = $this->_insert($value);
         }
 
@@ -1790,6 +1788,8 @@ Class Builder
      */
     public function upsert($records, $keys, $values)
     {
+        $res = true;
+
         foreach ($records as $record)
         {
             $attributes = array();
@@ -1812,6 +1812,8 @@ Class Builder
 
     private function _insert($record, $ignore=false)
     {
+        $this->clear();
+
         $record = CastHelper::processCastsBack(
             $record,
             $this->_model
@@ -1826,18 +1828,14 @@ Class Builder
         if ($this->_timestamps && !isset($this->_values[$this->_timestamp_created]) && $this->_parent!='DB')
             $this->set($this->_timestamp_created, now()->toDateTimeString());
 
-        //$sql = 'INSERT ' . ($ignore? 'IGNORE ' : '') . 'INTO `' . $this->_table . '` (' . implode(', ', $this->_keys) . ')'
-        //        . ' VALUES (' . implode(', ', $this->_values) . ')';
 
         $qmarks = array();
         for ($i=0; $i<count($this->_values); $i++) {
             $qmarks[] = '?';
         }
 
-        $sql = 'INSERT ' . ($ignore? 'IGNORE ' : '') . 'INTO `' . $this->_table . 
+        $sql = 'INSERT ' . ($ignore? 'IGNORE ' : '') . 'INTO `' . $this->table . 
             '` (' . implode(', ', $this->_keys) . ') VALUES (' . implode(', ', $qmarks) . ')';
-
-        //dump("INSERTING:: $sql<br>".implode(', ', $this->_values));
 
         $query = $this->connector()->query($sql, $this->_values);
     
@@ -1850,7 +1848,7 @@ Class Builder
 
         $this->clear();
         
-        return $query; //$this->connector()->error;
+        return $query;
     }
 
 
@@ -1864,13 +1862,11 @@ Class Builder
     {
         if (!is_array(reset($values)))
         {    
-            $this->clear();
             return $this->_insert($values, true);
         }
 
         foreach ($values as $value)
         {
-            $this->clear();
             $res = $this->_insert($value, true);
         }
 
@@ -1912,7 +1908,7 @@ Class Builder
      * Returns new record
      * 
      * @param array $record
-     * @return Model
+     * @return Model|null
      */
     public function create($record = null)
     {
@@ -1947,11 +1943,11 @@ Class Builder
      * Creates the new records in database\
      * 
      * @param array $record
-     * @return Model
+     * @return bool
      */
     public function createMany($records=array())
     {
-        //dump($this);
+
         if (!isset($this->_relationVars['foreign']) || count($this->_relationVars['where_in'])==0)
         {
             throw new Exception('Parent relation is missing');
@@ -1964,7 +1960,6 @@ Class Builder
         }
         
         return true;
-
     }
 
     /**
@@ -2066,24 +2061,23 @@ Class Builder
 
                 if (method_exists($this->_parent, 'set'.ucfirst($camel).'Attribute'))
                 {
-                    $fn = 'set'.ucfirst($camel).'Attribute';
-                    $newmodel = new $this->_parent;
-                    $val = $newmodel->$fn($val);
+                    $method = 'set'.ucfirst($camel).'Attribute';
+                    $model = new $this->_parent;
+                    $val = $model->$method($val);
                 }
 
                 if (method_exists($this->_parent, $camel.'Attribute'))
                 {
-                    #echo "Value:$val<br>";
-                    $fn = $camel.'Attribute';
-                    $newmodel = new $this->_parent;
-                    $nval = $newmodel->$fn($val, (array)$newmodel);
-                    if (isset($nval['set'])) $val = $nval['set'];
-                    #echo "NEW value:$val<br>";
+                    $method = $camel.'Attribute';
+                    $model = new $this->_parent;
+                    $modelvalues = $model->$method($val, (array)$model);
+                    if (isset($modelvalues['set'])) $val = $modelvalues['set'];
                 }
 
-                //$values[$key] = "`$key` = ". ($val!==null ? "'".$val."'" : 'NULL');
                 $values[$key] = "`$key` = ". ($val!==null ? '?' : 'NULL');
-                if ($val!==null) $bindings[] = $val;
+                
+                if ($val!==null) 
+                    $bindings[] = $val;
             }
         }
     
@@ -2093,13 +2087,7 @@ Class Builder
         if (count($values)==0)
            throw new Exception('No values assigned for update');
 
-
-        /* if ($this->_softDelete && !$this->_withTrashed)
-            $this->whereNull('deleted_at'); */
-
-        $sql = 'UPDATE `' . $this->_table . '` SET ' . implode(', ', $values) . ' ' . $this->_where;
-
-        //dump(array_merge($bindings, $this->_bindings['where']));
+        $sql = 'UPDATE `' . $this->table . '` SET ' . implode(', ', $values) . ' ' . $this->_where;
 
         $this->checkObserver('updating', $attributes);
 
@@ -2128,7 +2116,7 @@ Class Builder
            $this->where($key, $val);
         }
         
-        $sql = 'SELECT * FROM `' . $this->_table . '` '. $this->_where . ' LIMIT 0, 1';
+        $sql = 'SELECT * FROM `' . $this->table . '` '. $this->_where . ' LIMIT 0, 1';
         
         $cloned = $this->_clone();
         $res = $this->connector()->execSQL($sql, $cloned, true);
@@ -2161,7 +2149,7 @@ Class Builder
            $this->where($key, $val);
         }
         
-        $sql = 'SELECT * FROM `' . $this->_table . '` '. $this->_where . ' LIMIT 0, 1';
+        $sql = 'SELECT * FROM `' . $this->table . '` '. $this->_where . ' LIMIT 0, 1';
         
         $res = $this->connector()->execSQL($sql, $this, true);
 
@@ -2195,13 +2183,13 @@ Class Builder
         if (!is_array(reset($values)))
         {    
             $this->clear();
-            return $this->_insertReplace($values, true);
+            return $this->_insertReplace($values);
         }
 
         foreach ($values as $value)
         {
             $this->clear();
-            $res = $this->_insertReplace($value, true);
+            $res = $this->_insertReplace($value);
         }
 
         return $res;
@@ -2213,10 +2201,9 @@ Class Builder
         foreach ($record as $key => $val)
             $this->set($key, $val);
         
-        $sql = 'REPLACE INTO `' . $this->_table . '` (' . implode(', ', $this->_keys) . ')'
+        $sql = 'REPLACE INTO `' . $this->table . '` (' . implode(', ', $this->_keys) . ')'
                 . ' VALUES (' . implode(', ', $this->_values) . ')';
 
-        //echo $sql;
         $query = $this->connector()->execSQL($sql, $this, false);
 
         $this->clear();
@@ -2235,9 +2222,7 @@ Class Builder
         if ($this->_where == '')
             throw new Exception('WHERE not assigned');
 
-        $sql = 'DELETE FROM `' . $this->_table . '` ' . $this->_where;
-
-        //dump($sql); dd($this->_bindings);
+        $sql = 'DELETE FROM `' . $this->table . '` ' . $this->_where;
 
         $query = $this->connector()->query($sql, $this->_bindings);
 
@@ -2303,7 +2288,9 @@ Class Builder
             $this->where($primary, $record[$primary]);
         }
 
-        $sql = 'UPDATE `' . $this->_table . '` SET `deleted_at` = ' . "'$date'" . ' ' . $this->_where;
+        $deleted_name = $this->_model->_getDeleteColumnName();
+
+        $sql = 'UPDATE `' . $this->table . '` SET `'.$deleted_name.'` = ' . "'$date'" . ' ' . $this->_where;
 
         $query = $this->connector()->query($sql);
 
@@ -2333,9 +2320,7 @@ Class Builder
             }
         }
 
-        $sql = 'UPDATE `' . $this->_table . '` SET `deleted_at` = NULL ' . $this->_where;
-
-        //dd($sql); exit();
+        $sql = 'UPDATE `' . $this->table . '` SET `deleted_at` = NULL ' . $this->_where;
 
         $query = $this->connector()->query($sql); //, $this->_where, $this->_bindings);
 
@@ -2359,7 +2344,7 @@ Class Builder
             $this->where($primary, $record[$primary]);
         }
         
-        $sql = 'DELETE FROM `' . $this->_table . '` ' . $this->_where;
+        $sql = 'DELETE FROM `' . $this->table . '` ' . $this->_where;
 
         $query = $this->connector()->query($sql); //, $this->_bindings);
 
@@ -2376,7 +2361,7 @@ Class Builder
      */
     public function truncate()
     {
-        $sql = 'TRUNCATE TABLE `' . $this->_table . '`';
+        $sql = 'TRUNCATE TABLE `' . $this->table . '`';
 
         $query = $this->connector()->query($sql);
 
@@ -2422,7 +2407,6 @@ Class Builder
 
     public function dissociate()
     {
-        //return $this->child->setRelation($this->relationName, null);
 
         if ($this->_relationVars['relationship'] != 'belongsTo')
         {
@@ -2449,9 +2433,9 @@ Class Builder
      * 
      * @return object
      */
-    public function firstOrFail()
+    public function firstOrFail($columns=null)
     {        
-        $model = $this->first();
+        $model = $this->first($columns);
 
         if (!$model)
             abort(404);
@@ -2471,15 +2455,14 @@ Class Builder
      */
     public function firstOrNew($attributes, $values=array())
     {
-        //$this->_collection = array();
-
         $this->clear();
+
         foreach ($attributes as $key => $val)
         {
             $this->where($key, $val);
         }
 
-        $sql = $this->_method . ' FROM `' . $this->_table . '` ' . $this->_where . ' LIMIT 0, 1';
+        $sql = $this->_method . ' FROM `' . $this->table . '` ' . $this->_where . ' LIMIT 0, 1';
 
         $this->connector()->execSQL($sql, $this, true);
 
@@ -2498,7 +2481,7 @@ Class Builder
         foreach ($values as $key => $val)
             $item[$key] = $val;
 
-        return $this->insertUnique($item, true);
+        return $this->insertUnique($item);
     }
 
 
@@ -2513,12 +2496,13 @@ Class Builder
     public function firstOrCreate($attributes, $values=array())
     {
         $this->clear();
+
         foreach ($attributes as $key => $val)
         {
             $this->where($key, $val);
         }
 
-        $sql = $this->_method . ' FROM `' . $this->_table . '` ' . $this->_where . ' LIMIT 0, 1';
+        $sql = $this->_method . ' FROM `' . $this->table . '` ' . $this->_where . ' LIMIT 0, 1';
         
         $this->connector()->execSQL($sql, $this, true);
 
@@ -2542,29 +2526,22 @@ Class Builder
 
      * @return Model|Collection
      */
-    public function find($val)
+    public function find($id, $columns=null)
     {
-        //$this->_where = 'WHERE ' . $this->_primary . ' = "' . $val . '"';
-        //$value = is_array($val)? $val : array($val);
-
-        //$this->_where = '';
-        if (is_array($val))
-        {
-            $this->whereIn($this->_primary[0], $val);
+        if (is_array($id)) {
+            $this->whereIn($this->_primary[0], $id);
         }
-        else
-        {
-            $this->where($this->_primary[0], $val);
+        else {
+            $this->where($this->_primary[0], $id);
         }
 
-        return is_array($val)? $this->get() : $this->first();
+        return is_array($id)? $this->get($columns) : $this->first($columns);
     }
 
-    public function findOrFail($val)
+    public function findOrFail($val, $columns=null)
     {
-        //$this->_where = 'WHERE ' . $this->_primary . ' = "' . $val . '"';
         $val = is_array($val)? $val : array($val);
-        //$this->_where = '';
+
         $i = 0;
         foreach ($this->_primary as $primary)
         {
@@ -2572,19 +2549,18 @@ Class Builder
             ++$i;
         }
 
-        $res = $this->first();
+        $res = $this->first($columns);
 
-        if ($res)
-            return $res;
-            
-        abort(404);
+        if (!$res)
+            abort(404);
+    
+        return $res;
     }
 
 
     private function insertNewItem()
     {
         $last = $this->connector()->getLastId();
-        //dump($last); dump($this);
 
         if ($last==0)
         {
@@ -2605,7 +2581,7 @@ Class Builder
 
     
 
-    private function insertUnique($data, $new=false)
+    private function insertUnique($data)
     {
         $class = $this->_parent;
         $item = new $class;
@@ -2615,7 +2591,6 @@ Class Builder
             $item->$key = $val;
         }
 
-        //$this->__new = false;
         $item->_setOriginalRelations($this->_eagerLoad);
 
         unset($item->_global_scopes);
@@ -2627,7 +2602,6 @@ Class Builder
             false
         ));
 
-
         foreach ($item->getAttributes() as $key => $val)
         {
             if ($this->_softDelete)
@@ -2635,54 +2609,26 @@ Class Builder
                 $item->unsetAttribute('deleted_at');
             }
 
-
             $camel = Helpers::snakeCaseToCamelCase($key);
 
             if (method_exists($this->_parent, 'get'.ucfirst($camel).'Attribute'))
             {
-                $fn = 'get'.ucfirst($camel).'Attribute';
-                $val = $item->$fn($val);
+                $method = 'get'.ucfirst($camel).'Attribute';
+                $val = $item->$method($val);
             }
             if (method_exists($this->_parent, $camel.'Attribute'))
             {
-                $fn = $camel.'Attribute';
-                $nval = $item->$fn($val, (array)$item);
-                if (isset($nval['get'])) $item->$key = $nval['get'];
+                $method = $camel.'Attribute';
+                $itemvalues = $item->$method($val, (array)$item);
+                if (isset($itemvalues['get'])) $item->$key = $itemvalues['get'];
             }
         }
 
-        foreach ($item->getAttributes() as $key => $val)
-        {
-            $item->_setOriginalKey($key, $val);
-        }
-
-        /* foreach ($this->_appends as $append)
-        {
-            $item->setAppendAttribute($append, $item->$append);
-        } */
+        $item->syncOriginal();
 
         return $item;
 
     }
-
-    /* private function insertData($data)
-    {
-        $col = new Collection($this->_parent, $this->_hidden); //get_class($this->_parent));
-        //$col->_modelKeys = $this->_primary;
-
-        foreach ($data as $item)
-        {    
-            $col[] = $this->insertUnique($item);
-        }
-
-        if ($data->hasPagination())
-        {
-            $col->setPagination($data->getPagination());
-        }
-
-        return $col;
-       
-    } */
 
     /**
      * Return all records from current query
@@ -2720,7 +2666,6 @@ Class Builder
                 list($class, $method, $params) = getCallbackFromString($callback);
                 array_shift($params);
                 executeCallback($class, $method, array_merge(array($this), $params), $this);
-                //call_user_func_array(array($class, $method), array_merge(array($this), $params));
             }
         }
     }
@@ -2760,27 +2705,9 @@ Class Builder
      * 
      * @return Model
      */
-    public function first()
+    public function first($columns=null)
     {
-        if ($this->_softDelete && !$this->_withTrashed)
-            $this->whereNull('deleted_at');
-
-        $this->applyGlobalScopes();
-
-        $this->limit(1);
-
-        $sql = $this->buildQuery();
-
-        $this->connector()->execSQL($sql, $this, true);
-
-        if ($this->_collection->count()==0)
-            return NULL;
-
-        $this->processEagerLoad();
-
-        $this->clear();
-
-        return $this->_collection->first(); // $this->insertUnique($this->_collection[0]);
+        return $this->take(1)->get($columns)->first();
     }
 
     /**
@@ -2790,13 +2717,13 @@ Class Builder
      */
     public function get($columns=null)
     {
-        if ($this->_softDelete && !$this->_withTrashed)
+        if ($this->_softDelete && !$this->_withTrashed) {
             $this->whereNull('deleted_at');
+        }
 
         $this->applyGlobalScopes();
 
-        if (isset($columns))
-        {
+        if ($columns) {
             $this->select($columns);
         }
 
@@ -2840,7 +2767,6 @@ Class Builder
             
         $sql = $this->buildQuery() . " LIMIT $cant OFFSET $offset";
 
-        
         $this->connector()->execSQL($sql, $this, true);
 
         if ($this->_collection->count()==0)
@@ -2853,15 +2779,16 @@ Class Builder
         $query = $this->connector()->execSQL($records, $this->_clone(), true)->first();
 
         $total = isset($query)? (int)( 
-            isset($query->total)? $query->total : (
-                isset($query->TOTAL)? $query->TOTAL : 0)
+            $query->total? $query->total : (
+                $query->TOTAL? $query->TOTAL : 0)
             ) : 0;
 
+            
         $pages = ceil($total / $cant);
 
         $pagina = (int)$pagina;
         $pages = (int)$pages;
-        
+
         $pagination = new Paginator;
 
         $pagination->first = $pagina<=1? null : 'p=1';
@@ -2880,7 +2807,6 @@ Class Builder
 
         $pagination->meta = $meta;
 
-        
         $this->_collection->setPaginator($pagination);
         
         $this->processEagerLoad();
@@ -2961,14 +2887,14 @@ Class Builder
 
     public function query()
     {
-        return $this;
+        return $this->_model->newEloquentBuilder($this);
     }
 
     /**
      * Executes the SQL $query
      * 
      * @param string $query
-     * @return msqli_result|bool
+     * @return mixed
      */
     public function runQuery($sql)
     {
@@ -2981,24 +2907,6 @@ Class Builder
         $this->_foreign = $key;
         return $this;
     }
-
-    /* public function setPrimary($key)
-    {
-        $this->_primary = $key;
-        return $this;
-    } */
-
-    /* public function setRelationship($key)
-    {
-        $this->_relationship = $key;
-        return $this;
-    } */
-
-    /* public function setParent($key)
-    {
-        $this->_parent = $key;
-        //return $this;
-    } */
 
     public function setConnector($connector)
     {
@@ -3048,10 +2956,11 @@ Class Builder
 
 
     /**
-     * Adds records from a sub-query inside the current records\
-     * Check Laravel documentation
-     * 
-     * @return Builder
+     * Set the relationships that should be eager loaded.
+     *
+     * @param  string|array  $relations
+     * @param  string|\Closure|null  $callback
+     * @return $this
      */
     public function with($relations)
     {
@@ -3062,22 +2971,7 @@ Class Builder
         
         foreach ($relations as $relation => $values)
         {
-            //dump($relation); dump($values);
-            /* if (is_string($values))
-            {
-                $this->addRelation($this->_eagerLoad, $values);
-            }
-            elseif (is_null($values))
-            {
-                $this->addRelation($this->_eagerLoad, $relation);
-            }
-            elseif (is_object($values))
-            {
-                $values->_where = str_replace("`".$values->_table."`.", "`_child_table_`.", $values->_where);
-                $this->addRelation($this->_eagerLoad, $relation, $values);
-            } */
-
-            if (is_string($values) && strpos($values, '@')===false)
+            if (is_string($values) && !is_closure($values))
             {
                 $this->addRelation($this->_eagerLoad, $values);
             }
@@ -3096,23 +2990,44 @@ Class Builder
             {
                 $this->addRelation($this->_eagerLoad, $relation, $values);
             }
-            /* else
-            {
-                array_push($this->_eagerLoad, array('relation' => trim($relation), 'constraints' => $values ));
-            } */
         }
-        //echo "<br>";var_dump($this->_eagerLoad);echo "<br>";
-        //dd($this->_eagerLoad);
-        //dd($this);
+
         return $this;
     }
 
+    /**
+     * Prevent the specified relations from being eager loaded.
+     *
+     * @param  mixed  $relations
+     * @return $this
+     */
+    public function without($relations)
+    {
+        $relations = is_array($relations)? $relations : array($relations);
+
+        foreach ($relations as $relation)
+        {
+            unset($this->_eagerLoad[$relation]);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Set the relationships that should be eager loaded while removing any previously added eager loading specifications.
+     *
+     * @param  mixed  $relations
+     * @return $this
+     */
+    public function withOnly($relations)
+    {
+        $this->_eagerLoad = array();
+
+        return $this->with($relations);
+    }
 
     private function processEagerLoad()
     {
-        //if (count($this->_eagerLoad) == 0) return;
-        //dd($this);
-        
         foreach ($this->_eagerLoad as $key => $val)
         {
             $q = $this->_model->getQuery();
@@ -3122,8 +3037,6 @@ Class Builder
             $q->_extraQuery = isset($val['_constraints']) ? $val['_constraints'] : null;
             $q->_nextRelation = $val;
             $q->_toBase = $this->_toBase;
-            //dump($key);dump($val);
-            //dump($this->_hasConstraints);
             
             if (!isset($val['_constraints']) && isset($this->_hasConstraints['constraints']))
             {
@@ -3143,7 +3056,7 @@ Class Builder
             Relations::insertRelation($q, $res, $key);
         }
 
-        if (!$this->_toBase)
+        /* if (!$this->_toBase)
         {
             foreach ($this->_collection as $item)
             {
@@ -3151,10 +3064,8 @@ Class Builder
                 {
                     $item->setAppendAttribute($append, $item->$append);
                 }
-    
             }
-        }
-
+        } */
 
     }
 
@@ -3169,22 +3080,9 @@ Class Builder
         return $this->_collection;
     }
 
-
-    /* public function setHasConstraint($value)
-    {
-        if (!$value)
-            unset($this->_hasConstraints);
-        else
-            $this->_hasConstraints = $value;
-    } */
-
     public function _has($relation, $constraints=null, $comparator=null, $value=null)
     {
-        //echo "HAS: ".$relation. " :: ".$constraints."<br>";
-        //dump($this, true);
         $data = null;
-        
-        //$newparent = new $this->_parent;
         
         if (strpos($relation, '.')>0)
         {
@@ -3199,17 +3097,14 @@ Class Builder
             $relation = reset($data);
         }
         
-        //$newparent->getQuery()->varsOnly = true;
-        //$newparent->$relation();
         $data = $this->_model->$relation();
-        //dump($data, true);
 
-        $childtable = $data->_table;
+        $childtable = $data->table;
         $foreign = $data->_relationVars['foreign'];
         $primary = $data->_relationVars['primary'];
 
         $filter = '';
-        if (isset($constraints) && !is_array($constraints) && strpos($constraints, '@')!==false)
+        if (isset($constraints) && !is_array($constraints) && is_closure($constraints))
         {
             $this->getCallback($constraints, $data);
 
@@ -3222,9 +3117,9 @@ Class Builder
                 
             $filter = str_replace('WHERE', ' AND', $data->_where);
         } 
-        elseif (isset($constraints) && !is_array($constraints) && strpos($constraints, '@')===false)
+        elseif (isset($constraints) && !is_array($constraints) && !is_closure($constraints))
         {
-            $filter = " AND `$data->_table`.`$constraints` $comparator ?";//$value";
+            $filter = " AND `$data->table`.`$constraints` $comparator ?";//$value";
             $comparator = null;
             if ($value) $this->_bindings['where'][] = $value;
         }
@@ -3234,27 +3129,16 @@ Class Builder
             if ($value) $this->_bindings['where'][] = $value;
         }
 
-        
-        /* elseif (isset($constraints) && is_array($constraints))
-        {
-            foreach ($constraints as $exq)
-            {
-                $new_where = str_replace('`'.$exq->_table.'`.', '`'.$data->_table.'`.', $exq->_where);
-                $new_where = str_replace('`_child_table_`.', '`'.$data->_table.'`.', $exq->_where);
-                $filter .= str_replace('WHERE', ' AND', $new_where);
-            }
-        }  */
-
-        //if (isset($constraints) && strpos($constraints, '@')!==false)
-        //    $this->_bindings = $constraints->_bindings;
-
-
         if (!$comparator)
+        {
             $where = 'EXISTS (SELECT * FROM `'.$childtable.'` WHERE `'.
-                $this->_table.'`.`'.$primary.'` = `'.$childtable.'`.`'.$foreign.'`' . $filter . ')';
+                $this->table.'`.`'.$primary.'` = `'.$childtable.'`.`'.$foreign.'`' . $filter . ')';
+        }
         else
+        {
             $where = ' (SELECT COUNT(*) FROM `'.$childtable.'` WHERE `'.
-                $this->_table.'`.`'.$primary.'` = `'.$childtable.'`.`'.$foreign.'`' . $filter  . ') '.$comparator.' ?';//.$value;
+                $this->table.'`.`'.$primary.'` = `'.$childtable.'`.`'.$foreign.'`' . $filter  . ') '.$comparator.' ?';//.$value;
+        }
 
         if (isset($data->_relationVars['classthrough']))
         {
@@ -3283,21 +3167,19 @@ Class Builder
             if (!$comparator)
                 $where = 'EXISTS (SELECT * FROM `'.$childtable.'` INNER JOIN `'.$ct.'` ON `'.$ct.'`.`'.$cf.
                     '` = `'.$childtable.'`.`'.$foreign.'` WHERE `'.
-                    $this->_table.'`.`'.$primary.'` = `'.$ct.'`.`'.$cp.'`' . $filter . ')';
+                    $this->table.'`.`'.$primary.'` = `'.$ct.'`.`'.$cp.'`' . $filter . ')';
             else
                 $where = '(SELECT COUNT(*) FROM `'.$childtable.'` INNER JOIN `'.$ct.'` ON `'.$ct.'`.`'.$cf.
                     '` = `'.$childtable.'`.`'.$foreign.'` WHERE `'.
-                    $this->_table.'`.`'.$primary.'` = `'.$ct.'`.`'.$cp.'`' . $filter . ') '.$comparator.' ?'; //.$value;
+                    $this->table.'`.`'.$primary.'` = `'.$ct.'`.`'.$cp.'`' . $filter . ') '.$comparator.' ?'; //.$value;
 
         }
-
 
         if ($this->_where == '')
             $this->_where = 'WHERE ' . $where;
         else
             $this->_where .= ' AND ' . $where;
 
-        //echo "<br>".$this->toSql()."<br>";
         return $this;
     }
 
@@ -3359,8 +3241,8 @@ Class Builder
     public function withWhereHas($relation, $constraints=null)
     {
         $this->_hasConstraints = array('relation' => $relation, 'constraints' => $constraints);
-        return $this->with(array($relation => $constraints))
-                ->_has($relation, $constraints);
+        
+        return $this->with(array($relation => $constraints))->_has($relation, $constraints);
     }
 
 
@@ -3371,9 +3253,9 @@ Class Builder
      * @param  string|null  $relation
      * @return Builder
      */
-    public function latestOfMany($column = 'id', $relation = null)
+    public function latestOfMany($column = 'id', $relation = 'latestOfMany')
     {
-        return $this->ofMany($column, 'MAX', $relation, 'latestOfMany');
+        return $this->ofMany($column, 'MAX', 'latestOfMany');
     }
 
     /**
@@ -3383,49 +3265,118 @@ Class Builder
      * @param  string|null  $relation
      * @return Builder
      */
-    public function oldestOfMany($column = 'id', $relation = null)
+    public function oldestOfMany($column = 'id', $relation = 'oldestOfMany')
     {
-        return $this->ofMany($column, 'MIN', $relation, 'oldestOfMany');
+        return $this->ofMany($column, 'MIN', $relation);
     }
 
 
     /**
      * Indicate that the relation is a single result of a larger one-to-many relationship.
      *
-     * @param  string|null  $column
-     * @param  string|null  $aggregate
+     * @param  string|array  $column
+     * @param  string|null|Closure  $aggregate
      * @param  string|null  $relation
      * @return Builder
      */
-    public function ofMany($column = 'id', $aggregate = 'MAX', $relation = null, $relationName = null)
+    public function ofMany($column = 'id', $aggregate = 'MAX', $relation = 'latestOfMany')
     {
-        $relationship = $this->_relationVars['relationship'];
-
         $this->_relationVars['oneOfMany'] = true;
 
-         
-        $query = "SELECT MAX(`".$this->_table."`.`".$this->_primary[0]."`) as ".
-            $this->_primary[0]."_aggregate, `".$this->_table."`.`".$this->_relationVars['foreign']."` 
-            FROM ".$this->_table." INNER JOIN (SELECT ".$aggregate."(`".$this->_table."`.`".$column."`) as 
-            `".$column."_aggregate`, `".$this->_table."`.`".$this->_relationVars['foreign']."` 
-            FROM ".$this->_table." !WHERE! GROUP BY `".$this->_table."`.`".
-            $this->_relationVars['foreign']."`) AS `$relationName` on `$relationName`.`".$column."_aggregate` = `".
-            $this->_table."`.`".$column."` AND `$relationName`.`".$this->_relationVars['foreign']."` = 
-            `".$this->_table."`.`".$this->_relationVars['foreign']."` GROUP BY 
-            `".$this->_table."`.`".$this->_relationVars['foreign']."`";
 
-        $filter = "ON `$relationName`.`".$this->_primary[0]."_aggregate` = `$this->_table`.`".$this->_primary[0]."` 
-        AND `$relationName`.`".$this->_relationVars['foreign']."` = 
-        `".$this->_table."`.`".$this->_relationVars['foreign']."`";
+        if (is_array($column))
+        {
+            $col_name = array_keys($column);
+            $col_val = array_values($column);
+            $col_name = reset($col_name);
+            $col_val = reset($col_val);
+        }
+        else
+        {
+            $col_name = $column;
+            $col_val = $aggregate;
+        }
 
-        $this->_joinSubResult('INNER', $query, $relationName, $filter);
+        $key_name = $this->_model->getKeyName();
+        $key_val = 'MAX';
+
+        $closure = null;
+        if (is_closure($aggregate)) {
+            $closure = $aggregate;
+        }
+
+        // This makes the subquery using column aggregate (and uses filtered records in relations)
+        $subquery = $this->newJoinClause($this, 'inner', $this->table);
+
+        $subquery->selectRaw(
+            $col_val . "(`".$this->table."`.`".$col_name."`) as `".
+            $col_name."_aggregate`, `".$this->table."`.`".$this->_relationVars['foreign']."`"
+        );
+        
+        $subquery->groupBy($this->table.".".$this->_relationVars['foreign']);
+
+        if ($closure)
+        {
+            list($class, $method) = getCallbackFromString($closure);
+            executeCallback($class, $method, array($subquery), $subquery);
+        }
+
+        if ($this->_where!='')
+        {
+            $subquery->_where .= $closure ?
+                ' '. str_replace('WHERE ', 'AND ', $this->_where) :
+                $this->_where;
+
+            if (isset($this->_bindings['where']))
+                $subquery->addBinding($this->_bindings['where'], 'where');
+    
+            unset($this->_bindings['where']);
+            $this->_where = '';
+        }
+        
+        // This makes the subquery using key aggregate
+        $join = $this->newJoinClause($this, 'inner', $this->table);
+
+        $join->selectRaw(
+            $key_val . "(`".$this->table."`.`".$key_name."`) as `".
+            $this->_primary[0]."_aggregate`, `".$this->table."`.`".$this->_relationVars['foreign']."` "
+        );
+
+        $join->whereColumn($relation.'.'.$col_name."_aggregate", $this->table.'.'.$col_name)
+            ->whereColumn($relation.".".$this->_relationVars['foreign'], $this->table.".".$this->_relationVars['foreign']);
+
+        $join->groupBy($this->table.".".$this->_relationVars['foreign']);
+
+        $join->_where = str_replace('WHERE ', 'ON ', $join->_where);
 
 
-        if ($relationship == 'hasOneThrough' || $relationship == 'hasManyThrough')
-            $this->_where = str_replace($this->_table, $this->_relationVars['classthrough'], $this->_where);
+
+        // This includes the column aggregate query in key aggregate query 
+        list($query, $bindings) = $this->createSub($subquery);
+        
+        $expression = '('.$query.') as `'.$relation.'`';
+
+        $join->addBinding($bindings, 'join');
+
+        $join->joins[] = $this->newJoinClause($this, 'inner', new Expression($expression));
+
+
+
+        // This join previows query (with nested) in main query
+        $this->whereColumn($relation.".".$this->_primary[0]."_aggregate", $join->table.".".$this->_primary[0])
+            ->whereColumn($relation.".".$this->_relationVars['foreign'], $join->table.".".$this->_relationVars['foreign']);
+
+        $this->_where = str_replace('WHERE ', 'ON ', $this->_where);
+
+        list($query, $bindings) = $this->createSub($join);
+
+        $expression = '('.$query.') as `'.$relation.'`';
+
+        $this->addBinding($bindings, 'join');
+
+        $this->joins[] = $this->newJoinClause($this, 'inner', new Expression($expression));
 
         return $this;
-
     }
 
 
@@ -3458,7 +3409,6 @@ Class Builder
             $values = $related->pluck($foreign)->toArray();
         else
             $values = array($related->$foreign);
-
 
         if (strtolower($boolean)=='and')
             $this->whereIn($res->_relationVars['primary'], $values);
@@ -3565,7 +3515,7 @@ Class Builder
             $constraints = null;
             $alias = null;
 
-            if (is_string($values) && strpos($values, '@')===false)
+            if (is_string($values) && !is_closure($values))
             {
                 list($relation, $alias) =  explode(' as ', strtolower($values));
                 $constraints = null;
@@ -3577,21 +3527,14 @@ Class Builder
             }
             else //if (is_object($values))
             {
-                //$values->_where = str_replace("`".$values->_table."`.", "`_child_table_`.", $values->_where);
+                //$values->_where = str_replace("`".$values->table."`.", "`_childtable_`.", $values->_where);
                 list($relation, $alias) =  explode(' as ', strtolower($key));
                 $constraints = $values;
             }
 
-
-            /* $newparent = new $this->_parent;
-            $newparent->getQuery()->varsOnly = true;
-            $data = $newparent->$relation(); */
-
             $this->_model->getQuery();
             $this->_model->getQuery()->varsOnly = true;
             $data = $this->_model->$relation();
-
-            //dump($data);
 
             $column_name = $alias? $alias : $relation.'_'.$function;
 
@@ -3603,7 +3546,7 @@ Class Builder
             if ($function=='exists')
                 $select = "EXISTS (SELECT $column";
 
-            $subquery = "$select FROM `$data->_table`";
+            $subquery = "$select FROM `$data->table`";
 
             if ($data->_relationVars['relationship']=='belongsToMany' 
             || $data->_relationVars['relationship']=='hasManyThrough'
@@ -3611,19 +3554,19 @@ Class Builder
             || $data->_relationVars['relationship']=='morphToMany'
             || $data->_relationVars['relationship']=='morphedByMany')
             {
-                $subquery .= ' ' . $data->_join . ' ' .
+                $subquery .= ' ' . $data->implodeJoinClauses() . ' ' .
                     ($data->_where? $data->_where . ' AND `' : ' WHERE `') . 
                     $data->_relationVars['classthrough'] . '`.`' . 
                     ($data->_relationVars['relationship']=='morphedByMany'? 
                     $data->_relationVars['primary'] : $data->_relationVars['foreignthrough']) . '` = `' .
-                    $this->_table . '`.`' . ($data->_relationVars['relationship']=='morphedByMany'? 
+                    $this->table . '`.`' . ($data->_relationVars['relationship']=='morphedByMany'? 
                     $data->_relationVars['primarythrough'] : $data->_relationVars['primary']) . '`';
 
             }
             else
             {
-                $subquery .= " WHERE `$this->_table`.`" . $data->_relationVars['primary'] . "` 
-                = `$data->_table`.`" . $data->_relationVars['foreign'] . "`";
+                $subquery .= " WHERE `$this->table`.`" . $data->_relationVars['primary'] . "` 
+                = `$data->table`.`" . $data->_relationVars['foreign'] . "`";
             }
 
             // Revisar este WHERE
@@ -3634,21 +3577,17 @@ Class Builder
             // Constraints (if declared)
             if ($constraints)
             {
-                //list($class, $method, $params) = getCallbackFromString($constraints);
-                //array_shift($params);
-                //call_user_func_array(array($class, $method), array_merge(array($data), $params));
                 $this->getCallback($constraints, $data);
 
                 if (!$this->_bindings['select']) $this->_bindings['select'] = array();
                 $this->_bindings['select'] = array_merge($this->_bindings['select'], $data->_bindings['where']);
 
-                $new_where = str_replace("`_child_table_`.", "`".$data->_table."`.", $data->_where);
+                $new_where = str_replace("`_child_table_`.", "`".$data->table."`.", $data->_where);
                 $subquery .= str_replace('WHERE',' AND', $new_where);
             }
 
             $subquery .= ") AS `" . $column_name . "`";
 
-            //$this->addSelect($subquery);
             $this->_method .= ', ' .$subquery;
 
             $this->_loadedRelations[] = 'count_'.$relation;
@@ -3675,9 +3614,6 @@ Class Builder
 
         foreach($relations as $relation)
         {
-            /* $newparent = new $this->_parent;
-            $newparent->getQuery()->varsOnly = true;
-            $data = $newparent->$relation(); */
             $this->_model->_query = new Builder($this->_parent);
             $this->_model->getQuery()->varsOnly = true;
             $data = $this->_model->$relation();
@@ -3692,46 +3628,44 @@ Class Builder
             if ($function=='exists')
                 $select = "EXISTS (SELECT $column";
 
-            $subquery = "$select FROM `$data->_table`";
+            $subquery = "$select FROM `$data->table`";
 
             if ($data->_relationVars['relationship']=='belongsToMany' 
             || $data->_relationVars['relationship']=='hasManyThrough'
             || $data->_relationVars['relationship']=='hasOneThrough')
             {
-                $subquery .= ' ' . $data->_join . ' WHERE `'. $data->_relationVars['classthrough'] . '`.`' . 
+                $subquery .= ' ' . implode(' ', $data->joins) . ' WHERE `'. 
+                    $data->_relationVars['classthrough'] . '`.`' . 
                     $data->_relationVars['foreignthrough'] . '` = `' .
-                    $this->_table . '`.`' . $data->_relationVars['primary'] . '`';
+                    $this->table . '`.`' . $data->_relationVars['primary'] . '`';
 
             }
             else
             {
-                $subquery .= " WHERE `$this->_table`.`" . $data->_relationVars['primary'] . "` 
-                = `$data->_table`.`" . $data->_relationVars['foreign'] . "`";
+                $subquery .= " WHERE `$this->table`.`" . $data->_relationVars['primary'] . 
+                    "` = `$data->table`.`" . $data->_relationVars['foreign'] . "`";
             }
 
             $subquery .= ") AS `" . $column_name . "`";
 
-            $p_key = is_array($this->_primary)? $this->_primary[0] : $this->_primary;
-            //$this->select($p_key)->addSelect($subquery);
+            $parentkey = is_array($this->_primary)? $this->_primary[0] : $this->_primary;
+
             $this->_method .= ', ' .$subquery;
 
-            $this->whereIn($p_key, $this->_collection->pluck($this->_primary[0])->toArray());
+            $this->whereIn($parentkey, $this->_collection->pluck($this->_primary[0])->toArray());
 
-            $temp = $this->_clone();            
-            $temp = $temp->toBase()->connector()->execSQL($this->toSqlFirst(), $temp, true);
+            $records = $this->_clone();
+            $records = $records->connector()->execSQL($this->toSqlFirst(), $records, true);
 
-            foreach ($temp as $t)
+            foreach ($records as $record)
             {
-                $this->_collection->where($p_key, $t->{$p_key})
-                    ->first()->$column_name = $t->$column_name;
+                $this->_collection->where($parentkey, $record->{$parentkey})
+                    ->first()->$column_name = $record->$column_name;
             }
 
             $this->_loadedRelations[] = 'count_'.$relation;
-
-
         }
         
-
         return $this;
     }
 
@@ -3788,8 +3722,6 @@ Class Builder
     public function sum($column)
     {
         return $this->aggregate('sum', $column);
-
-        //return $result ?: 0;
     }
 
     /**
@@ -3818,49 +3750,17 @@ Class Builder
      * Execute an aggregate function on the database.
      *
      * @param  string  $function
-     * @param  array  $columns
+     * @param  string  $column
      * @return mixed
      */
-    public function aggregate($function, $columns='*')
+    public function aggregate($function, $column='*')
     {
-        $this->_method = "SELECT $function($columns) as aggregate";
-        $sql = $this->buildQuery();
+        $query = $this->_clone();
+        $query->_method = "SELECT $function($column) as aggregate";
+        $sql = $query->buildQuery();
 
-        return $this->connector()->execSQL($sql, $this, true)->first()->aggregate;
+        return $query->connector()->execSQL($sql, $query, true)->first()->aggregate;
     }
-
-
-
-    /**
-     * Sets the Query's factory
-     * 
-     * @return Factory
-     */
-    /* public function factory()
-    {
-        if (!$this->_model->usesHasFactory())
-        {
-            throw new Exception('Model '.$this->_parent.' has no Factory');
-        }
-
-
-        global $_class_list;
-
-        $class = $this->_parent.'Factory';
-
-        if (!isset($_class_list[$class]))
-        {
-            throw new Exception('Class '.$class.' not found');
-        }
-
-
-        $this->_factory = new $class;
-        //$factory = call_user_func_array(array($class, 'newFactory'), array());
-        //$factory = $class::newFactory();
-
-        return $this->_factory;
-
-    } */
 
 
     public function seed($data, $persist)
@@ -3868,7 +3768,7 @@ Class Builder
 
         $this->_fillableOff = true;
 
-        $col = new Collection($this->_parent);
+        $col = new Collection(); //collectWithParent(null, $this->_parent);
 
         foreach ($data as $item)
         {
@@ -3893,7 +3793,6 @@ Class Builder
     
     public function attach($value, $extra=array())
     {
-        //dump($value);
         if (is_array($value))
         {
             if (is_array(reset($value)))
@@ -3947,7 +3846,6 @@ Class Builder
 
     public function dettach($value, $extra=array())
     {
-        //dd($this);
         if (is_array($value))
         {
             foreach ($value as $val)
@@ -4032,7 +3930,6 @@ Class Builder
 
     private function callScope($scope, $args)
     {
-        //echo "<br>SCOPE: ".$this->_parent."::scope".ucfirst($scope)."<br>";
         $func = 'scope'.ucfirst($scope);
         $res = new $this->_parent;
         return call_user_func_array(array($res, $func), array_merge(array($this), $args));
@@ -4063,12 +3960,11 @@ Class Builder
 
             list($class, $method, $params) = getCallbackFromString($callback);
             executeCallback($class, $method, array_merge(array($results), $params), $this);
-            //call_user_func_array(array($class, $method), array_merge(array($results), $params));
 
             unset($results);
             unset($this->_collection);
 
-            $this->_collection = new Collection($this->_parent, $this->_model->getHidden());
+            $this->_collection = new Collection(); //collectWithParent(null, $this->_parent);
 
             $actual += $count;
         }
@@ -4114,12 +4010,11 @@ Class Builder
 
             list($class, $method, $params) = getCallbackFromString($callback);
             executeCallback($class, $method, array_merge(array($results), $params), $this);
-            //call_user_func_array(array($class, $method), array_merge(array($results), $params));
 
             unset($results);
             unset($this->_collection);
 
-            $this->_collection = new Collection($this->_parent, $this->_model->getHidden());
+            $this->_collection = new Collection(); //collectWithParent(null, $this->_parent);
 
         }
         while ($countResults == $count);
@@ -4127,9 +4022,20 @@ Class Builder
         return true;
     }
 
+    /**
+     * Appends a macro to the Builder
+     *
+     * @param  string $name
+     * @param  callable  $function
+     */
     public static function macro($name, $function)
     {
         self::$_macros[$name] = $function;
+    }
+
+    public static function hasMacro($name)
+    {
+        return array_key_exists($name, self::$_macros);
     }
 
     public static function getMacros()

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
 
-    <link rel="shortcut icon" href="{{ asset('assets/logo.ico') }}" type="image/x-icon">
+    <link rel="shortcut icon" href="{{asset('/assets/favicon.ico')}}" type="image/x-icon">
 
     <title>{{$app_name}}</title>
 
@@ -70,6 +70,9 @@
       </x-toast-danger>
       @endif
 
+      <!-- Dynamic component -->
+      {{-- <x-dynamic-component :component="$componentName" class="mt-4">HOLA</x-dynamic-component> --}}
+
 
       <!-- Navigation bar -->
       <nav class="no_print bg-sky-600 dark:bg-zinc-800 px-2 md:px-4">
@@ -99,7 +102,6 @@
                 <div class="w-fit right-0 flex items-center pl-2 pr-2 sm:static ml-1">
 
                     @if ( Auth::user() )
-                    <!-- Profile dropdown -->
                     <div class="ml-1 relative" x-data="{dropdown:false}" style="z-index:9;">
                         <button x-on:click="dropdown=!dropdown" type="button" class="max-w-xs rounded-full flex items-center text-sm focus:outline-none focus:ring-1 
                             focus:ring-offset-2 text-sky-200 hover:text-white-100 dark:text-zinc-300 hover:dark:text-zinc-100 

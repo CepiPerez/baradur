@@ -4,6 +4,8 @@ Class Storage
 {
     public static $path;
 
+    public static $temporaryUrlCallbacks = array();
+
     public static function disk($disk)
     {
         $config = config('filesystems.disks.'.$disk);
@@ -13,7 +15,7 @@ Class Storage
             self::$path = $config['root'];
             $path = $config['root'];
             $url = $config['url'];
-            return new Filesystem($path, $url);
+            return new Filesystem($path, $url, $disk);
         }
 
         elseif ($config['driver']=='s3') {
@@ -51,21 +53,11 @@ Class Storage
 
     public static function missing($file)
     {
-        //return !file_exists(self::$path.$file);
         return !self::exists($file);
     }
 
     public static function download($file, $name=null, $headers=null)
     {
-        /* if (!isset($name)) $name = basename($file);
-        $mime = mime_content_type(self::$path.$file);
-
-        header('Content-type: '.$mime);
-        header('Content-disposition: download; filename="'.$name.'"');
-        header('content-Transfer-Encoding:binary');
-        header('Accept-Ranges:bytes');
-        @readfile(self::$path.$file);
-        exit(); */
         $default = config('filesystems.default');
         return self::disk($default)->download($file);
     }
@@ -96,39 +88,49 @@ Class Storage
 
     public static function put($file, $contents)
     {
-        if (is_object($contents) && get_class($contents)=='StorageFile')
+        if (is_object($contents) && get_class($contents)=='UploadedFile')
         {
             return $contents->store($file);
         }
 
-        /* $res = file_put_contents(self::$path.$file, $contents);
-
-        if ($res) @chmod(self::$path.$file, 0777);
-
-        return $res; */
         $default = config('filesystems.default');
         return self::disk($default)->put($file, $contents);
     }
 
     public static function copy($source, $dest)
     {
-        //return copy(self::$path.$source, self::$path.$dest);
         $default = config('filesystems.default');
         return self::disk($default)->copy($source, $dest);
     }
 
     public static function move($source, $dest)
     {
-        //return rename(self::$path.$source, self::$path.$dest);
         $default = config('filesystems.default');
         return self::disk($default)->move($source, $dest);
+    }
+
+    public static function putFile($path, $file=null, $options=array())
+    {
+        $default = config('filesystems.default');
+        return self::disk($default)->putFile($path, $file, $options);
+    }
+
+    public static function putFileAs($path, $file, $name = null, $options=array())
+    {
+        $default = config('filesystems.default');
+        return self::disk($default)->putFileAs($path, $file, $name, $options);
+    }
+
+    public static function temporaryUrl($file, $expires=60, $options=array())
+    {
+        $default = config('filesystems.default');
+        return self::disk($default)->temporaryUrl($file, $expires, $options);
     }
 
     public static function delete($file)
     {
         $default = config('filesystems.default');
         $disk = self::disk($default);
-
 
         $ok = null;
         if (is_array($file))

@@ -80,10 +80,6 @@ class Faker
     public function productColor() { return FakerCommerce::color(); }
     public function productPrice() { return FakerCommerce::price(); }
 
-    public function randomElement($elements = array())
-    {
-        return FakerBase::pickOne($elements);
-    }
-
+    public function randomElement($elements = array()) { return FakerBase::pickOne($elements); }
 
 }

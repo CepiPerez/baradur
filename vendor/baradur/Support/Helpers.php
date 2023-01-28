@@ -2,28 +2,28 @@
 
 Class Helpers
 {
-    //private static $_request;
-
     public static function camelCaseToSnakeCase($name, $plural=true)
     {
         $converted = preg_replace('/([A-Z])/', '_$1', $name);
+
         $converted = ltrim(strtolower($converted), '_');
-        if ($plural)
-            return self::getPlural($converted);
-        else
-            return $converted;
+
+        return $plural ? self::getPlural($converted) : $converted;
     }
 
     public static function snakeCaseToCamelCase($name)
     {
         $converted = str_replace(' ', '', ucwords(str_replace('_', ' ', $name)));
+        
         return strtolower(substr($converted, 0, 1)) . substr($converted, 1, strlen($converted)-1);
     }
 
     public static function camelCaseToKebabCase($name)
     {
         $converted = preg_replace('/([A-Z])/', '-$1', $name);
+        
         $converted = ltrim(strtolower($converted), '-');
+        
         return $converted;
     }
 
@@ -149,7 +149,6 @@ Class Helpers
             $value = array_shift($array);
             $result = isset($result[$value]) ? $result[$value] : $value;
         }
-            
 
         if ($placeholder)
         {
@@ -272,21 +271,29 @@ Class Helpers
         return $new;
     }
 
-    public static function toCssClasses($array)
+    public static function toArray($object)
     {
-        $classList = $array;
-        $classes = array();
-
-        foreach ($classList as $class => $constraint) {
-            if (is_numeric($class)) {
-                $classes[] = $constraint;
-            } elseif ($constraint) {
-                $classes[] = $class;
+        $arr = array();
+        foreach ($object as $key => $val)
+        {
+            if ($val instanceof Collection || $val instanceof Model)
+            {
+                $arr[$key] = $val->toArray();
+            }
+            elseif ($val instanceof Stringable)
+            {
+                $arr[$key] = (string)$val;
+            }
+            elseif (is_array($val) || is_object($val))
+            {
+                $arr[$key] = self::toArray($val);
+            }
+            else
+            {
+                $arr[$key] = $val;
             }
         }
-
-        return implode(' ', $classes);
+        return $arr;
     }
-
 
 }

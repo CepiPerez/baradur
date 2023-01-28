@@ -166,14 +166,16 @@ class FileStore implements Store
      * @param  mixed  $value
      * @return int
      */
-    /* public function increment($key, $value = 1)
+    public function increment($key, $value = 1)
     {
         $raw = $this->getPayload($key);
 
-        return tap(((int) $raw['data']) + $value, function ($newValue) use ($key, $raw) {
-            $this->put($key, $newValue, $raw['time'] ?? 0);
-        });
-    } */
+        $times = $raw['data']? (int)$raw['data'] + 1 : 1;
+
+        $this->put($key, $times, 60);
+
+        return $times;
+    }
 
     /**
      * Decrement the value of an item in the cache.
@@ -323,7 +325,7 @@ class FileStore implements Store
     /**
      * Get the Filesystem instance.
      *
-     * @return \Illuminate\Filesystem\Filesystem
+     * @return Filesystem
      */
     public function getFilesystem()
     {

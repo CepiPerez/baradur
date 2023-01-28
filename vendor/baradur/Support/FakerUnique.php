@@ -1,9 +1,6 @@
 <?php
 
-
-
 /**
- * 
  * @method string phoneNumber()
  * @method string safePhoneNumber()
  * @method string name()
@@ -63,7 +60,6 @@
  * @method string productColor()
  * @method string productPrice()
  * @method string randomElement($elements = array())
- *
  */
 
 Class FakerUnique 
@@ -117,7 +113,5 @@ Class FakerUnique
     {
         self::$counter = $num;
     }
-
-
 
 }

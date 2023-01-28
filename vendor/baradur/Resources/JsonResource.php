@@ -47,10 +47,10 @@ class JsonResource
                 $res[] = $it->data;
         }
 
-        if (JsonResource::getWrapping())
-            return $res;
+        if (!JsonResource::getWrapping())
+            return collect($res);
 
-        return array('data' => $res);
+        return collect(array('data' => $res));
         //return new JsonResource($collection);
     }
 
@@ -184,7 +184,7 @@ class JsonResource
             return $value;
         }
 
-        if (is_string($value) && strpos($value, '@')===false)
+        if (is_string($value) && !is_closure($value))
         {
             return $value;
         }

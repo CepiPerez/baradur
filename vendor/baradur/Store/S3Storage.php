@@ -2,11 +2,8 @@
 
 ini_set('display_errors', true);
 
-require_once('SimpleS3.php');
-
 class S3Storage
 {
-    
     protected $accessKeyId;
     protected $secretKey;
     protected $sessionToken;
@@ -16,9 +13,7 @@ class S3Storage
     protected $url;
     protected $timeoutInSeconds = 5;
     protected $ssl = false;
-
     protected $instance;
-
 
     public function __construct($key, $secret, $bucket, $region, $endpoint, $url)
     {
@@ -39,16 +34,6 @@ class S3Storage
         }
         
         $this->endpoint = $endpoint;
-        
-        // SimpleS3
-        //$this->instance = new SimpleS3($this->key, $this->secret, null, $this->region, $this->endpoint);
-        
-        // S3new
-        //$this->instance = new S3($this->key, $this->secret, $ssl, $this->endpoint, $this->region);
-        //ddd($this);
-        //S3::setSignatureVersion('v2');
-        //dump($s3->getBucket('mybucket'));
-
     }
 
     private function getPath()
@@ -59,7 +44,7 @@ class S3Storage
 
     private function getUrl()
     {
-        return $this->url;        
+        return $this->url;
     }
 
     public function exists($path)
@@ -86,7 +71,6 @@ class S3Storage
 
     public function put($path, $contents)
     {
-        //list($code, $content) = $this->instance->put($this->bucket, $path, $contents);
         $result = $this->s3Request('PUT', $this->bucket, $path, array(), $contents);
 
         return ($result->getStatusCode()==200)? true : false;
@@ -140,7 +124,7 @@ class S3Storage
             $xml = simplexml_load_string($result->getBody());
             $array = json_decode(json_encode((array) $xml), true);
             $array = array($xml->getName() => $array);
-            //dd($array);
+
             return isset($array['ListBucketResult']['Contents']);
         }
 
@@ -207,20 +191,26 @@ class S3Storage
         return ($result->getStatusCode()==200)? $result->getBody() : null;
     }
 
+    public function temporaryUrl($path, $expiration, $options=array())
+    {
+        if ($expiration instanceof Carbon) {
+            $expiration = $expiration->timestamp; 
+        }
+
+        return $this->getAuthenticatedURL($this->bucket, $path, $expiration);
+    }
+
     public function download($file, $name=null, $headers=null)
     {
         if (!$name) $name = basename($file);
 
-        $parameters = array();
         $parameters['response-content-disposition'] = "attachment";
 
         $result = $this->s3Request('HEAD', $this->bucket, $file);
 
-        //ddd($this->getAuthenticatedURL($this->bucket, $file));
-
         if ($result->getStatusCode()==200)
         {
-            $location = $this->getAuthenticatedURL($this->bucket, $file);
+            $location = $this->url($file);//  $this->getAuthenticatedURL($this->bucket, $file, 10);
             $content_type = $result->getHeader('Content-Type]');
             $content_type = $content_type[0];
         
@@ -232,8 +222,6 @@ class S3Storage
             header('Pragma: public');
         
             @readfile($location);
-            //send file to browser for download. 
-            //echo $result->getBody();
         }
 
         return null;
@@ -277,15 +265,11 @@ class S3Storage
     {
         if ($this->copy($source, $dest))
         {
-            if ($this->delete($source))
-            {
+            if ($this->delete($source)) {
                 return true;
             }
-            else
-            {
-                $this->delete($dest);
-                return false;
-            }
+
+            $this->delete($dest);
         }
         
         return false;
@@ -298,7 +282,7 @@ class S3Storage
     {
         $uriPath = str_replace('%2F', '/', rawurlencode("{$bucket}/{$key}"));
         $uriPath = '/' . ltrim($uriPath, '/'); //. ($queryString? "?$queryString" : '');
-        //$queryString = html_entity_decode($queryString);
+
         $hostname = $this->endpoint; //$this->getHostname($bucket);
         $headers['host'] = $hostname;
 
@@ -309,18 +293,10 @@ class S3Storage
         // Sign the request via headers
         $headers = $this->signRequest($httpVerb, $uriPath, $queryString, $headers, $body);
 
-        /* if ($this->endpoint) {
-            $url = $this->endpoint;
-        } else {
-            $url = "https://$hostname";
-        } */
         $url = ($this->ssl? "https://" : "http://") . 
             "{$this->endpoint}/{$bucket}/{$key}" . ($queryString? '?'.$queryString : '');
 
-        //dump($url);
-
-        return Http::withHeaders($headers)
-            ->getResults($httpVerb, $url, $body, true);
+        return Http::withHeaders($headers)->getResults($httpVerb, $url, $body, true);
 
     }
 
@@ -390,14 +366,14 @@ class S3Storage
         return $headers;
     }
 
-    public function getAuthenticatedURL($bucket, $uri, $lifetime=60, $hostBucket = false, $https = false)
+    public function getAuthenticatedURL($bucket, $uri, $expiration, $hostBucket = false, $https = false)
 	{
-		$expires = time() + $lifetime;
+		//$expires = time() + $lifetime;
 		$uri = str_replace(array('%2F', '%2B'), array('/', '+'), rawurlencode($uri));
 		return sprintf(($https ? 'https' : 'http').'://%s/%s?AWSAccessKeyId=%s&Expires=%u&Signature=%s',
 		// $hostBucket ? $bucket : $bucket.'.s3.amazonaws.com', $uri, self::$__accessKey, $expires,
-		$hostBucket ? $bucket : $this->endpoint.'/'.$bucket, $uri, $this->accessKeyId, $expires,
-		urlencode($this->getHash("GET\n\n\n{$expires}\n/{$bucket}/{$uri}")));
+		$hostBucket ? $bucket : $this->endpoint.'/'.$bucket, $uri, $this->accessKeyId, $expiration,
+		urlencode($this->getHash("GET\n\n\n{$expiration}\n/{$bucket}/{$uri}")));
 	}
 
     private function getHash($string)
@@ -408,7 +384,5 @@ class S3Storage
 		pack('H*', sha1((str_pad($this->secretKey, 64, chr(0x00)) ^
 		(str_repeat(chr(0x36), 64))) . $string)))));
 	}
-
-    
 
 }

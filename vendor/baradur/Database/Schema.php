@@ -66,8 +66,6 @@ class Schema
     {
         self::checkMainTable();
 
-        //print_r($values[1]); exit();
-
         $table = array_shift($values);
 
         if (strpos($values[0], '@')>0)
@@ -75,9 +73,7 @@ class Schema
             list($class, $method, $params) = getCallbackFromString($values[0]);
             $blueprint = new Blueprint();
             executeCallback($class, $method, array(&$blueprint), null);
-            //call_user_func_array(array($class, $method), array(&$blueprint));
         }
-        //print_r($blueprint);exit();
 
         $columns = array();
         $foreigns = array();
@@ -86,38 +82,24 @@ class Schema
 
         foreach ($blueprint as $column)
         {
-            /* if (is_array($column))
-            {
-                foreach ($column as $col)
-                {
-                    if ($col->type == 'foreign') {
-                        $foreigns[] = $col;
-                    }
-                    elseif ($col->type == 'primary')
-                        $primary[] = $col->name;
-                    elseif ($col->type == 'unique')
-                        $unique[] = $col->name;
-                    else
-                        $columns[] = self::addColumn($col);
-                }
+            if ($column->type == 'foreign') {
+                $foreigns[] = $column;
             }
-            else
-            { */
-                if ($column->type == 'foreign')
-                    $foreigns[] = $column;
-                elseif ($column->type == 'primary')
-                    $primary[] = array('value'=>$column->value, 'name'=>$column->name);
-                elseif ($column->type == 'unique')
+            elseif ($column->type == 'primary') {
+                $primary[] = array('value'=>$column->value, 'name'=>$column->name);
+            }
+            elseif ($column->type == 'unique') {
+                $unique[] = $column;
+            }
+            else {
+                $columns[] = self::addColumn($column);
+                if ($column->unique)
                     $unique[] = $column;
-                else {
-                    $columns[] = self::addColumn($column);
-                    if ($column->unique)
-                        $unique[] = $column;
-                }
-            /* } */
+            }
         }
 
         $foreigntext = array();
+
         if (count($foreigns)>0)
         {
             foreach ($foreigns as $foreign)
@@ -138,45 +120,40 @@ class Schema
             }
         }
 
-
-
         $primarytext = array();
+
         foreach ($primary as $f)
         {
             $text = '';
-            if (isset($f['name']))
+
+            if (isset($f['name'])) {
                 $text .= 'CONSTRAINT '.$f['name'].' PRIMARY KEY ('. implode(', ',$f['value']) .')';
-            //else if (!isset($f['name']) && is_array($f['value']))
-            //    $text .= 'CONSTRAINT '. implode('_', $f['value']) .' PRIMARY KEY ('. implode(', ',$f['value']) .')';
-            else
+            }
+            else {
                 $text .= 'PRIMARY KEY ('. $f['value'] .')';
+            }
+
             $primarytext[] =  $text;
         }
-        foreach (self::$primary as $f)
+
+        foreach (self::$primary as $f) {
             $primarytext[] =  'PRIMARY KEY ('.$f.')';
+        }
 
         $uniquetext = array();
+
         foreach ($unique as $f)
         {
             $key = isset($f->index_name) ? $f->index_name : $table . '_' . $f->name . '_unique';
             $text = 'CONSTRAINT '.$key.' UNIQUE ('. $f->name .')';
-            //if (isset($f['name']))
-            //    $text .= 'CONSTRAINT '.$f['name'].' UNIQUE ('. implode(', ',$f['value']) .')';
-            //else if (!isset($f['name']) && is_array($f['value']))
-            //    $text .= ', CONSTRAINT '. implode('_', $f['value']) .' UNIQUE ('. implode(', ',$f['value']) .')';
-            //else
-            //    $text .= 'UNIQUE ('. $f['value'] .')';
             $uniquetext[] =  $text;
         }
-        //foreach (self::$unique as $f)
-        //    $uniquetext[] =  'UNIQUE ('. $f .')';
-
-
 
         self::$primary = array();
         self::$unique = array();
                 
         $query = null;
+
         if ($action == 'CREATE')
         {
             $query = 'CREATE TABLE `'.$table.'` ('. implode(', ', $columns);
@@ -184,21 +161,18 @@ class Schema
             if (count($uniquetext)>0) $query .= ', '. implode(', ', $uniquetext);
             if (count($foreigntext)>0) $query .= ', '. implode(', ', $foreigntext);
             $query .= ')';
-
         }
         
         elseif ($action == 'ALTER')
         {
             $query = 'ALTER TABLE `'.$table.'` ';
-            if (self::$drop)
-            {
+            
+            if (self::$drop) {
                 $query .= 'DROP '. implode(', DROP ', $columns);
             }
-            else
-            {
+            else {
                 $query .= 'ADD '. implode(', ADD ', $columns);
             }
-
         }
 
         //printf($query.PHP_EOL);

@@ -125,7 +125,15 @@ class Carbon
         if ($time instanceof Carbon)
             $time = $time->toDateTimeString();
 
-        $this->date = $time? strtotime($time) : time();
+        if (!$time){
+            $time = time();
+        }
+
+        if (is_string($time) && !is_numeric($time)) {
+            $time = strtotime($time);
+        }
+
+        $this->date = (int)$time; //? strtotime($time) : time();
     }
     
     private static function instance($time = null)
@@ -372,6 +380,11 @@ class Carbon
         $format = preg_replace_callback('/[^\W]+(?:[^\W]+)*/x', array($this, 'callbackReplaceFormat'), $format);
 
         return $format;
+    }
+
+    public function getTimestamp()
+    {
+        return $this->date;
     }
 
     public function getIsoFormats()

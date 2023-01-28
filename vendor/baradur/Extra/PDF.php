@@ -5,9 +5,13 @@ Class PDF
 
     private static function generate($filename, $view, $landscape=false, $zoom="1")
     {
-        $folder = _DIR_.'storage/app/public/';
+        $folder = _DIR_ . env('PDF_PATH') . '/';
 
-        Storage::put($filename.'.html', $view);
+        $folder = str_replace('//', '/', $folder);
+        
+        @unlink($folder.$filename.'.html');
+        file_put_contents($folder.$filename.'.html', $view);
+        chmod($folder.$filename.'.html', 0777);
 
         $command = env('PDF_BIN').' ';
 
@@ -19,11 +23,14 @@ Class PDF
 
         $command .= $folder.$filename.'.html '.$folder.$filename.'.pdf';
 
-        Storage::delete($filename.'.pdf', $view);
+        @unlink($folder.$filename.'.pdf');
 
         //var_dump($command); die();
         
         shell_exec($command);
+        chmod($folder.$filename.'.html', 0777);
+
+        //unlink($folder.$filename.'.html');
 
         //Storage::delete($filename.'.html', $view);
 
@@ -35,14 +42,22 @@ Class PDF
     {
         $res = self::generate($filename, $view, $landscape, $zoom);
 
-        return response($res, 200, 'pdf:download', $filename.'.pdf');
+        $headers = array();
+        $header['content-Transfer-Encoding'] = 'binary';
+        $header['Accept-Ranges'] = 'bytes';
+
+        return response()->download($res, $filename.'.pdf', $headers);
     }
 
     public static function inline($filename, $view, $landscape=false, $zoom="1")
     {
         $res = self::generate($filename, $view, $landscape, $zoom);
 
-        return response($res, 200, 'pdf:inline', $filename.'.pdf');
+        $headers = array();
+        $header['content-Transfer-Encoding'] = 'binary';
+        $header['Accept-Ranges'] = 'bytes';
+
+        return response()->file($res, $headers);
     }
 
 

@@ -39,7 +39,7 @@ class DB extends Model
 
         $res = parent::instance('DB');
         $res->_bindings = $bindings;
-        $res->toBase()->connector()->execSQL($query, $res, true);
+        $res->connector()->execSQL($query, $res, true);
         return $res->_collection;
     }
 
@@ -52,7 +52,7 @@ class DB extends Model
      * Executes the SQL $query
      * 
      * @param string $query
-     * @return Collection
+     * @return mixed
      */
     public static function query($query)
     {

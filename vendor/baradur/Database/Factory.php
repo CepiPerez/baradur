@@ -2,7 +2,6 @@
 
 abstract Class Factory
 {
-
     protected $model;
     public $faker;
     public $count = 1;
@@ -11,7 +10,6 @@ abstract Class Factory
     {
         $this->faker = new Faker;
     }
-
 
     /**
      * Sets the factory number of models
@@ -39,7 +37,9 @@ abstract Class Factory
         $model = new $this->model;
 
         $i = 0;
-        $array = new Collection($model);
+        $array = new Collection();
+        $array->setParent($this->model);
+
         $model->fillableOff();
 
         while ($i++ < $count)
@@ -48,14 +48,13 @@ abstract Class Factory
         }
 
         return $model->seed($array, true);
-         
     }
 
     /**
      * Seeds the Collection without persist\
      * the data in database 
      * 
-     * @return Collection|Model
+     * @return Collection
      */
     public function make()
     {
@@ -66,7 +65,9 @@ abstract Class Factory
         $model = new $this->model;
 
         $i = 0;
-        $array = new Collection($model);
+        $array = new Collection();
+        $array->setParent($this->model);
+        
         $model->fillableOff();
 
         while ($i++ < $count)
@@ -75,10 +76,8 @@ abstract Class Factory
         }
 
         return $model->seed($array, false);
-         
     }
 
     abstract function definition();
     
-
 }

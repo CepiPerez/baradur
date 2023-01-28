@@ -6,10 +6,10 @@
 Class View
 {
 	public static $shared = array();
+	
 	public static $composers = array();
 
 	public static $autoremove = false;
-
 
 	public function with($key, $value)
     {
@@ -33,13 +33,10 @@ Class View
 		return env('HOME').'/'.$asset;
 	}
 
-	
-
 	public static function share($key, $value)
 	{
 		self::$shared[$key] = $value; 
 	}
-
 
 	public static function composer($templates, $callback)
 	{
@@ -50,9 +47,13 @@ Class View
 			self::$composers[$template] = $callback;
 	}
 
-
 	# Loads the template file
 	public static function loadTemplate($file, $args=array())
+	{
+		return self::renderTemplate($file, $args);
+	}
+
+	public static function renderTemplate($file, $args, $return_blade=false)
 	{
 		list($views, $file) = Blade::__findTemplate($file);
 
@@ -67,7 +68,6 @@ Class View
 			$arguments['old'] = $old;
 		}
 
-		
 		if (isset($args))
 		{
 			foreach ($args as $key => $val)
@@ -119,7 +119,6 @@ Class View
 			$arguments = array_merge($arguments, $_SESSION['messages']);
 		}
 
-			
 		global $errors;
 		if (isset($_SESSION['errors']))
 			$errors = new MessageBag($_SESSION['errors']);
@@ -141,9 +140,9 @@ Class View
 		unset($_SESSION['errors']);
 		unset($_SESSION['old']);
 
-		return $result;
-
+		$blade->html = $result;
+		
+		return $return_blade? $blade : $result;
 	}
-
 
 }

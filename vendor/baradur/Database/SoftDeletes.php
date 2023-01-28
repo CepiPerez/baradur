@@ -6,6 +6,8 @@ trait SoftDeletes
 
     protected $_trashed = null;
 
+    protected $_DELETED_AT = 'deleted_at';
+
     public function _setTrashed($val)
     {
         if (!$this->useSoftDeletes)
@@ -33,13 +35,10 @@ trait SoftDeletes
         if (!$this->useSoftDeletes)
             throw new Exception('Trying to use softDelete method on a non-softDelete Model');
 
-        /* if( isset($this) && $this instanceof self )
-        { */
-            if (count($this->_original)==0)
-                throw new Exception('Error! Trying to delete new Model');
+        if (count($this->original)==0)
+            throw new Exception('Error! Trying to delete new Model');
 
-            return $this->getQuery()->softDeletes($this->_original);
-        /* } */
+        return $this->getQuery()->softDeletes($this->original);
     }
 
     /**
@@ -52,13 +51,10 @@ trait SoftDeletes
         if (!$this->useSoftDeletes)
             throw new Exception('Trying to use softDelete method on a non-softDelete Model');
 
-        if( isset($this) && $this instanceof self )
-        {
-            if (count($this->_original)==0)
-                throw new Exception('Error! Trying to delete new Model');
+        if (count($this->original)==0)
+            throw new Exception('Error! Trying to delete new Model');
 
-            return $this->getQuery()->restore($this->_original);
-        }
+        return $this->getQuery()->restore($this->original);
     }
 
     /**
@@ -71,13 +67,15 @@ trait SoftDeletes
         if (!$this->useSoftDeletes)
             throw new Exception('Trying to use softDelete method on a non-softDelete Model');
 
-        if( isset($this) && $this instanceof self )
-        {
-            if (count($this->_original)==0)
-                throw new Exception('Error! Trying to delete new Model');
+        if (count($this->original)==0)
+            throw new Exception('Error! Trying to delete new Model');
 
-            return $this->getQuery()->forceDelete($this->_original);
-        }
+        return $this->getQuery()->forceDelete($this->original);
+    }
+
+    public function getDeletedAtColumn()
+    {
+        return $this->_DELETED_AT;
     }
 
 }

@@ -85,13 +85,12 @@ class Pipeline
         foreach ($this->pipes() as $pipe)
         {
             list($class, $params) = $this->parsePipeString($pipe);
-            //dump($class); // dump($params);
             
             $controller = new $class;
             $params = array_merge(array($result, null), $params);
-            //$result = $controller->{$this->method}($result, null, $params);
 
             $reflectionMethod = new ReflectionMethod($class, $this->method);       
+
             $result = $reflectionMethod->invokeArgs($controller, $params);
 
             if (!($result instanceof $this->passable))
@@ -116,10 +115,6 @@ class Pipeline
      */
     public function thenReturn()
     {
-        /* return $this->then(function ($passable) {
-            return $passable;
-        }); */
-
         return $this->then(null);
     }
 

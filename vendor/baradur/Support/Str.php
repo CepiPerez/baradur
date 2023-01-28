@@ -10,18 +10,15 @@ class Str
         return new Stringable($string);
     }
 
-
     /* public static function marcro($name, $callback)
     {
         self::$_macros[$name] = $callback;
     } */
 
-
     public static function of($string)
     {
         return self::getInstance($string);
     }
-
 
     /* function __toString(){
         return $this->value;
@@ -54,8 +51,9 @@ class Str
 
     public static function after($subject, $search)
     {
-        if ($search === '') 
+        if ($search === '') {
             return $subject;
+        }
         else {
             $res = array_reverse(explode($search, $subject, 2));
             return $res[0];
@@ -101,7 +99,6 @@ class Str
 
         return mb_strlen($value);
     }
-
 
     public static function mapCallback($word) {
         return self::ucfirst($word);
@@ -221,20 +218,14 @@ class Str
 
     public static function slug($title, $separator = '-', $language = 'en')
     {
-        //$title = $language ? self::ascii($title, $language) : $title;
-
-        // Convert all dashes/underscores into separator
         $flip = $separator === '-' ? '_' : '-';
 
         $title = preg_replace('!['.preg_quote($flip).']+!u', $separator, $title);
 
-        // Replace @ with the word 'at'
         $title = str_replace('@', $separator.'at'.$separator, $title);
 
-        // Remove all characters that are not the separator, letters, numbers, or whitespace.
         $title = preg_replace('![^'.preg_quote($separator).'\pL\pN\s]+!u', '', self::lower($title));
 
-        // Replace all separator characters and whitespace by a single separator
         $title = preg_replace('!['.preg_quote($separator).'\s]+!u', $separator, $title);
 
         return trim($title, $separator);
@@ -242,19 +233,13 @@ class Str
 
     public static function snake($value, $delimiter = '_')
     {
-        //$key = $value;
-
-        /* if (isset(static::$snakeCache[$key][$delimiter])) {
-            return static::$snakeCache[$key][$delimiter];
-        } */
-
         if (! ctype_lower($value)) {
             $value = preg_replace('/\s+/u', '', ucwords($value));
 
             $value = self::lower(preg_replace('/(.)(?=[A-Z])/u', '$1'.$delimiter, $value));
         }
 
-        return $value; //static::$snakeCache[$key][$delimiter] = $value;
+        return $value;
     }
 
     public static function squish($value)
@@ -296,9 +281,9 @@ class Str
     {
         if (! is_null($length)) {
             return substr_count($haystack, $needle, $offset, $length);
-        } else {
-            return substr_count($haystack, $needle, $offset);
         }
+
+        return substr_count($haystack, $needle, $offset);
     }
 
     public static function substrReplace($string, $replace, $offset = 0, $length = null)
@@ -344,18 +329,12 @@ class Str
         }
 
         foreach ($patterns as $pattern) {
-            // If the given value is an exact match we can of course return true right
-            // from the beginning. Otherwise, we will translate asterisks and do an
-            // actual pattern match against the two strings to see if they match.
             if ($pattern == $value) {
                 return true;
             }
 
             $pattern = preg_quote($pattern, '#');
 
-            // Asterisks are translated into zero-or-more regular expression wildcards
-            // to make it convenient to check if the strings starts with the given
-            // pattern such as "library/*", making any string check convenient.
             $pattern = str_replace('\*', '.*', $pattern);
 
             if (preg_match('#^'.$pattern.'\z#u', $value) === 1) {

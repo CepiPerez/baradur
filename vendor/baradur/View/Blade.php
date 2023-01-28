@@ -20,6 +20,10 @@ class Blade
     {
         $cache = _DIR_.'storage/framework/views';
 
+        if ( !file_exists($cache) ) { 
+            mkdir($cache); 
+        }
+
         if (file_exists($cache.'/temp_view'))
         {
             unlink($cache.'/temp_view.blade.php');
@@ -69,8 +73,7 @@ class Blade
         
         if (strpos($template, "::")!==false)
         {
-            $namespace = reset(explode('::', $template));
-            $template = end(explode('::', $template));
+            list($namespace, $template) = explode('::', $template);
         }
 
         return array($dir, $template);
@@ -93,8 +96,6 @@ class Blade
         }
 
         return '';
-
     }
-
 
 }

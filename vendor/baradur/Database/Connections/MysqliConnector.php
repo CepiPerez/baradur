@@ -49,7 +49,7 @@ Class MysqliConnector
     {
         //var_dump($wherevals);
         if ($fill && $parent->_collection==null)
-            $parent->_collection = new Collection('stdClass');
+            $parent->_collection = new Collection();
         
         try
         {
@@ -90,18 +90,8 @@ Class MysqliConnector
         $params = array();
         $bindings = $parent instanceof Builder? $parent->_bindings : $parent;
 
-        if (is_assoc($bindings))
-        {
-            $bind = array();
-            foreach ($bindings['select'] as $b) $bind[] = $b;
-            foreach ($bindings['join'] as $b) $bind[] = $b;
-            foreach ($bindings['where'] as $b) $bind[] = $b;
-            foreach ($bindings['union'] as $b) $bind[] = $b;
-            foreach ($bindings['having'] as $b) $bind[] = $b;
-
-            $bindings = $bind;
-        }
-
+        $bindings = Builder::__joinBindings($bindings);
+        
         foreach($bindings as $val)
         {
             if (is_integer($val)) {
@@ -120,13 +110,7 @@ Class MysqliConnector
         {
             global $debuginfo;
 
-            $result = $sql;
-
-            foreach ($bindings as $val)
-            {
-                if (is_string($val)) $val = "'$val'";
-                $result = preg_replace('/\?/', $val, $result, 1);
-            }
+            $result = Builder::__getPlainSqlQuery($sql, $bindings);
 
             $debuginfo['queryes'][] = $result; // preg_replace('/\s\s+/', ' ', str_replace("'", "\"", $sql));
         }
@@ -229,7 +213,7 @@ Class MysqliConnector
         while ( $stmt->fetch() ) {
 
             if (!$collection)
-                $collection = new Collection('stdClass');
+                $collection = new Collection();
 
             $x = array(); 
             foreach( $row as $key => $val ) { 
@@ -303,7 +287,7 @@ Class MysqliConnector
             if (method_exists($builder->_parent, 'get'.ucfirst($camel).'Attribute'))
             {
                 $fn = 'get'.ucfirst($camel).'Attribute';
-                $val = $item->$fn($val);
+                $item->$key = $item->$fn($val);
             }
             if (method_exists($builder->_parent, $camel.'Attribute'))
             {
@@ -313,10 +297,7 @@ Class MysqliConnector
             }
         }
 
-        foreach ($item->getAttributes() as $key => $val)
-        {
-            $item->_setOriginalKey($key, $val);
-        }
+        $item->syncOriginal();
 
         return $item;
 

@@ -26,7 +26,7 @@ class ResourceCollection extends ArrayObject
             $this->collects = $childName!='Resource' ? $childName : 'JsonResource';
         }
 
-        $this->collection = new Collection(get_class($this));
+        $this->collection = new Collection(); //collectWithParent(null, get_class($this));
 
         foreach ($resource as $item)
         {
@@ -96,7 +96,7 @@ class ResourceCollection extends ArrayObject
     }
 
     public function getResult()
-    {        
+    {
         if (!isset($this['meta']) && !isset($this[$this->_wrap]))
         {
             $res = array();

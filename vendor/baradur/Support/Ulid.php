@@ -78,7 +78,7 @@ class Ulid
      * Create a ULID using the given timestamp.
      * @param int $milliseconds Number of milliseconds since the UNIX epoch for which to generate this ULID.
      * @param bool $lowercase True to output lowercase ULIDs.
-     * @return Ulid Returns a ULID object for the given microsecond time.
+     * @return string Returns a ULID object for the given microsecond time.
      */
     public static function fromTimestamp($milliseconds, $lowercase = true)
     {

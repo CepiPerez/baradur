@@ -79,7 +79,7 @@ class LockableFile
     {
         clearstatcache(true, $this->path);
 
-        return fread($this->handle, $length ?? ($this->size() ?: 1));
+        return fread($this->handle, $length ? $length : ($this->size() ? $this->size() : 1));
     }
 
     /**
@@ -143,10 +143,6 @@ class LockableFile
     /**
      * Get an exclusive lock on the file.
      *
-     * @param  bool  $block
-     * @return bool
-     *
-     * @throws Exception
      */
     public function getExclusiveLock($block = false)
     {

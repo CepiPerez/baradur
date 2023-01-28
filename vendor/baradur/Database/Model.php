@@ -4,21 +4,21 @@
  * @method static Collection all()
  * @method static Model first()
  * @method static Collection paginate(int $value)
- * @method static Model|Collection find(string $value)
+ * @method static Model|Collection find(string|array $value, string|array $columns='*')
  * @method static Model findOrFail(string $value)
- * @method static Model firstOrNew()
- * @method static Model firstOrCreate()
- * @method static Model updateOrCreate()
- * @method static Model upsert()
- * @method static mixed insertOrIgnore()
+ * @method static Model firstOrNew(array $attributes, array $values)
+ * @method static Model firstOrCreate(array $attributes, array $values)
+ * @method static Model updateOrCreate(array $attributes, array $values)
+ * @method static Model upsert(array $records, array $keys, array $values)
+ * @method static mixed insertOrIgnore(array $records)
  * @method static Builder select(string|array $column)
  * @method static Builder addSelect(string|array $column)
  * @method static Builder selectRaw(string $select, array $bindings=array())
- * @method static Builder where(string|array|closure $column, string $param1, string $param2, string $boolean='AND')
- * @method static Builder whereNot(string|array|closure $column, string $param1, string $param2, string $boolean='AND')
+ * @method static Builder where(string|array|closure $column, string $param1, string $param2=null, string $boolean='AND')
+ * @method static Builder whereNot(string|array|closure $column, string|array|null $param1=null, string|null $param2=null, string $boolean='AND')
  * @method static Builder whereIn(string $colum, array $values)
  * @method static Builder whereNotIn(string $colum, array $values)
- * @method static Builder whereColumn(string $first, string $operator, string $second, string $chain)
+ * @method static Builder whereColumn(string $first, string $operator, string $second=null, string $chain=null)
  * @method static Builder whereBetween(string $column, array $values)
  * @method static Builder whereRelation(string $relation, string $column, string $comparator, string $value)
  * @method static Builder whereBelongsTo(string $related, string $relationshipName=null, $boolean='AND')
@@ -27,7 +27,7 @@
  * @method static Builder havingNull(string $reference)
  * @method static Builder havingNotNull(string $reference)
  * @method static Builder with(string|array $relations)
- * @method static Builder join($join_table, $column, $comparator, $join_column)
+ * @method static Builder join($join_table, $column, $comparator=null, $join_column=null)
  * @method static Builder leftJoin($join_table, $column, $comparator, $join_column)
  * @method static Builder rightJoin($join_table, $column, $comparator, $join_column)
  * @method static Builder crossJoin($join_table, $column, $comparator, $join_column)
@@ -42,19 +42,21 @@
  * @method static Builder take(int $value)
  * @method static Builder latest($colun)
  * @method static Builder oldest($column)
- * @method static Builder orderBy(string $column, string $order)
+ * @method static Builder orderBy(string|Builder $column, string $order='ASC')
  * @method static Builder orderByRaw(string $order)
  * @method static int count(string $column)
  * @method static mixed min(string $column)
  * @method static mixed max(string $column)
  * @method static mixed avg(string $column)
  * @method static mixed average(string $column)
- * @method static Model create(array $record)
+ * @method static Model|null create(array $record)
  * @method static Builder has(string $relation, string $comparator=null, string $value=null)
- * @method static Builder whereHas(string $relation, Query $filter=null, string $comparator=null, string $value=null)
- * @method static Builder withWhereHas(string $relation, Query $filter=null)
+ * @method static Builder whereHas(string $relation, Builder $filter=null, string $comparator=null, string $value=null)
+ * @method static Builder withWhereHas(string $relation, Builder|Closure $filter=null)
  * @method static Builder withoutGlobalScope(Scope|string $scope)
  * @method static Builder withoutGlobalScopes()
+ * @method static Builder without($relations)
+ * @method static Builder withOnly$relations)
  * @method static Builder toBase()
  * @method static Builder query()
  * @method static int|mixed destroy()
@@ -72,16 +74,18 @@ class Model
     protected $_CREATED_AT = 'created_at';
     protected $_UPDATED_AT = 'updated_at';
 
-    protected $_original = array();
+    protected $original = array();
     protected $_relations = null;
     
     protected $table = null;
     protected $primaryKey = 'id';
     protected $fillable = array();
     protected $guarded = null;
+    protected $visible = array();
     protected $hidden = array();
     protected $_timestamps = null;
     protected $casts = array();
+    protected $with = array();
 
     protected $wasRecentlyCreated = false;
 
@@ -107,7 +111,6 @@ class Model
         {
             $this->attributes[$key] = $value;
         }
-
     }
 
     protected function addGlobalScope($scope, $callback=null)
@@ -118,14 +121,30 @@ class Model
             $this->_global_scopes[$scope] = $callback;
     }
 
-    public function getRouteKeyName()
+    public function getKey()
+    {
+        return $this->getAttribute($this->getKeyName());
+    }
+
+    /** @return string */
+    public function getKeyName()
     {
         return $this->primaryKey;
     }
 
-    public function getPrimaryKey()
+    public function getRouteKey()
     {
-        return $this->primaryKey;
+        return $this->getAttribute($this->getRouteKeyName());
+    }
+    
+    public function getRouteKeyName()
+    {
+        return $this->getKeyName();
+    }
+
+    public function getForeignKey()
+    {
+        return Str::snake(class_basename($this)).'_'.$this->getKeyName();
     }
 
     public function getFillable()
@@ -138,19 +157,14 @@ class Model
         return $this->_timestamps;
     }
 
-    public function getCreatedAt()
+    public function getCreatedAtColumn()
     {
         return $this->_CREATED_AT;
     }
 
-    public function getUpdatedAt()
+    public function getUpdatedAtColumn()
     {
         return $this->_UPDATED_AT;
-    }
-
-    public function getHidden()
-    {
-        return $this->hidden;
     }
 
     public function getGuarded()
@@ -166,6 +180,11 @@ class Model
     public function getAppends()
     {
         return $this->appends;
+    }
+
+    public function hasAppended($attribute)
+    {
+        return in_array($attribute, $this->appends);
     }
 
     public function getAttributes()
@@ -188,9 +207,65 @@ class Model
         return array_key_exists($key, $this->relations)? $this->relations[$key] : null;
     }
 
+    public function getVisible()
+    {
+        return $this->visible;
+    }
+
+    public function setVisible(array $visible)
+    {
+        $this->visible = $visible;
+
+        return $this;
+    }
+
+    public function makeVisible($attributes)
+    {
+        $attributes = is_array($attributes) ? $attributes : func_get_args();
+
+        $this->hidden = array_diff($this->hidden, $attributes);
+
+        if (! empty($this->visible)) {
+            $this->visible = array_merge($this->visible, $attributes);
+        }
+
+        return $this;
+    }
+
+    public function makeVisibleIf($condition, $attributes)
+    {
+        return value($condition, $this) ? $this->makeVisible($attributes) : $this;
+    }
+
+    public function getHidden()
+    {
+        return $this->hidden;
+    }
+
+    public function setHidden(array $hidden)
+    {
+        $this->hidden = $hidden;
+
+        return $this;
+    }
+
+    public function makeHidden($attributes)
+    {
+        $this->hidden = array_merge(
+            $this->hidden, is_array($attributes) ? $attributes : func_get_args()
+        );
+
+        return $this;
+    }
+    
+    public function makeHiddenIf($condition, $attributes)
+    {
+        return value($condition, $this) ? $this->makeHidden($attributes) : $this;
+    }
+
     public function usesSoftDeletes()
     {
-        return isset($this->useSoftDeletes);
+        return isset($this->useSoftDeletes) && $this->useSoftDeletes==true;
     }
 
     public function usesHasFactory()
@@ -199,16 +274,13 @@ class Model
     }
 
 
-
     /** @return Builder */
     public static function instance($parent, $table=null)
     {
         return new Builder($parent, $table);
     }
 
-    /**
-     * @return Builder
-     */
+    /** @return Builder */
     public function getQuery($query=null)
     {            
         if (!isset($this->_query))
@@ -216,7 +288,7 @@ class Model
             $this->_query = $query? $query : new Builder(get_class($this));       
         }
 
-        if ($this->_query->_collection->count()==0 && count($this->_original)>0)
+        if ($this->_query->_collection->count()==0 && count($this->original)>0)
         {
             $this->_query->_collection->append($this);
         }
@@ -229,37 +301,61 @@ class Model
         $this->_query = $query;
     }
 
-    /* public function setQuery($query, $full=true)
+    public function newEloquentBuilder($query)
     {
-        if (!$full)
-        {
-            unset($query->_parent);
-            unset($query->_table);
-            unset($query->_primary);
-            unset($query->_foreign);
-            unset($query->_fillable);
-            unset($query->_guarded);
-        }
+        return new Builder($query);
+    }
 
-        self::$_query = $query;
-        #foreach($query as $key => $val)
-        #    self::$_query->$key = $val;
-    } */
+    public function newInstance($attributes = array())
+    {
+        $model = get_class($this);
+        $model = new $model($attributes);
+
+        $model->setConnection(
+            $this->getConnectionName()
+        );
+
+        $model->setTable($this->getTable());
+
+        $model->mergeCasts($this->casts);
+
+        //$model->fill((array) $attributes);
+
+        return $model;
+
+    }
+
+    public function mergeCasts($casts)
+    {
+        $this->casts = array_merge($this->casts, $casts);
+
+        return $this;
+    }
+
+    public function syncOriginal()
+    {
+        $this->original = $this->attributes;
+
+        return $this;
+    }
 
     public function getTable()
     {
         return $this->table;
     }
 
-    public function getConnector()
+    public function getConnectionName()
     {
         return $this->connection;
     }
 
-    public function _setOriginalKey($key, $val)
+    public function setConnection($connection)
     {
-        $this->_original[$key] = $val;
+        $this->connection = $connection;
+
+        return $this;
     }
+
 
     public function _setOriginalRelations($relations)
     {
@@ -280,25 +376,24 @@ class Model
    
     public function __get($name)
     {
-        //dump($name);
         if (array_key_exists($name, $this->attributes))
             return $this->attributes[$name];
 
-        if (array_key_exists($name, $this->appends))
-            return $this->appends[$name];
+        //if (array_key_exists($name, $this->appends))
+        //    return $this->appends[$name];
 
         if (array_key_exists($name, $this->relations))
             return $this->relations[$name];
 
         if ($name=='exists')
-            return count($this->_original)>0;
+            return count($this->original)>0;
 
         if ($name=='wasRecentlyCreated')
             return $this->wasRecentlyCreated;
         
-        if (method_exists($this, 'get'.ucfirst($name).'Attribute'))
+        if (method_exists($this, 'get'.Str::camel(ucfirst($name)).'Attribute'))
         {
-            $fn = 'get'.ucfirst($name).'Attribute';
+            $fn = 'get'.Str::camel(ucfirst($name)).'Attribute';
             return $this->$fn();
         }
 
@@ -317,7 +412,6 @@ class Model
                 throw new Exception("Attempted to lazy load [$name] on Model [".get_class($this)."]");
 
             $this->load($name);
-            //dd($this);
             
             return $this->relations[$name];
         }
@@ -333,18 +427,72 @@ class Model
         return null;
     }
 
+    public function __call($name, $arguments)
+    {
+        if (method_exists('Builder', $name))
+        {
+            $calls = $this->newEloquentBuilder($this->getQuery());
+            return call_user_func_array(array($calls, $name), $arguments);
+        }
+    }
+
+    public function __getWith()
+    {
+        return $this->with;
+    }
 
     /**
-     * Appends an attribute
-     * 
+     * Append attributes to query when building a query.
+     *
+     * @param  array|string  $attributes
      * @return Model
      */
-    public function appends($append)
+    public function append($attributes)
     {
-        $this->appends[$append] = $this->$append;
+        $this->appends = array_unique(
+            array_merge($this->appends, is_string($attributes) ? func_get_args() : $attributes)
+        );
+
         return $this;
     }
 
+
+    public function is($model)
+    {
+        return ! is_null($model) &&
+            $this->getKey() === $model->getKey() &&
+            $this->getTable() === $model->getTable() &&
+            $this->getConnectionName() === $model->getConnectionName();
+    }
+
+    public function isNot($model)
+    {
+        return ! $this->is($model);
+    }
+
+    protected function getArrayableItems($values)
+    {
+        if (count($this->getVisible()) > 0) {
+            $values = array_intersect_key($values, array_flip($this->getVisible()));
+        }
+
+        if (count($this->getHidden()) > 0) {
+            $values = array_diff_key($values, array_flip($this->getHidden()));
+        }
+
+        return $values;
+    }
+
+    protected function getArrayableAppends()
+    {
+        if (! count($this->appends)) {
+            return array();
+        }
+
+        return $this->getArrayableItems(
+            array_combine($this->appends, $this->appends)
+        );
+    }
 
     /**
      * Returns model as array
@@ -353,30 +501,22 @@ class Model
      */
     public function toArray()
     {
-        $c = new Collection(get_class($this), $this->hidden);
-        $c->append($this);
-        $res = $c->toArray();
-        return $res[0];
+        $values = $this instanceof DB ? 
+            $this->getAttributes() :
+            array_merge($this->getAttributes(), $this->getRelations());
+
+            
+        $values = $this->getArrayableItems($values);
+        
+        foreach ($this->getArrayableAppends() as $key) {
+            $values[$key] = $this->$key;
+        }
+
+        $values = CastHelper::processCasts($values, $this, true);
+
+        return Helpers::toArray($values);
     }
-
-
-    /* public function newFactory()
-    {
-        return $this->factory = new Factory();
-    } */
-
-
-     /**
-     * Declare model observer
-     * 
-     */
-    /* public static function observe($class)
-    {
-        global $version, $observers;
-        $model = self::$_parent;
-        if (!isset($observers[$model]))
-            $observers[$model] = $class;
-    } */
+    
 
     private function checkObserver($function, $model)
     {
@@ -396,13 +536,13 @@ class Model
      * @param string $value
      * @return mixed
      */
-    public function getOriginal($value=null)
+    public function getOriginal($key=null, $default=null)
     {
-        if ($value)
-            return $this->_original[$value];
+        if ($key) {    
+            return Arr::get($this->original, $key, $default);
+        }
 
-        return $this->_original;
-
+        return $this->original;
     }
 
     /**
@@ -412,11 +552,10 @@ class Model
      */
     public function discardChanges()
     {
-        $this->attributes = $this->_original;
+        $this->attributes = $this->original;
 
         return $this;
     }
-
 
     /**
      * Determine if attribute(s) has changed
@@ -427,9 +566,9 @@ class Model
     public function isDirty($value=null)
     {
         if ($value)
-            return $this->_original[$value] != $this->attributes[$value];
+            return $this->original[$value] != $this->attributes[$value];
 
-        foreach ($this->_original as $key => $val)
+        foreach ($this->original as $key => $val)
         {
             if ($this->attributes[$key] != $val)
                 return true;
@@ -447,10 +586,10 @@ class Model
     public function isClean($value=null)
     {
         if ($value)
-            return $this->_original[$value] == $this->attribute[$value];
+            return $this->original[$value] == $this->attribute[$value];
 
         $res = true;
-        foreach ($this->_original as $key => $val)
+        foreach ($this->original as $key => $val)
         {
             if ($this->attribute[$key] != $val)
             {
@@ -469,10 +608,10 @@ class Model
      */
     public function fresh()
     {
-        if (count($this->_original)==0)
+        if (count($this->original)==0)
             throw new Exception('Trying to re-retrieve from a new Model'); 
 
-        return $this->getQuery()->_fresh($this->_original, $this->relations);
+        return $this->getQuery()->_fresh($this->original, $this->relations);
 
     }
 
@@ -489,10 +628,9 @@ class Model
         $this->appends = $cloned->appends;
         $this->relations = $cloned->relations;
         $this->_relations = $cloned->_relations;
-        $this->_original = $cloned->_original;
+        $this->original = $cloned->original;
         
         return $this;
-
     }
 
     public function setAppendAttribute($key, $val)
@@ -510,7 +648,6 @@ class Model
     {
         global $preventSilentlyDiscardingAttributes;
 
-        
         if (in_array($key, $this->fillable))
         {
             $this->attributes[$key] = $val;
@@ -529,11 +666,6 @@ class Model
     public function unsetAttribute($key)
     {
         unset($this->attributes[$key]);
-    }
-
-    public function unsetOriginal($key)
-    {
-        unset($this->_original[$key]);
     }
 
     public function setAttributes($attributes)
@@ -582,7 +714,6 @@ class Model
         return $this;
     }
 
-
     public function fillableOff()
     {
         return $this->getQuery()->_fillableOff = true;
@@ -619,7 +750,6 @@ class Model
         $preventAccessingMissingAttributes = $prevent;
     }
 
-
     /**
      * Saves the model in database
      * 
@@ -627,7 +757,7 @@ class Model
      */
     public function save()
     {
-        if (count($this->_original)>0)
+        if (count($this->original)>0)
         {
             return $this->update();
         }
@@ -637,7 +767,7 @@ class Model
         $result = $query->create($this->attributes);
         $query->_fillableOff = false;
 
-        return $result;
+        return $result ? true : false;
     }
 
     /**
@@ -668,19 +798,6 @@ class Model
         return true;
     }
 
-
-    /**
-     * Creates a new record in database\
-     * Returns new record
-     * 
-     * @param array $record
-     * @return object
-     */
-    /* public static function create($record)
-    {
-        return self::getInstance()->getQuery()->create($record);
-    } */
-
     /**
      * Updates a record or an array of reccords in database
      * 
@@ -700,8 +817,6 @@ class Model
         $this->_query = null;
      
         return $result;
-     
-        //return self::getInstance()->getQuery()->update($record);
     }
 
     /**
@@ -714,14 +829,13 @@ class Model
         $this->checkObserver('deleting', $this);
 
         $res = self::instance(get_class($this));
-        $primary = $this->getRouteKeyName();
+        $primary = $this->getKeyName();
         $res = $res->where($primary, $this->$primary)->delete();
 
         if ($res) $this->checkObserver('deleted', $this);
 
         return $res;
     }
-
 
     /**
      * Adds records from a sub-query inside the current records\
@@ -739,7 +853,6 @@ class Model
 
         return $this;
     }
-
 
     /**
      * Makes a relationship\
@@ -868,7 +981,6 @@ class Model
 
     }
 
-
     /**
      * Eager load relation's column aggregations on the model.
      *
@@ -963,8 +1075,7 @@ class Model
         return $this->loadAggregate($relations, '*', 'exists');
     }
 
-
-/**
+    /**
      * Set the given relationship on the model.
      *
      * @param  string  $relation

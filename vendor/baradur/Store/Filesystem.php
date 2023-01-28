@@ -5,11 +5,13 @@ class Filesystem
 
     protected $path;
     protected $url;
+    protected $disk;
 
-    public function __construct($path=null, $url=null)
+    public function __construct($path=null, $url=null, $disk=null)
     {
         $this->path = $path;
         $this->url = $url;
+        $this->disk = $disk;
     }
 
     private function getPath()
@@ -103,20 +105,21 @@ class Filesystem
 
     public function isFile($path)
     {
-        $path = /* $this->getPath() . */ $path;
+        //$path = $this->getPath() . $path;
         return is_file($path);
     }
 
     public function isDirectory($path)
     {
-        $path = /* $this->getPath() . */ $path;
+        //$path = $this->getPath() . $path;
         return is_dir($path);
     }
 
     public function size($path)
     {
         $path = $this->getPath() . $path;
-        return filesize($path);
+
+        return $this->isFile($path) ? filesize($path) : null;
     }
 
     public function deleteDirectory($path, $preserve = false)
@@ -194,7 +197,7 @@ class Filesystem
         }
 
         return null;
-        throw new Exception("File does not exist at path {$path}.");
+        //throw new Exception("File does not exist at path {$path}.");
     }
 
     public function sharedGet($path)
@@ -249,7 +252,7 @@ class Filesystem
     {
         $path = $this->getPath() . $path;
 
-        return filemtime($path);
+        return $this->isFile($path) ? filemtime($path) : null;
     }
 
     public function copy($source, $dest)
@@ -260,6 +263,60 @@ class Filesystem
     public function move($source, $dest)
     {
         return rename($this->getPath().$source, $this->getPath().$dest);
+    }
+
+    public function putFile($path, $file = null, $options = array())
+    {
+        if (is_null($file) || is_array($file)) {
+            list($path, $file, $options) = array('', $path, $file ? $file : array());
+        }
+
+        $file = is_string($file) ? new File($file) : $file;
+
+        return $this->putFileAs($path, $file, $file->hashName(), $options);
+    }
+
+    public function putFileAs($path, $file, $name = null, $options = array())
+    {
+        if (is_null($name) || is_array($name)) {
+            list($path, $file, $name, $options) = array('', $path, $file, $name ? $name : array());
+        }
+
+        $stream = fopen(is_string($file) ? $file : $file->getRealPath(), 'r');
+
+        // Next, we will format the path of the file and store the file using a stream since
+        // they provide better performance than alternatives. Once we write the file this
+        // stream will get closed automatically by us so the developer doesn't have to.
+        $result = $this->put(
+            $path = trim($path.'/'.$name, '/'), $stream, $options
+        );
+
+        if (is_resource($stream)) {
+            fclose($stream);
+        }
+
+        return $result ? $path : false;
+    }
+
+
+    public function buildTemporaryUrlsUsing($callback)
+    {
+        Storage::$temporaryUrlCallbacks[$this->disk] = $callback;
+    }
+
+    public function temporaryUrl($path, $expiration, $options)
+    {
+        if ($expiration instanceof Carbon) {
+            $expiration = $expiration->timestamp; 
+        }
+
+        if (!isset(Storage::$temporaryUrlCallbacks[$this->disk]))
+            throw new Exception("Disk [$this->disk] doesn't support temporaryUrl");
+      
+        list($class, $method) = getCallbackFromString(Storage::$temporaryUrlCallbacks[$this->disk]);
+        
+        return $class::$method($path, $expiration, $options);
+
     }
 
 }

@@ -76,25 +76,38 @@ Class Mail
     {
         $final = $template->build(); 
 
-        $vars = array();
+        //$vars = array();
         $view = $final->_template;
         unset($final->_template);
 
-        foreach ($final as $key => $val)
+        /* foreach ($final as $key => $val)
         {
             $vars[$key] = $val;
-        }
+        } */
 
         $result = View::loadTemplate($view, $final);
 
-        $this->content = $result;
+        return $result;
     }
 
 
+    public function plain($template)
+    {
+        $this->content = $template;
+        
+        $default = Helpers::config('mail.default');
+        
+        if ($default=='smtp')
+            return $this->sendSmtp();
+
+        if ($default=='sendmail')
+            return $this->sendMail();
+    }
+
     public function send($template)
     {
-        $this->buildTemplate($template);
-
+        $this->content = $this->buildTemplate($template);
+        
         $default = Helpers::config('mail.default');
         
         if ($default=='smtp')

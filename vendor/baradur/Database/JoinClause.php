@@ -3,9 +3,26 @@
 Class JoinClause extends Builder
 {
 
-    public function __construct($table)
+    public $type;
+    public $table;
+    //protected $parentConnection;
+    //protected $parentGrammar;
+    //protected $parentProcessor;
+    protected $parentClass=null;
+
+    public function __construct($parentQuery, $type, $table)
     {
-        $this->_table = $table;
+        $this->type = $type;
+        $this->table = $table;
+        $this->parentClass = $parentQuery;
+        $this->grammar = $parentQuery->grammar;
+        //$this->parentGrammar = $parentQuery->getGrammar();
+        //$this->parentProcessor = $parentQuery->getProcessor();
+        //$this->parentConnection = $parentQuery->getConnection();
+
+        /* parent::__construct(
+            $this->parentConnection, $this->parentGrammar, $this->parentProcessor
+        );  */   
     }
 
     /**
@@ -22,9 +39,8 @@ Class JoinClause extends Builder
      *
      * @return JoinClause
      */
-    public function on($first, $operator, $second = null, $boolean = 'and')
+    public function on($first, $operator, $second = null, $boolean = 'AND')
     {
-        //dd(func_get_args());
         /* if ($first instanceof Closure) {
             return $this->whereNested($first, $boolean);
         } */
@@ -39,7 +55,7 @@ Class JoinClause extends Builder
      */
     public function orOn($first, $operator = null, $second = null)
     {
-        return $this->on($first, $operator, $second, 'or');
+        return $this->on($first, $operator, $second, 'OR');
     }
 
 }

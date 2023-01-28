@@ -9,14 +9,6 @@
 
     <form action="{{ route('confirm_login') }}" method="post" class="pb-4">
         @csrf
-        <!-- <div>
-          <label for="username">{{ __('login.user_email') }}</label>
-          <input type="text" autofocus name="username" class="form-control" value="{{$old->username}}">
-        </div>
-        <div class="form-group">
-          <label for="password">{{ __('login.password') }}</label>
-          <input type="password" autofocus name="password" class="form-control" value="">
-        </div> -->
 
         <div class="mb-4">
           <label class="block text-slate-700 dark:text-zinc-400 font-bold mb-2" for="username">{{ __('login.user_email') }}</label>
@@ -32,6 +24,11 @@
             id="password" name="password" type="password" placeholder="{{ __('login.password') }}">
         </div>
 
+        <div class="flex items-center my-4">
+          <input id="remember" name="remember" type="checkbox" value="true" class="w-4 h-4 text-cyan-600 bg-gray-100 border-gray-300 rounded focus:ring-cyan-500 dark:focus:ring-cyan-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+          <label class="block text-slate-700 dark:text-zinc-400 font-bold ml-2" for="remember">{{ __('login.remember_me') }}</label>
+        </div>
+         
         <button type="submit" class="bg-cyan-600 hover:bg-cyan-700 text-white py-1.5 px-3 rounded">
           {{ __('login.login') }}
         </button>

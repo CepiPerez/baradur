@@ -14,16 +14,16 @@ class RetryHelper
             $times = count($times) + 1;
         }
 
-
         return self::startRetry($attempts, $backoff, $times, $callback, $sleepMilliseconds, $when);
 
     }
 
     private function getCallback($callback, $parameters)
     {
-        if (strpos($callback, '@')!==false)
+        if (is_closure($callback))
         {
             list($class, $method, $params) = getCallbackFromString($callback);
+            
             return call_user_func_array(array($class, $method), $parameters);
         }
     }
@@ -61,14 +61,12 @@ class RetryHelper
             return $value;
         }
 
-        if (strpos($value, '@')!==false)
+        if (is_closure($value))
         {
             return self::getCallback($value, array($attempts, $e));
         }
 
         return null;
     }
-
-
 
 }

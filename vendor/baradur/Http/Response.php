@@ -7,9 +7,19 @@ class Response
     public $cookies;
     public $transferStats;
 
-    public function __construct($response)
+    public $error_code;
+    public $error_string;
+    public $info;
+
+    public $filename;
+    public $inline;
+    public $custom_name;
+
+    public function __construct($response, $filename=null, $inline=false)
     {
         $this->response = $response;
+        $this->filename = $filename;
+        $this->inline = $inline;
     }
 
     public function body()
@@ -17,21 +27,73 @@ class Response
         return (string) $this->response->getBody();
     }
 
-    public function json($key = null, $default = null)
+    public function json($data=null)
     {
-        if (! $this->decoded) {
-            $this->decoded = json_decode($this->body(), true);
+        if ($data) $this->response->setBody(json_encode($data));
+        return $this;
+    }
+
+    public function with($key, $value)
+    {
+        $_SESSION['messages'][$key] = $value;
+        return $this;
+    }
+
+    public function withErrors($errors)
+    {
+        foreach ($errors as $key => $val)
+            $_SESSION['errors'][$key] = $val;
+
+        return $this;
+    }
+
+    public function route()
+    {
+        $this->response->setHeader('Location', Route::getRoute(func_get_args()));
+        return $this;
+    }
+
+    public function addHeaders($headers)
+    {
+        $headers = is_array($headers) ? $headers : array($headers);
+
+        foreach ($headers as $key => $value)
+        {
+            $this->response->setHeader($key, $value);
         }
 
-        if (is_null($key)) {
-            return $this->decoded;
+        return $this;
+    }
+
+    public function file($path, $headers=array())
+    {
+        $this->filename = $path;
+        $this->inline = true;
+        
+        foreach ($headers as $key => $val){
+            $this->response->setHeader($key, $val);
         }
 
-        if (isset($this->decoded[$key])) {
-            return $this->decoded[$key];
+        $this->response->setHeader('Content-Type', mime_type($path));
+        $this->response->setHeader('Content-disposition', 'inline; filename="'.basename($path).'"');
+
+        return $this;
+    }
+
+    public function download($path, $name=null, $headers=array())
+    {
+        $this->filename = $path;
+        $this->inline = true;
+        $this->custom_name = $name? $name : basename($path);
+
+        foreach ($headers as $key => $val){
+            $this->response->setHeader($key, $val);
         }
 
-        return $default;
+        $this->response->setHeader('Content-Type', mime_type($path));
+        $this->response->setHeader('Content-disposition', 'download; filename="'.$this->custom_name.'"');
+
+        return $this;
     }
 
     public function object()
@@ -54,14 +116,19 @@ class Response
         return $this->response->getHeaders();
     }
 
+    public function protocol()
+    {
+        return (int) $this->response->getProtocolVersion();
+    }
+
     public function status()
     {
-        return (int) $this->response->code;
+        return (int) $this->response->getStatusCode();
     }
 
     public function reason()
     {
-        return $this->response->getReasonPhrase();;
+        return $this->response->getReasonPhrase();
     }
 
     public function effectiveUri()
@@ -107,6 +174,11 @@ class Response
     public function serverError()
     {
         return $this->status() >= 500;
+    }
+
+    public function notFound()
+    {
+        return $this->status() === 404;
     }
 
     /* public function onError(callable $callback)
@@ -167,17 +239,17 @@ class Response
         return $condition ? $this->throw() : $this;
     } */
 
-    public function offsetExists($offset)
+    /* public function offsetExists($offset)
     {
         $json = $this->json();
         return isset($json[$offset]);
-    }
+    } */
 
-    public function offsetGet($offset)
+    /* public function offsetGet($offset)
     {
         $json = $this->json();
         return $json[$offset];
-    }
+    } */
 
     /* public function offsetSet($offset, $value): void
     {

@@ -1,167 +1,5 @@
 <?php
 
-Class RouteItem 
-{
-        /**
-     * Assign a name to route\
-     * 
-     * @param string $name
-     * @param string $controller
-     */
-    public function name($name)
-    {
-        $this->name .= $name;
-        return $this;
-    }
-
-    /**
-     * Assign middleware to route
-     * 
-     * @param string $middleware
-     * @return Route
-     */
-    public function middleware($middleware)
-    {
-        $this->middleware[] = $middleware;
-        return $this;
-    }
-
-    public function scopeBindings()
-    {
-        $this->scope_binding = true;
-        return $this;
-    }
-
-    public function withoutScopeBindings()
-    {
-        $this->scope_binding = false;
-        return $this;
-    }
-
-    public function withTrashed()
-    {
-        $this->with_trashed = true;
-        return $this;
-    }
-
-    public function named()
-    {
-        if (is_null($this->name)) {
-            return false;
-        }
-
-        foreach (func_get_args() as $pattern) {
-            if (Str::is($pattern, $this->name)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-}
-
-Class RouteGroup 
-{
-    public $prefix = '';
-    public $middleware = array();
-    public $name = '';
-    public $controller = '';
-
-    public function __construct($parent)
-    {
-        $this->prefix = $parent->_prefix;
-        $this->controller = $parent->_controller;
-        $this->name = $parent->_name;
-        $this->middleware = $parent->_middleware;
-    }
-
-    public function except($except)
-    {
-        foreach ($this->added as $route)
-        {
-            if (in_array($route->func, $except))
-                Route::getInstance()->_collection->pull('name', $route->name);
-        }
-
-        return $this;
-    }
-
-    
-    public function only($only)
-    {
-        foreach ($this->added as $route)
-        {
-            if (!in_array($route->func, $only))
-                Route::getInstance()->_collection->pull('name', $route->name);
-        }
-
-        return $this;
-    }
-
-    public function group($routes)
-    {        
-        $res = Route::getInstance();
-
-        $_last_middleware = $res->_middleware;
-        $_last_controller = $res->_controller;
-        $_last_prefix = $res->_prefix;
-        $_last_name = $res->_name;
-
-        $res->_middleware = $this->middleware;
-        $res->_controller = $this->controller;
-        $res->_prefix = $this->prefix;
-        $res->_name = $this->name;
-
-        Route::group($routes);
-
-        $res->_middleware = $_last_middleware;
-        $res->_controller = $_last_controller;
-        $res->_prefix = $_last_prefix;
-        $res->_name = $_last_name;
-
-        return $this;
-    } 
-
-    public function prefix($prefix)
-    {
-        $this->prefix .= $prefix;
-        return $this;
-    }
-
-    public function controller($controller)
-    {
-        $this->controller = $controller;
-        return $this;
-    }
-
-    public function name($name)
-    {
-        $this->name .= $name;
-        return $this;
-    }
-
-    public function middleware($middleware)
-    {
-        if (is_string($middleware))
-            $middleware = array($middleware);
-
-        $this->middleware = array_merge($this->middleware, $middleware);
-        return $this;
-    }
-
-    public function withTrashed()
-    {
-        foreach ($this->added as $route)
-        {
-            $route->with_trashed = true;
-        }
-        return $this;
-    }
-
-}
-
-
 class Route
 {
     private static $_instance;
@@ -174,12 +12,14 @@ class Route
     public $_middleware = array();
     public $_prefix = '';
     public $_name = '';
+    public $_scope_bindings = true;
     
-    protected $_last_controller = null;
-    protected $_last_middleware = array();
-    protected $_last_prefix = '';
-    protected $_last_name = '';
-
+    public $_collection;
+    public $current;
+    public $GET;
+    public $PUT;
+    public $POST;
+    public $DELETE;
 
     public function __construct()
     {
@@ -188,7 +28,8 @@ class Route
         $this->PUT = array();
         $this->POST = array();
         $this->DELETE = array();
-        $this->_collection = new Collection('Route');
+        $this->_collection = new Collection(); //collectWithParent(null, 'Route');
+
     }
 
     /**
@@ -211,37 +52,27 @@ class Route
         return isset($res[$verb]) ? $res[$verb] : $verb;
     }
 
-    public static function routeList()
+    /**
+     * Get the underlying route collection.
+     *
+     * @return Collection
+     */
+    public static function getRoutes()
     {
         $res = self::getInstance();
         return $res->_collection;
     }
 
-    public static function setRouteList($routes)
+    /**
+     * Redirects to specific route
+     * 
+     * @param string $redirect_from
+     * @param string $redirect_to
+     */
+    public static function redirect($redirect_from, $redirect_to, $code=302)
     {
         $res = self::getInstance();
-        //dd($res->_collection);
-        //exit();
-        $res->_collection = new Collection('Route');
-        $res->_collection->collect($routes, 'Route');
-    }
-
-    public static function addRouteList($routes)
-    {
-        $res = self::getInstance();
-        $res->_collection->collect($routes, 'Route');
-    }
-
-    public static function getRedirections()
-    {
-        $res = self::getInstance();
-        return $res->_redirections;
-    }
-
-    public static function setRedirections($redirections)
-    {
-        $res = self::getInstance();
-        $res->_redirections = $redirections;
+        $res->_redirections[$redirect_from] = array('to' => $redirect_to, 'code' => $code);
     }
     
     /**
@@ -250,12 +81,12 @@ class Route
      * @param string $redirect_from
      * @param string $redirect_to
      */
-    public static function redirect($redirect_from, $redirect_to)
+    public static function permanentRedirect($redirect_from, $redirect_to)
     {
         $res = self::getInstance();
-        $res->_redirections[$redirect_from] = $redirect_to;
+        $res->_redirections[$redirect_from] = array('to' => $redirect_to, 'code' => 301);
     }
-    
+
     /**
      * Define resources localization
      * 
@@ -270,7 +101,7 @@ class Route
      * Add a new route for GET method
      * 
      * @param string $url
-     * @param string $callback
+     * @param string|array|Closure $callback
      * @return RouteItem
      */
     public static function get($url, $callback)
@@ -282,7 +113,7 @@ class Route
      * Add a new route for POST method
      * 
      * @param string $url
-     * @param string $callback
+     * @param string|array|Closure $callback
      * @return RouteItem
      */
     public static function post($url, $callback)
@@ -294,7 +125,7 @@ class Route
      * Add a new route for PUT method
      * 
      * @param string $url
-     * @param string $callback
+     * @param string|array|Closure $callback
      * @return RouteItem
      */
     public static function put($url, $callback)
@@ -306,7 +137,7 @@ class Route
      * Add a new route for DELETE method
      * 
      * @param string $url
-     * @param string $callback
+     * @param string|array|Closure $callback
      * @return RouteItem
      */
     public static function delete($url, $callback)
@@ -361,6 +192,33 @@ class Route
     }
 
     /**
+     * Enable scope bindings to routes
+     *  
+     * @return RouteGroup
+     */
+    public static function scopeBindings()
+    {
+        $instance = self::getInstance();
+        $res = new RouteGroup($instance);
+        $res->scope_bindings = true;
+        return $res;
+    }
+
+    /**
+     * Disable scope bindings to routes
+     *  
+     * @param boolean $scope_bindings
+     * @return RouteGroup
+     */
+    public static function withoutScopedBindings()
+    {
+        $instance = self::getInstance();
+        $res = new RouteGroup($instance);
+        $res->scope_bindings = false;
+        return $res;
+    }
+
+    /**
      * Assign prefix to routes\
      * It can be used to group routes using group()
      * 
@@ -376,19 +234,16 @@ class Route
     }
 
     public static function group($routes)
-    {        
-        //$res = Route::getInstance();
-
+    {
         if (is_string($routes) && file_exists($routes))
         {
             CoreLoader::loadClass($routes, false);
         }        
-        elseif (is_string($routes) && strpos($routes, '@')!=false)
+        elseif (is_string($routes) && is_closure($routes))
         {
             list($c, $m, $p) = getCallbackFromString($routes);
-            call_user_func_array(array($c, $m), $p);
+            executeCallback($c, $m, $p);
         }
-
     } 
 
     /**
@@ -487,7 +342,7 @@ class Route
      * @param string $url
      * @param string $view
      */
-    public static function view($url, $view, $params=null)
+    public static function view($url, $view, $params=array())
     {
         return self::addRoute('GET', $url, null, null, $view, $params);
     }
@@ -506,32 +361,19 @@ class Route
         elseif (is_string($callback) && class_exists($callback))
             $callback = array($callback, '__invoke');
 
-        elseif (is_string($callback) && strpos($callback, '@')===false)
+        elseif (is_string($callback) && !is_closure($callback))
             $callback = array('', $callback);
 
         return self::addRoute($method, $url, $callback[0], $callback[1]);
         
     }
 
-    # Add a route
+    # Adds a route
     # Private - Creates the routes list (array)
-    # ------------------------------------------------------------
-    # Parameters:
-    # 1- method (GET, POST, PUT, DELETE)
-    # 2- url assigned to route
-    # 3- controller assigned for callback
-    # 4- function in the controller
-    # 5- middleware (optional) >> REMOVED (maybe it will be added back)
     private static function addRoute($method, $url, $controller, $func, $view=false, $viewparams=null)
     {
         $res = self::getInstance();
 
-        //dump(func_get_args());
-
-        //if ($res->_controller==null && $controller=='')
-        //    throw new Exception('Controller not defined in $method > $url route');
-
-        #printf("adding:".$url."\n");
         $method = strtoupper($method);
         $url = ltrim($url, "/");
 
@@ -542,6 +384,7 @@ class Route
         $route->url = ($res->_prefix? $res->_prefix.'/' : '') . ($url=='/' ? '' : $url);
         $route->middleware = $res->_middleware;
         $route->name = $res->_name!=''? $res->_name : null ;
+        $route->scope_bindings = $res->_scope_bindings;
         $route->controller = $res->_controller ? $res->_controller : $controller;
         $route->func = strpos($func, '(')===false? $func : substr($func, 0, strpos($func, '('));
         $route->view = $view;
@@ -569,66 +412,102 @@ class Route
     # and replace them with url values to send as parameters
     private static function findRoute($method, $val = '/')
     {
+        $records = self::getRoutes()->where('method', $method);
 
-        $records = self::filter($method, $val);
+        $record = $records->where('url', '==', $val);
 
-        if ($records->count()==1)
-            return $records->first();
-
-        $records = self::getInstance()->_collection->where('method', $method);
-
-        foreach ($records as $record)
-        {
-            $val = ltrim(rtrim($val, '/'), '/');
-            $urls = explode('/', $val);
-            $carpetas = explode('/', ltrim(rtrim($record->url, '/'), '/'));
-            $nuevaruta = '';
-            
-            $parametros = array();
-
-            //if (count($urls) == count($carpetas))
-            //{
-                for ($i=0; $i<count($carpetas); $i++)
-                {
-                    if ($carpetas[$i]!=$urls[$i] && strpos($carpetas[$i], '}')==false)
-                        break;
-
-                    if (strpos($carpetas[$i], '}')!=false)
-                    {                        
-                        $nuevaruta .= $urls[$i].'/';
-
-                        $key = str_replace('{', '', str_replace('}', '', $carpetas[$i]));
-
-                        $index = null;
-                        if (strpos($key, ':')>0)
-                            list($key, $index) = explode(':', $key);
-
-                        $parametros[$key]['value'] = $urls[$i];
-                        if (isset($index)) {
-                            $parametros[$key]['index'] = $index;
-                            if (!isset($record->scope_binding))
-                                $record->scope_binding = 1;
-                        }
-                    }
-                    else
-                    {
-                        $nuevaruta .= $carpetas[$i].'/';
-                    }
-                }
-
-                if (rtrim($nuevaruta, '/')==$val)
-                {
-                    $record->parametros = $parametros;
-                    return $record;
-                }
-                else
-                {
-                    $parametros = array();
-                }
-            //}
+        if ($record->count() == 1) {
+            return $record->first();
         }
+
+        $records = $records->where('url', '!==', '');
+
+        $dictionary = $records->getDictionary();
+
+        foreach (array_keys($dictionary) as $url)
+        {
+            $replaced = $url;
+            $alternative = $url;
+            preg_match('/\{.*?\}/x', $replaced, $matches);
+
+            foreach ($matches as $par) {
+                if (strpos($replaced, '?}')!==false) {
+                    $alternative = preg_replace('/\/\{.*?\}/x', '', $alternative);
+                    $replaced = preg_replace('/\{.*?\}/x', '.*', $replaced);
+                } else {
+                    $alternative = preg_replace('/\{.*?\}/x', '.*', $alternative);
+                    $replaced = preg_replace('/\{.*?\}/x', '.*', $replaced);
+                }
+            }
+
+            $replaced = str_replace('/', '\\/', $replaced);
+            $alternative = str_replace('/', '\\/', $alternative);
+
+            //echo "$replaced :: $alternative :: $val <br>";
+
+            if (preg_match('/^'.$replaced.'$/x', $val, $matches))
+            {
+                //dump($url);
+                $record = ($dictionary[$url]);
+                break;
+            }
+
+            if (preg_match('/^'.$alternative.'$/x', $val, $matches))
+            {
+                //dump($url);
+                $record = ($dictionary[$url]);
+                break;
+            }
+        }
+
+        if (!$record) {
+            return null;
+        }
+
+        $val = ltrim(rtrim($val, '/'), '/');
+        $urls = explode('/', $val);
+        $carpetas = explode('/', ltrim(rtrim($record->url, '/'), '/'));
+        $nuevaruta = '';
+        
+        $parametros = array();
+
+        for ($i=0; $i<count($carpetas); $i++)
+        {
+            if ($carpetas[$i]!=$urls[$i] && strpos($carpetas[$i], '}')==false)
+                break;
+
+            if (strpos($carpetas[$i], '}')!=false)
+            {                        
+                $nuevaruta .= $urls[$i].'/';
+
+                $key = str_replace('{', '', str_replace('}', '', $carpetas[$i]));
+
+                $index = null;
+                if (strpos($key, ':')>0)
+                    list($key, $index) = explode(':', $key);
+
+                $parametros[$key]['value'] = $urls[$i];
+                if (isset($index)) {
+                    $parametros[$key]['index'] = $index;
+                    if (!isset($record->scope_binding))
+                        $record->scope_binding = 1;
+                }
+            }
+            else
+            {
+                $nuevaruta .= $carpetas[$i].'/';
+            }
+        }
+
+        if (rtrim($nuevaruta, '/')==$val)
+        {
+            $record->parametros = $parametros;
+            return $record;
+        }
+
         return null;
 
+        
     }
 
     # Saves route history
@@ -686,7 +565,7 @@ class Route
      */
     public static function is($name)
     {
-        return self::getCurrentRoute()->name == $name;
+        return self::current()->name == $name;
     }
 
 
@@ -698,9 +577,12 @@ class Route
      */
     public static function getRoute($params)
     {
+        if (is_string($params)) $params = array($params);
+        
         $name = array_shift($params);
 
         $res = self::getInstance()->_collection->where('name', $name)->first();
+ 
         $route = $res->url;
         $route = rtrim(env('APP_URL'), '/') . '/' . $route;
         
@@ -711,26 +593,6 @@ class Route
 
     private static function convertCodesFromParams($route, $args)
     {
-        /* if (is_array($args))
-        {
-            $args = $args[0];
-            preg_match_all('/\{[^}]*\}/', $route, $matches);
-            foreach ($matches[0] as $match) {
-                $clean = ltrim(rtrim($match, '}'), '{');
-                $arg = $args[$clean];
-                unset($args[$clean]);
-                $route = str_replace($match, $arg, $route);
-            }
-            if (count($args)>0) {
-                $params = array();
-                foreach ($args as $key => $val) {
-                    $params[] = "$key=$val";
-                }
-                $route .= '?' . implode('&', $params);
-            }
-            return $route;
-        } */
-
         foreach ($args as $value)
         {
             if (is_object($value))
@@ -752,11 +614,21 @@ class Route
     /**
      * Get the current route
      * 
-     * @return Route
+     * @return RouteItem
+     */
+    public static function current()
+    {
+        return self::getInstance()->_currentRoute;
+    }
+
+    /**
+     * Get the current route
+     * 
+     * @return RouteItem
      */
     public static function getCurrentRoute()
     {
-        return self::getInstance()->_currentRoute;
+        return self::current();
     }
 
     /**
@@ -778,8 +650,16 @@ class Route
     private static function checkRedirections($route)
     {
         $res = self::getInstance();
+
         if (isset($res->_redirections[$route]))
-            header('Location: '.$res->_redirections[$route]);
+        {
+            $to = $res->_redirections[$route]['to'];
+            $code = $res->_redirections[$route]['code'];
+
+            $reason = HttpResponse::$reason_phrases[$code];
+            header("HTTP/1.1 $code $reason");
+            echo header('Location: '.$to);
+        }
 
     }
 
@@ -803,9 +683,8 @@ class Route
             $_SERVER['REQUEST_METHOD'] = strtoupper($method);
         }
 
-
         # Filter requested url
-        $current = (env('PUBLIC_FOLDER')?env('PUBLIC_FOLDER').'/':'') . (isset($_GET['ruta']) ? $_GET['ruta'] :  '/');
+        $current = (isset($_GET['ruta']) ? $_GET['ruta'] :  '/');
         $ruta = self::findRoute($_SERVER['REQUEST_METHOD'], rtrim($current,'/'));
 
         # Return 404 if route doesn't exists
@@ -813,19 +692,27 @@ class Route
         {
             abort(404);
         }
+        
+        foreach ($ruta->wheres as $key => $constraint)
+        {
+            if (!isset($ruta->parametros[$key])) {
+                abort(404);
+            }
+
+            preg_match("/".$constraint."/x", $ruta->parametros[$key]['value'], $matches);
+            
+            if(count($matches)==0) {
+                abort(404);
+            }
+        }
+        
         # Constructing Request
         $request = app('request');
         $request->generate($ruta);
         
         self::setCurrentRoute($ruta);
 
-        /* if (isset($ruta->middleware))
-        {
-            $res = self::checkMiddleware($request);
-
-        } */
-
-        $list = MiddlewareHelper::getMiddlewareList($request->route->middleware);
+        $list = HttpKernel::getMiddlewareList($request->route->middleware);
 
         $res = app('Pipeline')
             ->send($request)
@@ -850,82 +737,40 @@ class Route
                 $res = CoreLoader::invokeView($res->route);
             }
         }
-        
+
         # Show results
-        if (is_object($res) && !method_exists(get_class($res), 'showFinalResult'))
+        if ($res instanceof ResourceCollection) {
+            $res = response( $res->getResult(), 200);
+        }
+        elseif ($res instanceof JsonResource) {
+            $res = response( (array)$res, 200);
+        }
+        elseif ($res instanceof Model || $res instanceof Collection) {
+            $res = response( $res->toArray(), 200);
+        }
+        elseif ($res instanceof FinalView) {
+            $res = response( (string)$res, 200);
+        }
+        elseif (!($res instanceof Response)) {
+            $res = response( (string)$res, 200);
+        }
+
+        if ($res instanceof Response)
+        {
+            CoreLoader::processResponse($res);
+        }
+
+        throw new Exception("Invalid response [".get_class($res)."]");
+
+        /* if (is_object($res) && !method_exists(get_class($res), 'showFinalResult'))
             response($res)->json()->showFinalResult();
         elseif (is_string($res))
             echo $res;
         elseif (is_array($res))
             response()->json($res)->showFinalResult();
         elseif (isset($res))
-            $res->showFinalResult();
+            $res->showFinalResult(); */
 
     }
-
-
-    /* private static function checkMiddleware($request)
-    {
-        //dd(Route::routeList());exit();
-
-        MiddlewareHelper::bootKernel();
-        $middlewares = MiddlewareHelper::getMiddlewaresList();
-        $middleware_groups = MiddlewareHelper::getMiddlewareGroup();
-
-        $result = true;
-
-        foreach ($request->route->middleware as $midd)
-        {
-            list($midd, $params) = explode(':', $midd);
-
-            if (isset($middlewares[$midd]))
-            {
-                $result = self::invokeMiddleware($middlewares[$midd], $request);
-
-                if (!($result instanceof Request))
-                    return $result;
-            }
-            elseif (isset($middleware_groups[$midd]))
-            {
-                foreach ($middleware_groups[$midd] as $midd)
-                {
-                    if (!class_exists($midd))
-                    {
-                        list($midd, $params) = explode(':', $midd);
-                        $midd = $middlewares[$midd];
-                    }
-
-                    $result = self::invokeMiddleware($midd, $request);
-
-                    if (!($result instanceof Request))
-                        return $result;
-                }
-            }
-            else
-            {
-                try {
-                    $result = self::invokeMiddleware($midd, $request);
-
-                    if (!($result instanceof Request))
-                        return $result;
-                }
-                catch (Exception $e)
-                {
-                    throw new Exception("Error: Middleware $midd not found");
-                }
-            }
-
-        }
-
-        return $result;
-
-    } */
-
-    /* private static function invokeMiddleware($middleware, $request)
-    {
-        //echo "Calling middleware: $middleware<br>";
-        $controller = new $middleware;
-        return $controller->handle($request, true);
-    } */
 
 }

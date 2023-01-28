@@ -1,7 +1,8 @@
 <?php
 
 //session_destroy();
-
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET');
 
 # Global variables
 $routes = array();
@@ -16,7 +17,7 @@ $preventAccessingMissingAttributes = false;
 
 #ini_set('memory_limit', '256M');
 
-ini_set('display_errors', 0);
+ini_set('display_errors', true);
 error_reporting(E_ALL + E_NOTICE);
 #ini_set('display_errors', false);
 #error_reporting(0);
@@ -34,6 +35,7 @@ $_model_list = array();
 $_resource_list = array();
 $_enum_list = array();
 $_builder_methods = array();
+$_invokable_list = array();
 
 global $artisan;
 
@@ -169,6 +171,7 @@ Storage::$path = _DIR_.'storage/app/public/';
 # Caching all classes
 loadClassesInCache($_class_list);
 
+
 # Loading Providers
 $_service_providers = array();
 foreach($config['providers'] as $provider)
@@ -185,6 +188,11 @@ foreach ($_service_providers as $provider)
 {
     $class = new $provider;
     $class->boot();
+
+    if ($class instanceof RouteServiceProvider) {
+        $class->configureRateLimiting();
+    }
+
     unset($class);
 }
 
@@ -194,11 +202,11 @@ function custom_autoloader($class, $require=true)
 {
     if (strpos($class, 'PHPExcel_')!==false) return;
 
-    //echo "Loading Baradur class: ".$class."<br>";
+    //if ($require) echo "Loading Baradur class: ".$class."<br>";
  
     $newclass = '';
 
-    global $_class_list;
+    global $_class_list, $_invokable_list;
 
     if (isset($_class_list[$class]))
         $newclass = $_class_list[$class];
@@ -213,11 +221,26 @@ function custom_autoloader($class, $require=true)
 
         if ($date < $cachedate) // && env('APP_DEBUG')==0)
         {
-            if (file_exists(_DIR_.'storage/framework/classes/baradurClosures_'.$class.'.php') && $require)
-                require_once(_DIR_.'storage/framework/classes/baradurClosures_'.$class.'.php');
+            if (!$require)
+                return;
+            
+            //echo "Requiring class: $class <br>";
+            require_once(_DIR_.'storage/framework/classes/'.$class.'.php');
 
-            if ($require)
-                require_once(_DIR_.'storage/framework/classes/'.$class.'.php');
+            if (file_exists(_DIR_.'storage/framework/classes/baradurClosures_'.$class.'.php')) {
+                //echo "Requiring class: baradurClosures_$class <br>";
+                require_once(_DIR_.'storage/framework/classes/baradurClosures_'.$class.'.php');
+            }
+
+            if (file_exists(_DIR_.'storage/framework/classes/baradurBuilderMacros_'.$class.'.php')) {
+                //echo "Requiring class: baradurBuilderMacros_$class <br>";
+                require_once(_DIR_.'storage/framework/classes/baradurBuilderMacros_'.$class.'.php');
+            }
+
+            if (file_exists(_DIR_.'storage/framework/classes/baradurCollectionMacros_'.$class.'.php')) {
+                //echo "Requiring class: baradurCollectionMacros_$class <br>";
+                require_once(_DIR_.'storage/framework/classes/baradurCollectionMacros_'.$class.'.php');
+            }
 
             return;
         } 
@@ -233,6 +256,11 @@ function custom_autoloader($class, $require=true)
         {
             //echo "Caching class $newclass<br>";
             $temp = file_get_contents($newclass);
+
+            /* if (preg_match('/public[\s]*function[\s]*__invoke\(/x', $temp))
+            {
+                $_invokable_list[$class] = $_class_list[$class];
+            } */
 
             if (strpos($newclass, 'baradurClosures_')===false)
             {
@@ -260,7 +288,6 @@ function custom_autoloader($class, $require=true)
     
 }
 
-#dd("HOLA");
 
 # Error handling
 if (!$artisan) {
@@ -270,7 +297,6 @@ if (!$artisan) {
 
 function loadClassesInCache($list)
 {
-    //dd($list);
     if (file_exists(_DIR_.'storage/framework/classes/loaded'))
     {
         return;

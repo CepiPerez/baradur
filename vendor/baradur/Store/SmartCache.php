@@ -61,6 +61,4 @@ Class SmartCache
         return self::getInstance($group)->flush();
     }
 
-
-
 }

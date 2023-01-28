@@ -56,7 +56,7 @@ Class PdoConnector
     {
         //var_dump($wherevals);
         if ($fill && $parent->_collection==null)
-            $parent->_collection = new Collection('stdClass');
+            $parent->_collection = new Collection();
         
         try
         {
@@ -77,30 +77,15 @@ Class PdoConnector
     
         $bindings = $parent instanceof Builder? $parent->_bindings : $parent;
 
+        $bindings = Builder::__joinBindings($bindings);
 
-        if (is_assoc($bindings))
-        {
-            $bind = array();
-            foreach ($bindings['select'] as $b) $bind[] = $b;
-            foreach ($bindings['join'] as $b) $bind[] = $b;
-            foreach ($bindings['where'] as $b) $bind[] = $b;
-            foreach ($bindings['union'] as $b) $bind[] = $b;
-            foreach ($bindings['having'] as $b) $bind[] = $b;
-
-            $bindings = $bind;
-        }
+        //dump($sql); dump($bindings);
 
         if (env('DEBUG_INFO')==1)
         {
             global $debuginfo;
 
-            $result = $sql;
-
-            foreach ($bindings as $val)
-            {
-                if (is_string($val)) $val = "'$val'";
-                $result = preg_replace('/\?/', $val, $result, 1);
-            }
+            $result = Builder::__getPlainSqlQuery($sql, $bindings);
 
             $debuginfo['queryes'][] = $result; // preg_replace('/\s\s+/', ' ', str_replace("'", "\"", $sql));
         }
@@ -173,6 +158,7 @@ Class PdoConnector
             false
         ));
 
+
         /* foreach ($builder->_model->getAppends() as $append)
         {
             $item->setAppendAttribute($append, $item->$append);
@@ -180,6 +166,7 @@ Class PdoConnector
 
         foreach ($item->getAttributes() as $key => $val)
         {
+            //dump($key.":::".$val);
             if ($builder->_softDelete)
             {
                 $item->unsetAttribute('deleted_at');
@@ -191,7 +178,7 @@ Class PdoConnector
             if (method_exists($builder->_parent, 'get'.ucfirst($camel).'Attribute'))
             {
                 $fn = 'get'.ucfirst($camel).'Attribute';
-                $val = $item->$fn($val);
+                $item->$key = $item->$fn($val);
             }
             if (method_exists($builder->_parent, $camel.'Attribute'))
             {
@@ -201,10 +188,7 @@ Class PdoConnector
             }
         }
 
-        foreach ($item->getAttributes() as $key => $val)
-        {
-            $item->_setOriginalKey($key, $val);
-        }
+        $item->syncOriginal();
 
         return $item;
 

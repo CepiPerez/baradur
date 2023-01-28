@@ -3,7 +3,8 @@
 return [
 
     'home' => 'Home',
-    'login' => 'Login',
+    'login' => 'Log in',
+    'logout' => 'Log out',
     'invalid' => 'Invalid user or password',
     'validation_required' => 'You need to validate confirmation email',
     'registered' => 'User registered',
@@ -13,6 +14,7 @@ return [
     'username' => 'Username',
     'email' => 'Email',
     'full_name' => 'Full name',
+    'remember_me' => 'Remember me',
     'user_email' => 'Username or Email',
     'password' => 'Password',
     'password_forgot' => 'Forgot my password',
@@ -21,6 +23,7 @@ return [
     'register' => 'Register',
     'thanks_register' => 'Thank you for registering',
     'thanks_confirmation' => 'Thanks for your confirmation',
+    'password_changed' => 'Your password has changed',
     'can_login' => 'You can login to the system now',
     'message_sent' => 'A message was sent to your email inbox',
     'follow_registration' => 'Open it and follow the link to finish the registration proccess',
