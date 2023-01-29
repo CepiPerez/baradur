@@ -4,19 +4,22 @@ class SubstituteBindings
 {
     private function getClassName($item)
     {
-        return $item->getClass()!=null ? $item->getClass()->getName() : null;
+        return $item->getClass()!=null
+            ? $item->getClass()->getName() 
+            : null;
     }
 
     public function handle($request, $next)
     {
-        if (!isset($request->route->controller))
+        if (!isset($request->route->controller)) {
             return $request;
+        }
 
         $class = $request->route->controller;
         $method = $request->route->func;
         $bindings = $request->route->scope_bindings;
         $trashed = $request->route->with_trashed;
-        $parametros = isset($request->route->parametros)? $request->route->parametros : array();
+        $params = isset($request->route->parametros)? $request->route->parametros : array();
 
         $instance = $this->getInstance($class);
 
@@ -30,11 +33,10 @@ class SubstituteBindings
             $arguments = $this->buildClassParameters(
                 $reflectionMethod,
                 $method_params,
-                $parametros,
+                $params,
                 $bindings,
                 $trashed
             );
-
         }
 
         # If it's FormRequest, check authorization and validate
@@ -137,7 +139,9 @@ class SubstituteBindings
                     $last->setQuery(null);
                 }
 
-                if (!$record) abort(404);
+                if (!$record) {
+                    abort(404);
+                }
 
                 if ($bindings) {
                     $scope_bindings[] = $record;

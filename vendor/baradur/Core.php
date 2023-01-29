@@ -42,17 +42,23 @@ global $artisan;
 # Load all classes
 if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'))
 {
-    //echo "CREATING CLASSES<br>";
+    global $debuginfo;
+    $debuginfo['startup'] = 'Cache is empty. Creating all classes';
+
     $it = new RecursiveDirectoryIterator(_DIR_.'app');
     foreach(new RecursiveIteratorIterator($it) as $file)
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
         {
-            $_class_list[str_replace('.php', '', str_replace('.PHP', '', basename($file)))] = realpath($file);
+            $key = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+
+            $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
+            
             if (strpos(realpath($file), '/app/models/')>0)
-                $_model_list[] = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+                $_model_list[] = $key;
+            
             if (strpos(realpath($file), '/app/resources/')>0)
-                $_resource_list[] = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+                $_resource_list[] = $key;
         }
     }
     $it = new RecursiveDirectoryIterator(_DIR_.'database');
@@ -60,7 +66,9 @@ if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'cl
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
         {
-            $_class_list[str_replace('.php', '', str_replace('.PHP', '', basename($file)))] = realpath($file);
+            $key = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+
+            $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
         }
     }
 
@@ -69,7 +77,9 @@ if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'cl
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
         {
-            $_class_list[str_replace('.php', '', str_replace('.PHP', '', basename($file)))] = realpath($file);
+            $key = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+
+            $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
         }
     }
 
@@ -78,19 +88,21 @@ if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'cl
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
         {
-            $_class_list[str_replace('.php', '', str_replace('.PHP', '', basename($file)))] = realpath($file);
+            $key = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+
+            $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
         }
     }
 
     if (file_exists(_DIR_.'vendor/autoload.php'))
     {
-        $real = _DIR_;
-        $real = rtrim($real, 'baradur');
+        //$real = _DIR_;
+        //$real = rtrim($real, 'baradur');
         $extra = include_once(_DIR_.'vendor/autoload.php');
         if (count($extra)>0)
         {
             foreach ($extra as $key => $val)
-                $_class_list[$key] = $real.$val;
+                $_class_list[$key] = /* $real. */$val;
         }
     }
 
@@ -100,6 +112,9 @@ if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'cl
 }
 else
 {
+    global $debuginfo;
+    $debuginfo['startup'] = 'All classes loaded from cache';
+
     $_class_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'));
     $_model_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'models.php'));
     $_resource_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'resources.php'));
@@ -209,7 +224,7 @@ function custom_autoloader($class, $require=true)
     global $_class_list, $_invokable_list;
 
     if (isset($_class_list[$class]))
-        $newclass = $_class_list[$class];
+        $newclass = _DIR_ . $_class_list[$class];
     else
         return false;
 

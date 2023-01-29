@@ -113,10 +113,16 @@ function rollback($rollback, $output = true)
     }
 }
 
-function seed()
+function seed($seeder)
 {
-    $seeder = new DatabaseSeeder;
-    $seeder->run();
+    $dbseeder = new DatabaseSeeder;
+
+    if ($seeder) {
+        $dbseeder->call($seeder);
+    } else {
+        $dbseeder->run();
+    }
+
     printf("\033[32mDatabase seeding completed successfully.\033[m\n");
 }
 
@@ -128,10 +134,10 @@ function makeController($controller, $resource=false, $api=false, $singleton=fal
 
     $class = '';
 
-    if ($api==false)
+    //if ($api==false)
         $class = "<?php\n\nclass ".$controller." extends Controller\n";
-    else
-        $class = "<?php\n\nclass ".$controller." extends ApiController\n";
+    //else
+    //    $class = "<?php\n\nclass ".$controller." extends ApiController\n";
 
     $class .= "{\n\n";
     
@@ -285,6 +291,8 @@ function showMenu($ex = true)
     cs($ex); printf("migrate:fresh               "); ce($ex); printf("Drop all tables and re-run all migrations\n");
     cs($ex); printf("migrate:reset               "); ce($ex); printf("Rollback all database migrations\n");
     cs($ex); printf("migrate:rollback            "); ce($ex); printf("Rollback the last database migration\n");
+    if ($ex) printf("\033[33m model\033[m\n");
+    cs($ex); printf("model:prune                 "); ce($ex); printf("Prune models that are no longer needed\n");
     if ($ex) printf("\033[33m optimize\033[m\n");
     cs($ex); printf("optimize:clear              "); ce($ex); printf("Remove the cached bootstrap files\n");
     if ($ex) printf("\033[33m queue\033[m\n");
@@ -605,9 +613,12 @@ elseif ($action == 'make:observer' && count($argv)>1)
     if (file_exists('app/observers/'.$observer.'.php'))
         die ("Error: observer ".$observer." already exists\n");
 
-    $class = "<?php\n\nclass ".$observer."\n".
-            "{\n\tpublic function created(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
+    $class = "<?php\n\nclass ".$observer."\n{\n".
+            "\tpublic function creating(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
+            "\tpublic function created(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
+            "\tpublic function updating(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
             "\tpublic function updated(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
+            "\tpublic function deleting(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
             "\tpublic function deleted(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n}";
 
     file_put_contents('app/observers/'.$observer.'.php', $class);
@@ -661,7 +672,30 @@ elseif ($action == 'make:resource' && count($argv)>0)
 
 elseif ($action == 'db:seed')
 {
-    seed();
+    global $_class_list;
+
+    $force = false;
+    $seeder = null;
+
+    foreach ($argv as $arg)
+    {
+        if ($arg=='--force') {
+            $force = true;
+        }
+        if (strpos($arg, '-seeder=')==1) {
+            $seeder = str_replace('--seeder=', '', $arg);
+        }
+    }
+
+    if ($seeder && !isset($_class_list[$seeder])) {
+        die ("Error: $seeder not found\n");
+    }
+
+    if (strtolower(env('APP_ENV'))=='production' && !$force) {
+        die ("Please use \033[32mdb:seed --force\033[m for production\n");
+    }
+
+    seed($seeder);
 }
 
 elseif ($action == 'migrate:fresh')
@@ -724,13 +758,13 @@ elseif ($action == 'route:list')
     
     printf("\n");
 
-    $list = Route::routeList()->toArrayObject();
+    $list = Route::getRoutes();
 
     if (isset($method))
         $list = $list->where('method', $method);
 
     if (isset($sort))
-        usort($list, 'sortRoutesBy'.ucfirst($sort));
+        usort($list->toArrayObject(), 'sortRoutesBy'.ucfirst($sort));
 
     foreach ($list as $route)
     {
@@ -973,3 +1007,52 @@ elseif ($action == 'queue:stop')
         printf("\033[33mQueue not running.\033[m\n");
 
 }
+
+elseif ($action == 'model:prune')
+{
+    global $_model_list;
+    $pretend = false;
+
+    foreach ($argv as $arg) {
+        if ($arg=='--pretend') $pretend = true;
+    }
+    
+    foreach ($_model_list as $model)
+    {
+        if (method_exists($model, 'prune'))
+        {
+            $class = new $model;
+
+            if ($pretend)
+            {
+                $result = $class->prunable()->count();
+
+                if ($result>0)
+                    printf("\033[33m".$result." [".$model."] records will be pruned.\033[m\n");
+                else
+                    printf("\033[33mNo prunable [".$model."] records found.\033[m\n");
+                
+            }
+            else
+            {
+                $items = $class->prunable()->get();
+                
+                $result = 0;
+                foreach ($items as $item)
+                {
+                    if ($item->prune())
+                        $result++;
+                }
+    
+                if ($result>0)
+                    printf("\033[32m".$result." [".$model."] records pruned.\033[m\n");
+                else
+                    printf("\033[33mNo prunable [".$model."] records found.\033[m\n");
+
+            }
+        }
+
+    }
+
+}
+

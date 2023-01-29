@@ -1735,7 +1735,6 @@ Class Builder
             array_push($this->_keys, $key);
 
             $camel = Helpers::snakeCaseToCamelCase($key);
-            //echo "KEY: $camel"."Attribute<br>";
 
             if (method_exists($this->_parent, 'set'.ucfirst($camel).'Attribute'))
             {
@@ -3765,7 +3764,6 @@ Class Builder
 
     public function seed($data, $persist)
     {
-
         $this->_fillableOff = true;
 
         $col = new Collection(); //collectWithParent(null, $this->_parent);
@@ -3788,7 +3786,6 @@ Class Builder
         $this->_fillableOff = false;
 
         return $col;
-
     }
     
     public function attach($value, $extra=array())

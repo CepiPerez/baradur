@@ -11,9 +11,6 @@ class ThrottleRequests
 
     public function handle($request, $next, $maxAttempts = 60, $decayMinutes = 1, $prefix = '')
     {
-        //dump($this->limiter->limiter($maxAttempts));
-
-
         if (is_string($maxAttempts)
             && func_num_args() === 3
             && ! is_null($limiter = $this->limiter->limiter($maxAttempts))) {
@@ -32,19 +29,6 @@ class ThrottleRequests
             $next,
             (object)$limits
         );
-
-        /* return $this->handleRequest(
-            $request,
-            $next,
-            [
-                (object) [
-                    'key' => $prefix.$this->resolveRequestSignature($request),
-                    'maxAttempts' => $this->resolveMaxAttempts($request, $maxAttempts),
-                    'decayMinutes' => $decayMinutes,
-                    'responseCallback' => null,
-                ],
-            ]
-        ); */
     }
 
     protected function handleRequestUsingNamedLimiter($request, $next, $limiterName, $limiter)
@@ -56,7 +40,6 @@ class ThrottleRequests
             list($class, $method) = getCallbackFromString($limiter);
             $limiterResponse = executeCallback($class, $method, array($request), null);
         }
-        //ddd($limiterResponse);
 
         if ($limiterResponse instanceof Response) {
             return $limiterResponse;
@@ -80,7 +63,6 @@ class ThrottleRequests
 
     protected function handleRequest($request, $next, $limits)
     {
-        //dump(func_get_args());
         $limits = is_array($limits) ? $limits : array($limits);
         
         foreach ($limits as $limit)
@@ -157,7 +139,6 @@ class ThrottleRequests
         return $this->limiter->availableIn($key);
     }
 
-    
     protected function addHeaders($response, $maxAttempts, $remainingAttempts, $retryAfter = null)
     {
         $response->addHeaders(
@@ -190,17 +171,18 @@ class ThrottleRequests
 
     protected function calculateRemainingAttempts($key, $maxAttempts, $retryAfter = null)
     {
-        return is_null($retryAfter) ? $this->limiter->retriesLeft($key, $maxAttempts) : 0;
+        return is_null($retryAfter) 
+            ? $this->limiter->retriesLeft($key, $maxAttempts) 
+            : 0;
     }
-
 
     protected function secondsUntil($delay)
     {
         $delay = $this->parseDateInterval($delay);
 
-        return $delay instanceof DateTimeInterface
-                            ? max(0, $delay->getTimestamp() - $this->currentTime())
-                            : (int) $delay;
+        return $delay instanceof Carbon
+            ? max(0, $delay->getTimestamp() - $this->currentTime())
+            : (int) $delay;
     }
 
     protected function availableAt($delay = 0)

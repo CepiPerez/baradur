@@ -80,14 +80,12 @@ $temp_params = null;
 function view($template, $params=null)
 {
 	global $app, $temp_params;
-	//$app->action = 'show';
 
-	if (!isset($params) && isset($temp_params))
+	if (!isset($params) && isset($temp_params)) {
 		$params = $temp_params;
+	}
 	
 	return new FinalView($template, $params);
-
-	//return $app;
 }
 
 /**
@@ -270,6 +268,7 @@ function dump($data, $full=false, $die=false)
 				'$(document).ready(function(e) {
 					console.log("TIME: "+debug_info.map(a => a.time));
 					console.log("MEMORY USAGE: "+debug_info.map(a => a.memory_usage));
+					console.log("CACHE: "+debug_info.map(a => a.startup));
 					//console.log("MEMORY PEAK: "+debug_info.map(a => a.memory_peak));
 					let q = debug_info.map(a => a.queryes);
 					if (q[0]) {

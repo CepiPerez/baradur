@@ -357,7 +357,7 @@ function callbackReplaceTraits($match)
     foreach ($traits as $trait)
     {
         $trait = trim($trait);
-        $newclass = $_class_list[$trait];
+        $newclass = _DIR_ . $_class_list[$trait];
 
         if ($newclass)
         {

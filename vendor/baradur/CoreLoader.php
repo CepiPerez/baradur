@@ -242,6 +242,7 @@ class CoreLoader
             '$(document).ready(function(e) {
                 console.log("TIME: "+debug_info.map(a => a.time));
                 console.log("MEMORY USAGE: "+debug_info.map(a => a.memory_usage));
+                console.log("CACHE: "+debug_info.map(a => a.startup));
                 let q = debug_info.map(a => a.queryes);
                 if (q[0]) {
                 q[0].forEach(function (item, index) {

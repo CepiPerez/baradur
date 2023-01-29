@@ -70,13 +70,10 @@
 class Model
 {
     public $timestamps = true;
-    
     protected $_CREATED_AT = 'created_at';
     protected $_UPDATED_AT = 'updated_at';
-
     protected $original = array();
     protected $_relations = null;
-    
     protected $table = null;
     protected $primaryKey = 'id';
     protected $fillable = array();
@@ -86,17 +83,12 @@ class Model
     protected $_timestamps = null;
     protected $casts = array();
     protected $with = array();
-
     protected $wasRecentlyCreated = false;
-
     protected $attributes = array();
     protected $relations = array();
     protected $appends = array();
-
     protected $_query;
-
     protected $connection = null;
-
     public $_global_scopes = array();
 
     public function __construct($attributes=array())
@@ -723,7 +715,6 @@ class Model
     {
         return $this->getQuery()->seed($array, $persist);
     }
-
 
     public static function shouldBeStrict($shouldBeStrict = true)
     {
