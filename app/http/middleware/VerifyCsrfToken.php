@@ -8,3 +8,5 @@ class VerifyCsrfToken extends CsrfMiddleware
         'productos*'
     ];
 }
+
+?>

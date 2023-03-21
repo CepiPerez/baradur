@@ -24,13 +24,12 @@ Class View
 
         return $this;
     }
-
 	
 	# Returns an asset's full address
 	# _ASSETS is defined in Globals.php
 	public static function getAsset($asset)
 	{
-		return env('HOME').'/'.$asset;
+		return config('app.url').'/'.$asset;
 	}
 
 	public static function share($key, $value)
@@ -58,7 +57,7 @@ Class View
 		list($views, $file) = Blade::__findTemplate($file);
 
 		$arguments = array(
-			'app_name' => env('APP_NAME')
+			'app_name' => config('app.name')
 		);
 
 		if (isset($_SESSION['old'])) {
@@ -99,11 +98,11 @@ Class View
 
 		if ($composer)
 		{
-			if (strpos($composer, '@')>0)
+			if (is_closure($composer))
 			{
 				list($class, $method, $params) = getCallbackFromString($composer);
-				array_shift($params);
-				call_user_func_array(array($class, $method), array_merge(array(new View()), $params));
+				$params[0] = new View();
+				call_user_func_array(array($class, $method), $params);
 			}
 			else
 			{
@@ -144,5 +143,49 @@ Class View
 		
 		return $return_blade? $blade : $result;
 	}
+
+	public static function showErrorTemplate($code, $exception=null)
+    {
+		$message = HttpResponse::$reason_phrases[$code];
+		$message = __($message);
+
+        if (Blade::__findTemplate('errors.'.$code)) {
+
+            $result = view(
+                'errors.'.$code,
+                array(
+                    'title' => $message,
+                    'code' => $code,
+                    'message' => $message,
+                    'exception' => $exception
+                )
+            );
+
+            return CoreLoader::processResponse(response($result, $code));
+        }
+
+        if (!in_array($code, array(401, 402, 403, 404, 419, 429, 500, 503))) {
+            $code = 500;
+			$message = __('Server Error');
+        }
+            
+        //list($path, $file) = Blade::__findTemplate($code, 'vendor/baradur/Exceptions/views/');
+        //$cache = _DIR_.'storage/framework/views';
+        //$blade = new BladeOne($path, $cache);
+		$blade = new BladeOne(_DIR_.'vendor/baradur/Exceptions/views', _DIR_.'storage/framework/views');
+
+        $result = $blade->runInternal(
+            'error', array(
+                'title' => $message,
+                'code' => $code,
+                'message' => $message,
+                'exception' => $exception
+            ),
+            true
+        );
+    
+        return CoreLoader::processResponse(response($result, $code));
+
+    } 
 
 }

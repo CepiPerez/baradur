@@ -1,0 +1,19 @@
+<?php
+class {{ class }}
+{
+    public function created({{ model }} ${{ modelVariable }})
+    {
+        //
+    }
+
+    public function updated({{ model }} ${{ modelVariable }})
+    {
+        //
+    }
+
+    public function deleted({{ model }} ${{ modelVariable }})
+    {
+        //
+    }
+
+}

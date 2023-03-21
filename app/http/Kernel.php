@@ -4,7 +4,7 @@ class Kernel extends HttpKernel
 {
     # The application's global HTTP middleware stack.
     protected $middleware = [
-
+        PreventRequestsDuringMaintenance::class,
     ];
 
     # The application's route middleware groups.
@@ -15,7 +15,7 @@ class Kernel extends HttpKernel
         ],
 
         'api' => [
-            'throttle:api',
+            'throttle:60,1',
             SubstituteBindings::class,
         ],
     ];
@@ -24,7 +24,10 @@ class Kernel extends HttpKernel
     protected $routeMiddleware = [
         'auth' => Authenticate::class,
         'throttle' => ThrottleRequests::class,
+        'signed' => ValidateSignature::class,
         'can' => Authorize::class,
+        'verified' => EnsureEmailIsVerified::class,
+        'features' => EnsureFeaturesAreActive::class,
         'custom' => MyMiddleware::class
     ];
 }

@@ -8,17 +8,9 @@ Class Storage
 
     public static function disk($disk)
     {
-        $config = config('filesystems.disks.'.$disk);
+        $config = config('filesystems.disks.'.$disk);        
 
-        
-        if ($config['driver']=='local') {
-            self::$path = $config['root'];
-            $path = $config['root'];
-            $url = $config['url'];
-            return new Filesystem($path, $url, $disk);
-        }
-
-        elseif ($config['driver']=='s3') {
+        if ($config['driver']=='s3') {
             $config = config('filesystems.disks.'.$disk);
             self::$path = $config['endpoint'];
             $key = $config['key'];
@@ -30,9 +22,16 @@ Class Storage
             return new S3Storage($key, $secret, $bucket, $region, $endpoint, $url);
         }
 
-        else {
-            throw new Exception("Storage driver not supported for [$disk]");
+        else { //if ($config['driver']=='local') {
+            self::$path = $config['root'];
+            $path = $config['root'];
+            $url = $config['url'];
+            return new Filesystem($path, $url, $disk);
         }
+
+        /* else {
+            throw new LogicException("Storage driver not supported for [$disk]");
+        } */
 
     }
 

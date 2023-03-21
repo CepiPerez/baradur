@@ -1,0 +1,14 @@
+<?php
+
+class {{ class }} extends Factory
+{
+	protected $model = {{ model }}::class;
+
+	public function definition()
+	{
+		return [
+            //
+		];
+	}
+
+}

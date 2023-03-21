@@ -11,11 +11,13 @@ class ThrottleRequests
 
     public function handle($request, $next, $maxAttempts = 60, $decayMinutes = 1, $prefix = '')
     {
+        //dump(func_get_args());__exit();
         if (is_string($maxAttempts)
             && func_num_args() === 3
             && ! is_null($limiter = $this->limiter->limiter($maxAttempts))) {
             return $this->handleRequestUsingNamedLimiter($request, $next, $maxAttempts, $limiter);
         }
+        
 
         $limits = array(
             'key' => $prefix.$this->resolveRequestSignature($request),
@@ -38,7 +40,7 @@ class ThrottleRequests
         if (is_closure($limiter))
         {
             list($class, $method) = getCallbackFromString($limiter);
-            $limiterResponse = executeCallback($class, $method, array($request), null);
+            $limiterResponse = executeCallback($class, $method, array($request));
         }
 
         if ($limiterResponse instanceof Response) {
@@ -116,22 +118,16 @@ class ThrottleRequests
     {
         $retryAfter = $this->getTimeUntilNextRetry($key);
 
-        /* $headers = $this->getHeaders(
+        $headers = $this->getHeaders(
             $maxAttempts,
             $this->calculateRemainingAttempts($key, $maxAttempts, $retryAfter),
             $retryAfter
-        ); */
+        );
 
-        if (is_closure($responseCallback))
-        {
-            list($class, $method, $params) = getCallbackFromString($responseCallback);
-            array_shift($params);
-            $res = executeCallback($class, $method, array_merge(array($request), $params), $this);
+        return is_callable($responseCallback)
+            ? new HttpResponseException($responseCallback($request, $headers))
+            : new ThrottleRequestsException('Too Many Attempts.', null, $headers);
 
-            return $res;
-        }
-
-        return new Exception('Too Many Attempts.', 429);
     }
 
     protected function getTimeUntilNextRetry($key)

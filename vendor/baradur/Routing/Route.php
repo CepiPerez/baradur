@@ -10,6 +10,7 @@ class Route
 
     public $_controller = null;
     public $_middleware = array();
+    public $_domain = '';
     public $_prefix = '';
     public $_name = '';
     public $_scope_bindings = true;
@@ -20,6 +21,9 @@ class Route
     public $PUT;
     public $POST;
     public $DELETE;
+
+    protected static $binds = array();
+
 
     public function __construct()
     {
@@ -96,6 +100,32 @@ class Route
     {
         self::$_strings = $strings;
     }
+
+    /**
+     * Add a new route parameter binder.
+     *
+     * @return void
+     */
+    public static function bind($key, $binder)
+    {
+        self::$binds[$key] = array('class' => null, 'callback' => $binder);
+    }
+
+    /**
+     * Register a model binder for a wildcard.
+     *
+     * @return void
+     */
+    public static function model($key, $class, $callback = null)
+    {
+        self::$binds[$key] = array('class' => $class, 'callback' => $callback);
+    }
+
+    public static function __getBinders()
+    {
+        return self::$binds;
+    }
+
 
     /**
      * Add a new route for GET method
@@ -229,7 +259,21 @@ class Route
     {
         $instance = self::getInstance();
         $res = new RouteGroup($instance);
-        $res->prefix = ($instance->_prefix? $instance->_prefix.'/':'') . $prefix;
+        $res->prefix = ($instance->_prefix? $instance->_prefix.'/' : '') . $prefix;
+        return $res;
+    }
+
+    /**
+     * Assign domain to routes
+     * 
+     * @param string $domain
+     * @return RouteGroup
+     */
+    public static function domain($domain)
+    {
+        $instance = self::getInstance();
+        $res = new RouteGroup($instance);
+        $res->domain = ($instance->_domain? $instance->_domain.'.' : null) . $domain;
         return $res;
     }
 
@@ -341,10 +385,11 @@ class Route
      * 
      * @param string $url
      * @param string $view
+     * @param array $parameters
      */
-    public static function view($url, $view, $params=array())
+    public static function view($url, $view, $parameters=array())
     {
-        return self::addRoute('GET', $url, null, null, $view, $params);
+        return self::addRoute('GET', $url, null, null, $view, $parameters);
     }
 
 
@@ -354,14 +399,20 @@ class Route
     # returns an array for group() function
     private static function getOrAppend($method, $url, $callback)
     {
+        global $_class_list;
 
-        if (is_string($callback) && strpos($callback, '@')!=false)
+        if (is_closure($callback)) {
+            $arr = explode('|', $callback);
+            $callback = $arr[0] . '@' . $arr[1];
+        }
+
+        if (is_string($callback) && strpos($callback, '@')!==false)
             $callback = explode('@', $callback);
 
-        elseif (is_string($callback) && class_exists($callback))
+        elseif (is_string($callback) && isset($_class_list[$callback]))
             $callback = array($callback, '__invoke');
 
-        elseif (is_string($callback) && !is_closure($callback))
+        elseif (is_string($callback))// && !is_closure($callback))
             $callback = array('', $callback);
 
         return self::addRoute($method, $url, $callback[0], $callback[1]);
@@ -374,14 +425,37 @@ class Route
     {
         $res = self::getInstance();
 
+        $domain = $res->_domain;
+
+        if (!$domain) {
+            $parse = parse_url(config('app.url'));
+            $domain = $parse['host'];
+            $path = isset($parse['path']) ? $parse['path'] : '';
+        }
+
+        $domain = $domain . $path;
+
         $method = strtoupper($method);
         $url = ltrim($url, "/");
+        $url = /* $domain . '/' . */ ($res->_prefix? $res->_prefix.'/' : '') . ($url=='/' ? '' : $url);
 
-        if ($func==null) $func = '';
+        if ($url == '') {
+            $url = '/';
+        }
+
+        if ($domain.'/' == $url) {
+            $url = $domain;
+        }
+
+        if ($func==null) {
+            $func = '';
+        }
 
         $route = new RouteItem;
         $route->method = $method;
-        $route->url = ($res->_prefix? $res->_prefix.'/' : '') . ($url=='/' ? '' : $url);
+        $route->domain = $domain;
+        $route->url = $url;
+        $route->full_url = str_replace('//', '/', $domain . '/' . $url);
         $route->middleware = $res->_middleware;
         $route->name = $res->_name!=''? $res->_name : null ;
         $route->scope_bindings = $res->_scope_bindings;
@@ -412,31 +486,48 @@ class Route
     # and replace them with url values to send as parameters
     private static function findRoute($method, $val = '/')
     {
-        $records = self::getRoutes()->where('method', $method);
 
-        $record = $records->where('url', '==', $val);
-
-        if ($record->count() == 1) {
-            return $record->first();
+        $domain = $_SERVER['HTTP_HOST'];
+        
+        $val = str_replace($domain, str_replace('.', '/', $domain), $val);
+        $val = ltrim($val, '/');
+        
+        if ($val=='') $val = '/';
+        
+        $records = self::getRoutes()->where('method', $method)->where('full_url', '==', $val);
+        //dd($method, $val, $_SERVER, self::getRoutes());
+        
+        if ($records->count() == 1) {
+            return $records->first();
         }
 
-        $records = $records->where('url', '!==', '');
+        $records = self::getRoutes()->where('method', $method)->where('full_url', '!==', '');
 
         $dictionary = $records->getDictionary();
 
-        foreach (array_keys($dictionary) as $url)
+        $record = null;
+
+        foreach ($dictionary as $item)
         {
-            $replaced = $url;
-            $alternative = $url;
-            preg_match('/\{.*?\}/x', $replaced, $matches);
+            $full = str_replace('.', '/', $item->domain) . '/' . $item->url;
+
+            $replaced = $full;
+            $alternative = $full;
+
+            preg_match_all('/\{.*?\}/x', $replaced, $matches);
+
+            $matches = count($matches[0])>0 ? $matches[0] : array();
+
+            //dump($matches, $val);
 
             foreach ($matches as $par) {
-                if (strpos($replaced, '?}')!==false) {
-                    $alternative = preg_replace('/\/\{.*?\}/x', '', $alternative);
-                    $replaced = preg_replace('/\{.*?\}/x', '.*', $replaced);
+                //dump($par);
+                if (strpos($par, '?}')!==false) {
+                    $alternative = preg_replace('/\/\{.*?\}/x', '', $alternative, 1);
+                    $replaced = preg_replace('/\{.*?\}/x', '.*', $replaced, 1);
                 } else {
-                    $alternative = preg_replace('/\{.*?\}/x', '.*', $alternative);
-                    $replaced = preg_replace('/\{.*?\}/x', '.*', $replaced);
+                    $alternative = preg_replace('/\{.*?\}/x', '.*', $alternative, 1);
+                    $replaced = preg_replace('/\{.*?\}/x', '.*', $replaced, 1);
                 }
             }
 
@@ -445,56 +536,76 @@ class Route
 
             //echo "$replaced :: $alternative :: $val <br>";
 
-            if (preg_match('/^'.$replaced.'$/x', $val, $matches))
+            if ((preg_match('/^'.$replaced.'$/x', $val, $matches)) 
+                /* && (count(explode('/', $val))==count(explode('/', $replaced))) */)
             {
-                //dump($url);
-                $record = ($dictionary[$url]);
+                //dump("RECORD", $url);
+                $record = ($item);
                 break;
             }
 
-            if (preg_match('/^'.$alternative.'$/x', $val, $matches))
+            if ((preg_match('/^'.$alternative.'$/x', $val, $matches)) 
+                /* && (count(explode('/', $val))==count(explode('/', $alternative  ))) */)
             {
-                //dump($url);
-                $record = ($dictionary[$url]);
+                //dump("ALTERNATIVE", $url);
+                $record = ($item);
                 break;
             }
         }
+        
+        //dd($record);
 
         if (!$record) {
             return null;
         }
 
+
         $val = ltrim(rtrim($val, '/'), '/');
         $urls = explode('/', $val);
-        $carpetas = explode('/', ltrim(rtrim($record->url, '/'), '/'));
+        $full = str_replace('.', '/', $record->domain) . '/' . $record->url;
+        $carpetas = explode('/', ltrim(rtrim($full, '/'), '/'));
         $nuevaruta = '';
         
         $parametros = array();
 
-        for ($i=0; $i<count($carpetas); $i++)
-        {
-            if ($carpetas[$i]!=$urls[$i] && strpos($carpetas[$i], '}')==false)
-                break;
+        for ($i=0; $i<count($carpetas); $i++) {
 
-            if (strpos($carpetas[$i], '}')!=false)
-            {                        
+            if ($carpetas[$i]!=$urls[$i] && strpos($carpetas[$i], '}')==false) {
+                break;
+            }
+
+            if ($carpetas[$i]==$record->domain && strpos($carpetas[$i], '}')!=false) {
+                $key = substr($carpetas[$i], 1, strpos($carpetas[$i], '}')-1);
+                $garbage = str_replace('{'.$key.'}', '', $carpetas[$i]);
+                $parametros[$key]['value'] = str_replace($garbage, '', $urls[$i]);
+                $nuevaruta .= $urls[$i].'/';
+            }
+
+            elseif (strpos($carpetas[$i], '}')!=false) {                        
                 $nuevaruta .= $urls[$i].'/';
 
-                $key = str_replace('{', '', str_replace('}', '', $carpetas[$i]));
+                $key = substr($carpetas[$i], 1, strpos($carpetas[$i], '}')-1);
 
                 $index = null;
-                if (strpos($key, ':')>0)
+                if (strpos($key, ':')>0) {
                     list($key, $index) = explode(':', $key);
+                }
 
-                $parametros[$key]['value'] = $urls[$i];
+                if ((str_ends_with($key, '?') && $urls[$i]!==null) || !str_ends_with($key, '?')) {
+                    $parametros[$key]['value'] = $urls[$i];
+                } else {
+                    $parametros[$key]['value'] = 'baradur_null_parameter';
+                }
+
                 if (isset($index)) {
                     $parametros[$key]['index'] = $index;
-                    if (!isset($record->scope_binding))
+                    if (!isset($record->scope_binding)) {
                         $record->scope_binding = 1;
+                    }
                 }
             }
-            else
-            {
+            
+            else {
                 $nuevaruta .= $carpetas[$i].'/';
             }
         }
@@ -502,6 +613,7 @@ class Route
         if (rtrim($nuevaruta, '/')==$val)
         {
             $record->parametros = $parametros;
+            //dd($record);
             return $record;
         }
 
@@ -519,9 +631,10 @@ class Route
         {
             //$referer = $this->request->headers->get('referer');
 
-            unset($_GET['ruta']);
-    
-            $current = isset($_GET['ruta']) ? $_GET['ruta'] :  '/';
+            //unset($_GET['ruta']);
+            //$current = isset($_GET['ruta']) ? $_GET['ruta'] :  '/';
+
+            $current = ltrim($_SERVER['REDIRECT_URL'], '/');
 
             if (count($_GET)>0)
                 $ruta = $current.'?'.http_build_query($_GET,'','&');
@@ -584,8 +697,12 @@ class Route
         $res = self::getInstance()->_collection->where('name', $name)->first();
  
         $route = $res->url;
-        $route = rtrim(env('APP_URL'), '/') . '/' . $route;
-        
+
+        $parse = parse_url(config('app.url'));
+        //$domain = $parse['host'];
+        //$route = ltrim($route, $domain);
+        $route = /* rtrim(config('app.url'), '/')  */ config('app.url') . '/' . $route;
+
         return self::convertCodesFromParams($route, $params);
         //return self::convertCodesFromApp($route, $app->arguments);;
 
@@ -593,6 +710,7 @@ class Route
 
     private static function convertCodesFromParams($route, $args)
     {
+        //ddd($args);
         foreach ($args as $value)
         {
             if (is_object($value))
@@ -651,14 +769,24 @@ class Route
     {
         $res = self::getInstance();
 
+        $parse = parse_url(config('app.url'));
+        $domain = $parse['host'];
+        $path = $parse['path'];
+        
+        $route = str_replace($domain.$path, '', $route);
+        $route = ltrim($route, '/');
+        
+        if ($route=='') $route = '/';
+
         if (isset($res->_redirections[$route]))
         {
-            $to = $res->_redirections[$route]['to'];
+            $to = config('app.url') . '/' . $res->_redirections[$route]['to'];
             $code = $res->_redirections[$route]['code'];
 
             $reason = HttpResponse::$reason_phrases[$code];
             header("HTTP/1.1 $code $reason");
             echo header('Location: '.$to);
+            __exit();
         }
 
     }
@@ -672,9 +800,15 @@ class Route
      */
     public static function start()
     {
-        # Check redirections first
-        self::checkRedirections(isset($_GET['ruta']) ? $_GET['ruta'] :  '/');
+        $current = $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
 
+        $parse = parse_url($current);
+        $current = $parse['path'];
+
+        # Check redirections first
+        self::checkRedirections($current);
+
+        //dd(self::getRoutes());
 
         # Convert GET/POST into PUT/DELETE if necessary
         if (isset($_GET['_method']) || isset($_POST['_method']))
@@ -684,13 +818,32 @@ class Route
         }
 
         # Filter requested url
-        $current = (isset($_GET['ruta']) ? $_GET['ruta'] :  '/');
-        $ruta = self::findRoute($_SERVER['REQUEST_METHOD'], rtrim($current,'/'));
+        //$current = (isset($_GET['ruta']) ? $_GET['ruta'] :  '/');
+        $ruta = self::findRoute($_SERVER['REQUEST_METHOD'], $current);
+
+        //dd($ruta);
 
         # Return 404 if route doesn't exists
         if (!isset($ruta->controller) && !isset($ruta->view))
         {
-            abort(404);
+            global $app;
+            if ($app->maintenanceMode()) {
+
+                $secret = str_replace($_SERVER['HTTP_HOST'].'/', '', $current);
+
+                if (filled($secret)) {
+                    MaintenanceMiddleware::checkSecret($secret);
+
+                    if ($_SESSION['bypass']['stored']==$_SESSION['bypass']['secret'] && $_SESSION['bypass']['stored']!==null) {
+                        return redirect('/');
+                    }
+                }
+            }
+
+            throw new RouteNotFoundException(
+                'Missing route ['.$_SERVER['REQUEST_METHOD'].'] /' . $current .'.', 
+                404
+            );
         }
         
         foreach ($ruta->wheres as $key => $constraint)
@@ -738,7 +891,14 @@ class Route
             }
         }
 
+
+        //dd("RES", $res);
+
         # Show results
+        if (!$res) {
+            __exit();
+        }
+
         if ($res instanceof ResourceCollection) {
             $res = response( $res->getResult(), 200);
         }
@@ -749,18 +909,18 @@ class Route
             $res = response( $res->toArray(), 200);
         }
         elseif ($res instanceof FinalView) {
-            $res = response( (string)$res, 200);
+            $res = response( $res->__toString(), 200);
         }
-        elseif (!($res instanceof Response)) {
-            $res = response( (string)$res, 200);
+        elseif (!($res instanceof Response) && is_string($res)) {
+            $res = response( $res, 200);
         }
 
         if ($res instanceof Response)
         {
-            CoreLoader::processResponse($res);
+            return $res;
         }
 
-        throw new Exception("Invalid response [".get_class($res)."]");
+        throw new RuntimeException("Invalid response [".get_class($res)."]");
 
         /* if (is_object($res) && !method_exists(get_class($res), 'showFinalResult'))
             response($res)->json()->showFinalResult();

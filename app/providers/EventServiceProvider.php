@@ -2,15 +2,18 @@
 
 class EventServiceProvider extends ServiceProvider
 {
+    protected $listen = [
+
+    ];
 
     protected $observers = [
-        //Category::class => CategoryObserver::class,
+
     ];
 
     public function boot()
     {
-        # Observers
-        // Category::observe(CategoryOberver::class);
+
+
     }
 
 }

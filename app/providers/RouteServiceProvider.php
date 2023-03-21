@@ -3,15 +3,11 @@
 class RouteServiceProvider extends ServiceProvider
 {
     # The path to the "home" route for your application.
-    //public const HOME = '/home';
+    public const HOME = '/';
 
     public function boot()
     {
-        Route::resourceVerbs([
-            'create' => 'crear',
-            'edit' => 'editar',
-        ]);
-
+        //$this->configureRateLimiting();
 
         $this->routes(function () {
 
@@ -27,6 +23,9 @@ class RouteServiceProvider extends ServiceProvider
     
     protected function configureRateLimiting()
     {
-       
+        RateLimiter::for('web', function (Request $request) {
+            return Limit::perMinute(5)->by($request->ip());
+        });
+
     }
 }

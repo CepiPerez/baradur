@@ -20,7 +20,8 @@ Class Gate {
 
     private static function getResult($function, $param=null)
     {
-        $current_user = isset(self::$user)? self::$user : Auth::user();
+        return Authorize::verify($function, $param, false);
+        /* $current_user = isset(self::$user)? self::$user : Auth::user();
 
         if (!isset($current_user)) {
             return false;
@@ -46,7 +47,7 @@ Class Gate {
         if (isset($param))
             return $controller->$func($current_user, $param);
         else 
-            return $controller->$func($current_user);
+            return $controller->$func($current_user); */
         
     }
 

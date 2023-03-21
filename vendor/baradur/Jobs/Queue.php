@@ -2,24 +2,22 @@
 
 $working = true;
 
-printf("\033[32mProcessing jobs from the [default] queue. \033[m\n");
-printf("\033[32mTo run queue in background use this command:\033[m\n");
-printf("  nohup php artisan queue:work &\n\n");
+printf("\033[32m\n  To run queue in background use this command:\033[m  nohup php artisan queue:work &\n");
+
+Artisan::info('Processing jobs from the [default] queue.');
 
 while ($working)
 {
-    $res = DB::table('information_schema.tables')->selectRaw('table_name')
-        ->whereRaw("table_schema = '".env('DB_NAME')."' AND table_name = 'baradur_queue'")
-        ->first();
+    $res = DB::select("SHOW TABLES LIKE 'baradur_queue'");
     
-    if ($res)
+    if ($res->count() > 0)
     {
         Worker::checkQueue();
     }
-    else
+    /* else
     {
         printf("Checking queue... no jobs found\n");
-    }
+    } */
 
     sleep(10);
 }

@@ -2,6 +2,7 @@
 
 Class RouteGroup 
 {
+    public $domain = null;
     public $prefix = '';
     public $middleware = array();
     public $name = '';
@@ -48,6 +49,7 @@ Class RouteGroup
 
         $result['middleware'] = $route->_middleware;
         $result['controller'] = $route->_controller;
+        $result['domain'] = $route->_domain;
         $result['prefix'] = $route->_prefix;
         $result['name'] = $route->_name;
         $result['scope_bindings'] = $route->_scope_bindings;
@@ -59,6 +61,7 @@ Class RouteGroup
     {
         $route->_middleware = $options['middleware'];
         $route->_controller = $options['controller'];
+        $route->_domain = $options['domain'];
         $route->_prefix = $options['prefix'];
         $route->_name = $options['name'];
         $route->_scope_bindings = $options['scope_bindings'];
@@ -68,6 +71,7 @@ Class RouteGroup
     {
         $route->_middleware = $source->middleware;
         $route->_controller = $source->controller;
+        $route->_domain = $source->domain;
         $route->_prefix = $source->prefix;
         $route->_name = $source->name;
         $route->_scope_bindings = $source->scope_bindings;

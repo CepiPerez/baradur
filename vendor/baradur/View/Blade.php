@@ -33,7 +33,9 @@ class Blade
 
         $blade = new BladeOne($cache, $cache);
 
-		return $blade->run('temp_view', $attributes);
+		$result = $blade->run('temp_view', $attributes);
+
+        ddd($result);
     }
 
     public static function _if($compiler, $callback)
@@ -51,9 +53,9 @@ class Blade
         return null;
     }
 
-    public static function __findTemplate($template)
+    public static function __findTemplate($template, $dir=null)
     {
-        $dir = _DIR_.'resources/views/';
+        $dir = _DIR_ . ($dir? $dir : 'resources/views/');
 
         if (file_exists($dir . str_replace('.', '/', $template) . '.blade.php'))
         { 
@@ -76,7 +78,12 @@ class Blade
             list($namespace, $template) = explode('::', $template);
         }
 
-        return array($dir, $template);
+        if (file_exists($dir . '/' . str_replace('.', '/', $template) . '.blade.php'))
+        {
+            return array($dir, $template);
+        }
+
+        return null;
     }
 
     public static function __findComponent($component)

@@ -4,9 +4,11 @@ Class Relations
 {
     private static function getInstance($class, $parent)
     {
+        global $_class_list;
+
         $res = null;
 
-        if (class_exists($class))
+        if (isset($_class_list[$class]))
         {
             $res = Model::instance($class);
         }
@@ -26,8 +28,8 @@ Class Relations
         if ($parent->_extraQuery)
         {
             list($class, $method, $params) = getCallbackFromString($parent->_extraQuery);
-            array_shift($params);
-            executeCallback($class, $method, array_merge(array($query), $params), null);
+            $params[0] = $query;
+            executeCallback($class, $method, $params);
             //call_user_func_array(array($class, $method), array_merge(array($query), $params));
         }
     }
@@ -71,7 +73,7 @@ Class Relations
         if ($parent->_collection->count()>0)
         {
             $wherein = array();
-            $wherein = (array)$parent->_collection->pluck($primary);
+            $wherein = $parent->_collection->pluck($primary)->toArray();
             $res->whereIn($res->table.'.'.$foreign, $wherein);
             $res->_relationVars['where_in'] = $wherein;
         }
@@ -117,7 +119,7 @@ Class Relations
         if ($parent->_collection->count()>0)
         {
             $wherein = array();
-            $wherein = (array)$parent->_collection->pluck($primary);
+            $wherein = $parent->_collection->pluck($primary)->toArray();
             $res->whereIn($res->table.'.'.$foreign, $wherein);
             $res->_relationVars['where_in'] = $wherein;
         }
@@ -133,15 +135,17 @@ Class Relations
     
     public static function hasOneThrough($parent, $class, $classthrough, $foreignthrough, $foreign, $primary, $primarythrough)
     {
-        
+        global $_class_list;
+
         $res = self::getInstance($class, $parent);
 
         $primarytable = Model::instance($class)->table;
-        $secondarytable = Helpers::camelCaseToSnakeCase($classthrough, false);
 
-        if (class_exists($classthrough))
-            $secondarytable = call_user_func(array($classthrough, 'getTable'), array());
-        
+        if (isset($_class_list[$classthrough])) {
+            $secondarytable = Model::instance($classthrough)->table;
+        } else {
+            $secondarytable = Helpers::camelCaseToSnakeCase($classthrough, false);
+        }
 
         $res = $res->join($secondarytable, $secondarytable.'.'.$primarythrough, '=', $primarytable.'.'.$foreign);
 
@@ -149,6 +153,7 @@ Class Relations
             'relationship' => 'hasOneThrough',
             'class' => $parent->_parent,
             'classthrough' => $classthrough,
+            'tablethrough' => $secondarytable,
             'foreignthrough' => $foreignthrough,
             'primarythrough' => $primarythrough,
             'foreign' => $foreign,
@@ -159,7 +164,7 @@ Class Relations
         if ($parent->_collection->count()>0)
         {
             $wherein = array();
-            $wherein = (array)$parent->_collection->pluck($primary);
+            $wherein = $parent->_collection->pluck($primary)->toArray();
             $res = $res->whereIn($foreignthrough, $wherein);
             $res->_relationVars['where_in'] = $wherein;
         }
@@ -232,7 +237,7 @@ Class Relations
 
         if ($parent->_collection->count()>0)
         {
-            $wherein = (array)$parent->_collection->pluck($primary);
+            $wherein = $parent->_collection->pluck($primary)->toArray();
             $res = $res->whereIn($method.'_id', $wherein);
             $res->_relationVars['current_id'] = $parent->_collection->first()->$primary;
             $res->_relationVars['where_in'] = $wherein;
@@ -266,7 +271,7 @@ Class Relations
             return null;
 
         $classname = $parent->_collection->pluck($type)->first();
-        $wherein = (array)$parent->_collection->pluck($id);
+        $wherein = $parent->_collection->pluck($id)->toArray();
 
         $res = self::getInstance($classname, $parent);
         
@@ -312,7 +317,7 @@ Class Relations
 
         if ($parent->_collection->count()>0)
         {
-            $wherein = (array)$parent->_collection->pluck($primary);
+            $wherein = $parent->_collection->pluck($primary)->toArray();
             $res = $res->whereIn($arr['related'], $wherein);
             $res->_relationVars['current_id'] = $parent->_collection->first()->$primary;
             $res->_relationVars['where_in'] = $wherein;
@@ -350,7 +355,7 @@ Class Relations
     
         if ($parent->_collection->count()>0)
         {
-            $wherein = (array)$parent->_collection->pluck($primary);
+            $wherein = $parent->_collection->pluck($primary)->toArray();
             $res = $res->whereIn($res->_relationVars['primary'], $wherein);
             $res->_relationVars['current_id'] = $parent->_collection->first()->$primary;
             $res->_relationVars['where_in'] = $wherein;
@@ -364,6 +369,7 @@ Class Relations
     {
         $classthrough = $res->_relationVars['classthrough'];
         $relationship = $res->_relationVars['relationship'];
+        $tablethrough = $res->_relationVars['tablethrough'];
         $foreignthrough = $res->_relationVars['foreignthrough'];
         $primarythrough = $res->_relationVars['primarythrough'];
         $foreign = $res->_relationVars['foreign'];
@@ -373,6 +379,9 @@ Class Relations
         $extra_columns = $res->_relationVars['extra_columns'];
         $pivot_name = isset($res->_relationVars['pivot_name'])?
             $res->_relationVars['pivot_name'] : 'pivot';
+
+        $pivot_model = isset($res->_relationVars['pivot_model'])?
+            $res->_relationVars['pivot_model'] : 'Model';
         
         if (isset($parent->_eagerLoad[$relation]['_constraints']) && !isset($res->_eagerLoad))
         {
@@ -393,7 +402,7 @@ Class Relations
 
         if (in_array($relationship, array('hasOneThrough', 'hasManyThrough')))
         {
-            $res->addSelect("$classthrough.$foreignthrough as bardur_through_key");
+            $res->addSelect("$tablethrough.$foreignthrough as bardur_through_key");
             $key = 'bardur_through_key';
 
             if (is_array($columns) && !in_array($key, $columns))
@@ -404,8 +413,8 @@ Class Relations
         }
         elseif ($relationship == 'belongsToMany')
         {
-            $res->addSelect("$classthrough.$foreignthrough as pivot_$foreignthrough")
-                ->addSelect("$classthrough.$primarythrough as pivot_$primarythrough");
+            $res->addSelect("$tablethrough.$foreignthrough as pivot_$foreignthrough")
+                ->addSelect("$tablethrough.$primarythrough as pivot_$primarythrough");
             $key = "pivot_$foreignthrough";
         }
         elseif ($relationship == 'morphToMany')
@@ -432,8 +441,8 @@ Class Relations
         }
 
         $res = $res->get();
-        //dump($res); //dump($parent);
-
+        //dump($res, $primary); //dump($parent);
+        
         if ($relationship=='morphedByMany')
         {
             $primary = $parent->_primary[0];
@@ -443,7 +452,6 @@ Class Relations
 
         foreach ($parent->_collection as $current)
         {
-
             if (in_array($relationship, array('morphToMany', 'morphedByMany', 'belongsToMany')))
             {
                 $results = $columns!='*'
@@ -471,22 +479,39 @@ Class Relations
                     }
                     else
                     {
-                        $pivot = new DB;
+                        $pivot = new $pivot_model;
                         foreach ($r->getOriginal() as $k => $v)
                         {
+                            $attrs = array();
                             if (strpos($k, 'pivot_')!==false)
                             {
                                 $child = str_replace('pivot_', '', $k);
-                                $pivot->$child = $v;
+                                $attrs[$child] = $v;
     
                                 if (!in_array($k, $to_remove))
                                     $to_remove[] = $k;
                             }
+
+                            // Pivot tables doesnt need attribute casting
+                            /* $pivot->setAttributes(CastHelper::processCasts(
+                                $pivot->getAttributes(),
+                                $pivot,
+                                false
+                            )); */
+                            /* foreach ($pivot->getAttributes() as $key => $val) {
+                                $pivot->setAttribute($key, $val);
+                            } */
+
+
+                            //$pivot->__parseAccessorAttributes();
+                            $pivot->setAttributes($attrs);
+
                             $pivot->setAppends(null);
                             $pivot->setRelations(null);
                             $pivot->syncOriginal();
-                            unset($pivot->_global_scopes);
+                            $pivot->__setGlobalScopes();
                             $pivot->setQuery(null);
+                            //dump($pivot);
                         }
                         $r->setRelationAttribute($pivot_name, $pivot);
                     }
@@ -552,6 +577,14 @@ Class Relations
                 }
             }
         }
+
+        # WTF is this?
+        /* if ($res->count()==0) {
+            if ($current instanceof Model)
+                $current->setRelationAttribute($relation, collect(array()));
+            else
+                $current->{$relation} = collect(array());
+        } */
 
         $parent->_loadedRelations[] = $relation;
     }

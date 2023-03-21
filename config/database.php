@@ -16,11 +16,6 @@ return [
     |--------------------------------------------------------------------------
     | Database Connections
     |--------------------------------------------------------------------------
-    | MySQL available drivers:
-    | - 'mysql' => Uses pdo connection
-    | - 'mysqli' => Uses mysqli connection (doesn't support transactions)
-    | 
-    | Oracle uses oci8 connection
     */
 
     'connections' => [
@@ -45,11 +40,11 @@ return [
         'oracle' => [
             'driver' => 'oracle',
             'url' => env('DATABASE_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'forge'),
-            'username' => env('DB_USERNAME', 'forge'),
-            'password' => env('DB_PASSWORD', ''),
+            'host' => '192.168.1.250', //env('DB_HOST', '127.0.0.1'),
+            'port' => 13521, //env('DB_PORT', '3306'),
+            'database' => 'PERS', //'env('DB_DATABASE', 'forge'),
+            'username' => 'sv2400', //env('DB_USERNAME', 'forge'),
+            'password' => 'sv2400', //env('DB_PASSWORD', ''),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
@@ -58,6 +53,24 @@ return [
             'strict' => true,
             'engine' => null,
         ],
+
+        'magyp' => [
+            'driver' => 'mysql',
+            'url' => '192.168.1.242',
+            'host' => '192.168.1.242',
+            'port' => '3306',
+            'database' => 'milegajo',
+            'username' => 'root',
+            'password' => 'televisor',
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+        ],
+
 
 
     ],

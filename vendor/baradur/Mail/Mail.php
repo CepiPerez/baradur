@@ -75,17 +75,19 @@ Class Mail
     private function buildTemplate($template)
     {
         $final = $template->build(); 
-
-        //$vars = array();
+        
         $view = $final->_template;
+        
         unset($final->_template);
-
-        /* foreach ($final as $key => $val)
+        
+        foreach ($final as $key => $val)
         {
             $vars[$key] = $val;
-        } */
+        }
+        
+        $result = View::loadTemplate($view, $vars);
 
-        $result = View::loadTemplate($view, $final);
+
 
         return $result;
     }
@@ -95,7 +97,7 @@ Class Mail
     {
         $this->content = $template;
         
-        $default = Helpers::config('mail.default');
+        $default = config('mail.default');
         
         if ($default=='smtp')
             return $this->sendSmtp();
@@ -108,7 +110,7 @@ Class Mail
     {
         $this->content = $this->buildTemplate($template);
         
-        $default = Helpers::config('mail.default');
+        $default = config('mail.default');
         
         if ($default=='smtp')
             return $this->sendSmtp();
@@ -119,9 +121,9 @@ Class Mail
 
     public function queue($template)
     {
-        $this->buildTemplate($template);
+        $this->content = $this->buildTemplate($template);
 
-        DB::query("CREATE TABLE IF NOT EXISTS `baradur_queue` (
+        DB::statement("CREATE TABLE IF NOT EXISTS `baradur_queue` (
             `id` INT(11) NOT NULL AUTO_INCREMENT,
             `type` VARCHAR(50) NOT NULL,
             `status` INT(11) NOT NULL DEFAULT '0',
@@ -129,21 +131,23 @@ Class Mail
             PRIMARY KEY (`id`)
         )");
         
-        DB::table('baradur_queue')->create(array(
-            'type' => 'Mail',
-            'status' => 0,
-            'content' => serialize($this)
-        ));      
+        DB::insert("INSERT INTO `baradur_queue` (type, status, content)
+            VALUES ('Mail', 0, '" . serialize($this) . "')");
+
+        return true;
     }
 
     public function sendSmtp()
     {
-        //echo "Sending through PHPMAILER<br>";
-        require_once(_DIR_.'vendor/PHPMailer/PHPMailerAutoload.php');
+        //dd("Sending through PHPMAILER");
+        //require_once(_DIR_.'vendor/PHPMailer/PHPMailerAutoload.php');
 
-        $default = Helpers::config('mail.default');
-        $mailers = Helpers::config('mail.mailers'); 
-        $from = Helpers::config('mail.from'); 
+        require_once(_DIR_ . 'vendor/PHPMailer/class.phpmailer.php'); // PHP Mailer
+        require_once(_DIR_ . 'vendor/PHPMailer/class.smtp.php'); // PHP Mailer SMTP support
+
+        $default = config('mail.default');
+        $mailers = config('mail.mailers'); 
+        $from = config('mail.from'); 
 
         $mail = new PHPMailer();
 
@@ -197,7 +201,7 @@ Class Mail
     {
         //echo "Sending through sendmail<br>";
 
-        $from = Helpers::config('mail.from'); 
+        $from = config('mail.from'); 
 
         $encoding = "utf-8";
         $subject_preferences = array(

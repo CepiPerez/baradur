@@ -1,0 +1,12 @@
+<?php
+ 
+class {{ class }} implements ValidationRule
+{
+    /**
+     * Run the validation rule.
+     */
+    public function validate($attribute, $value, $fail)
+    {
+        //
+    }
+}

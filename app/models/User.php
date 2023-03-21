@@ -6,26 +6,27 @@ class User extends Model
 
     protected $table = 'users';
 
-    public function isAdmin() : Attribute
+    protected $hidden = ['password', 'token', 'validation', 'token_timestamp'];
+
+    /* public function isAdmin() : Attribute
     {
         return new Attribute(
             get: fn() => $this->roles->pluck('name')->contains('Administrador')
         );
-    }
+    } */
 
-    public function getImageAttribute() 
+    /* public function getImageAttribute() 
     {
         if (Storage::exists('users/'.$this->username.'.jpg'))
             return asset('storage/users/' . $this->username . '.jpg');
 
         return asset('storage/users/default.png');
-    }
-
+    } */
     
-    public function roles()
+    /* public function roles()
     {
         return $this->belongsToMany(Role::class);
-    }
+    } */
     
 }
 

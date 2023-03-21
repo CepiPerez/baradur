@@ -2,15 +2,14 @@
 
 class AuthServiceProvider extends ServiceProvider
 {
+    protected $policies = [
 
+    ];
 
     public function boot()
     {
-        //Gate::define('admin-product', [ProductPolicy::class, 'adminProduct']);
+        //$this->registerPolicies();
 
-        //Gate::define('test', function (User $user, $role) {
-        //    return $user->roles->pluck('name')->contains($role);
-        //});
 
     }
 

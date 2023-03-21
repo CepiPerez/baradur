@@ -1,0 +1,9 @@
+<?php
+
+class {{ class }} extends ResourceCollection
+{
+    public function toArray(Request $request)
+    {
+        return parent::toArray($request);
+    }
+}

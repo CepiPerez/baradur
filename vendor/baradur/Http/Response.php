@@ -27,9 +27,10 @@ class Response
         return (string) $this->response->getBody();
     }
 
-    public function json($data=null)
+    public function json($data=null, $code=null)
     {
         if ($data) $this->response->setBody(json_encode($data));
+        if ($code) $this->response->setStatusCode($code);
         return $this;
     }
 
@@ -49,7 +50,8 @@ class Response
 
     public function route()
     {
-        $this->response->setHeader('Location', Route::getRoute(func_get_args()));
+        $params = func_get_args();
+        $this->response->setHeader('Location', Route::getRoute($params));
         return $this;
     }
 
@@ -161,10 +163,10 @@ class Response
         return $this->status() === 403;
     }
 
-    public function failed()
+    /* public function failed()
     {
         return $this->error_code || $this->error_string;
-    }
+    } */
 
     public function clientError()
     {
@@ -212,32 +214,6 @@ class Response
         return $this->response->getRawResponse();
     }
 
-    /* public function toException()
-    {
-        if ($this->failed()) {
-            return new RequestException($this);
-        }
-    } */
-
-    /* public function throw()
-    {
-        $callback = func_get_args()[0] ?? null;
-
-        if ($this->failed()) {
-            throw tap($this->toException(), function ($exception) use ($callback) {
-                if ($callback && is_callable($callback)) {
-                    $callback($this, $exception);
-                }
-            });
-        }
-
-        return $this;
-    } */
-
-    /* public function throwIf($condition)
-    {
-        return $condition ? $this->throw() : $this;
-    } */
 
     /* public function offsetExists($offset)
     {
@@ -260,10 +236,115 @@ class Response
     {
         throw new LogicException('Response data may not be mutated using array access.');
     } */
+    
+    public function failed()
+    {
+        return $this->serverError() || $this->clientError() || $this->error_code || $this->error_string;
+    }
+
+    public function toException()
+    {
+        //if ($this->failed()) {
+            return new RequestException($this);
+        //}
+    }
+
+    public function __throw()
+    {
+        $callback = func_get_args();
+        $callback = isset($callback[0]) ? $callback[0] : null;
+
+        if ($this->failed()) {
+            //throw tap($this->toException(), function ($exception) use ($callback) {
+            //    if ($callback && is_closure($callback)) {
+            //        //$callback($this, $exception);
+            //        list($class, $method) = getCallbackFromString($callback);
+            //        call_user_func_array(array($class, $method), array($this, $exception));
+            //    }
+            //});
+
+            $exception = $this->toException();
+
+            if ($callback && is_closure($callback)) {
+                list($class, $method) = getCallbackFromString($callback);
+                call_user_func_array(array($class, $method), array($this, $exception));
+            }
+
+            throw $exception;
+        }
+
+        return $this;
+    }
+
+    public function throwIf($condition)
+    {
+        $callback = func_get_args();
+        $callback = isset($callback[1]) ? $callback[1] : null;
+
+        return value($condition, $this) ? $this->__throw($callback) : $this;
+    }
+
+    public function throwIfStatus($statusCode)
+    {
+        if (is_closure($statusCode)) { //&& $statusCode($this->status(), $this)) {
+
+            list($class, $method) = getCallbackFromString($statusCode);
+            $result = call_user_func_array(array($class, $method), array($this->status(), $this));
+
+            if ($result) {
+                return $this->__throw();
+            }
+        }
+
+        return $this->status() === $statusCode ? $this->__throw() : $this;
+    }
+
+    public function throwUnlessStatus($statusCode)
+    {
+        //if (is_callable($statusCode) &&
+        //    ! $statusCode($this->status(), $this)) {
+        //    return $this->throw();
+        //}
+
+        if (is_closure($statusCode)) { //&& $statusCode($this->status(), $this)) {
+
+            list($class, $method) = getCallbackFromString($statusCode);
+            $result = call_user_func_array(array($class, $method), array($this->status(), $this));
+
+            if ($result) {
+                return $this->__throw();
+            }
+        }
+
+        return $this->status() === $statusCode ? $this : $this->__throw();
+    }
+
+    public function throwIfClientError()
+    {
+        return $this->clientError() ? $this->__throw() : $this;
+    }
+
+    public function throwIfServerError()
+    {
+        return $this->serverError() ? $this->__throw() : $this;
+    }
+
+
+
 
     public function __toString()
     {
         return $this->body();
+    }
+
+    public function view($template, $parameters, $code=200)
+    {
+        $result = loadView($template, $parameters);
+
+        $this->response->setBody($result);
+        $this->response->setStatusCode($code);
+
+        return $this;
     }
 
     /* public function __call($method, $parameters)

@@ -235,7 +235,7 @@ class Filesystem
         header('content-Transfer-Encoding:binary');
         header('Accept-Ranges:bytes');
         @readfile($file);
-        exit();
+        __exit();
     }
 
     public function url($file)
@@ -311,11 +311,12 @@ class Filesystem
         }
 
         if (!isset(Storage::$temporaryUrlCallbacks[$this->disk]))
-            throw new Exception("Disk [$this->disk] doesn't support temporaryUrl");
+            throw new BadMethodCallException("Disk [$this->disk] doesn't support temporaryUrl");
       
         list($class, $method) = getCallbackFromString(Storage::$temporaryUrlCallbacks[$this->disk]);
         
-        return $class::$method($path, $expiration, $options);
+        //return $class::$method($path, $expiration, $options);
+        return call_user_func_array(array($class, $method), array($path, $expiration, $options));
 
     }
 

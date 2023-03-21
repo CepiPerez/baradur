@@ -1,0 +1,10 @@
+<?php
+
+class {{ class }} extends Seeder
+{
+    public function run()
+	{
+		//
+	}
+
+}

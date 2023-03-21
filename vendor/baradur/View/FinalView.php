@@ -45,4 +45,32 @@ Class FinalView
         return $this;
     }
 
+    public function __call($method, $parameters)
+    {
+        if (! Str::startsWith($method, 'with')) {
+            throw new BadMethodCallException("Method [$method] does not exist on view.");
+        }
+
+        return $this->with(Str::camel(substr($method, 4)), $parameters[0]);
+    }
+
+    public function with($key, $value)
+    {
+        $_SESSION['messages'][$key] = $value;
+        return $this;
+    }
+
+    public function withErrors($errors)
+    {
+        foreach ($errors as $key => $val)
+            $_SESSION['errors'][$key] = $val;
+
+        return $this;
+    }
+
+    public function exists($view)
+    {
+        return Blade::__findTemplate($view) !== null;
+    }
+
 }

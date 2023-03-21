@@ -39,7 +39,7 @@ class Curl
      */
     public function __construct($config = array()) {
         if (!$this->isEnabled()) {
-            throw new Exception('cURL extension has to be loaded and enabled to use ' . get_class($this) . ' class.');
+            throw new RuntimeException('cURL extension has to be loaded and enabled to use ' . get_class($this) . ' class.');
         }
         $this->initialize($config);
     }
@@ -102,7 +102,7 @@ class Curl
                 break;
             
             default:
-                throw new Exception('Method \'' . $method . '\' not supported by ' . get_class($this) . ' class.');
+                throw new BadMethodCallException('Method \'' . $method . '\' not supported by ' . get_class($this) . ' class.');
         }
         
         if (!empty($data)) {
@@ -139,7 +139,7 @@ class Curl
      */
     public function setOptions($options = array()) {
         if (!is_array($options)) {
-            throw new Exception('Invalid argument passed to \'setOptions\' method of ' . get_class($this) . ' class.');
+            throw new BadMethodCallException('Invalid argument passed to \'setOptions\' method of ' . get_class($this) . ' class.');
         }
         foreach ($options as $option => $value) {
             $this->setOption($option, $value);

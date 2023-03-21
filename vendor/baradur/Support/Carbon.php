@@ -119,6 +119,8 @@ class Carbon
     private $localToStringFormat = null;
     private $localSerializer = null;
 
+    private $overflow = true;
+
 
     public function __construct($time = null, $tz = null)
     {
@@ -133,10 +135,17 @@ class Carbon
             $time = strtotime($time);
         }
 
-        $this->date = (int)$time; //? strtotime($time) : time();
+        //dump($time);
+
+        $this->date = intval($time); //? strtotime($time) : time();
     }
     
     private static function instance($time = null)
+    {
+        return new Carbon($time);
+    }
+
+    public function resolveCarbon($time)
     {
         return new Carbon($time);
     }
@@ -178,13 +187,13 @@ class Carbon
                 'DD' => ['rawFormat', ['d']],
                 'Do' => ['ordinal', ['day', 'D']],
                 'd' => 'dayOfWeek',
-                'dd' => function (CarbonInterface $date, $originalFormat = null) {
+                'dd' => function (Carbon $date, $originalFormat = null) {
                     return $date->getTranslatedMinDayName($originalFormat);
                 },
-                'ddd' => function (CarbonInterface $date, $originalFormat = null) {
+                'ddd' => function (Carbon $date, $originalFormat = null) {
                     return $date->getTranslatedShortDayName($originalFormat);
                 },
-                'dddd' => function (CarbonInterface $date, $originalFormat = null) {
+                'dddd' => function (Carbon $date, $originalFormat = null) {
                     return $date->getTranslatedDayName($originalFormat);
                 },
                 'DDD' => 'dayOfYear',
@@ -208,34 +217,34 @@ class Carbon
                 'A' => 'upperMeridiem',
                 's' => 'second',
                 'ss' => ['getPaddedUnit', ['second']],
-                'S' => function (CarbonInterface $date) {
+                'S' => function (Carbon $date) {
                     return (string) floor($date->micro / 100000);
                 },
-                'SS' => function (CarbonInterface $date) {
+                'SS' => function (Carbon $date) {
                     return str_pad((string) floor($date->micro / 10000), 2, '0', STR_PAD_LEFT);
                 },
-                'SSS' => function (CarbonInterface $date) {
+                'SSS' => function (Carbon $date) {
                     return str_pad((string) floor($date->micro / 1000), 3, '0', STR_PAD_LEFT);
                 },
-                'SSSS' => function (CarbonInterface $date) {
+                'SSSS' => function (Carbon $date) {
                     return str_pad((string) floor($date->micro / 100), 4, '0', STR_PAD_LEFT);
                 },
-                'SSSSS' => function (CarbonInterface $date) {
+                'SSSSS' => function (Carbon $date) {
                     return str_pad((string) floor($date->micro / 10), 5, '0', STR_PAD_LEFT);
                 },
                 'SSSSSS' => ['getPaddedUnit', ['micro', 6]],
-                'SSSSSSS' => function (CarbonInterface $date) {
+                'SSSSSSS' => function (Carbon $date) {
                     return str_pad((string) floor($date->micro * 10), 7, '0', STR_PAD_LEFT);
                 },
-                'SSSSSSSS' => function (CarbonInterface $date) {
+                'SSSSSSSS' => function (Carbon $date) {
                     return str_pad((string) floor($date->micro * 100), 8, '0', STR_PAD_LEFT);
                 },
-                'SSSSSSSSS' => function (CarbonInterface $date) {
+                'SSSSSSSSS' => function (Carbon $date) {
                     return str_pad((string) floor($date->micro * 1000), 9, '0', STR_PAD_LEFT);
                 },
                 'M' => 'month',
                 'MM' => ['rawFormat', ['m']],
-                'MMM' => function (CarbonInterface $date, $originalFormat = null) {
+                'MMM' => function (Carbon $date, $originalFormat = null) {
                     $month = $date->getTranslatedShortMonthName($originalFormat);
                     $suffix = $date->getTranslationMessage('mmm_suffix');
                     if ($suffix && $month !== $date->monthName) {
@@ -244,7 +253,7 @@ class Carbon
 
                     return $month;
                 },
-                'MMMM' => function (CarbonInterface $date, $originalFormat = null) {
+                'MMMM' => function (Carbon $date, $originalFormat = null) {
                     return $date->getTranslatedMonthName($originalFormat);
                 },
                 'Mo' => ['ordinal', ['month', 'M']],
@@ -272,7 +281,7 @@ class Carbon
                 'YY' => ['rawFormat', ['y']],
                 'YYYY' => ['getPaddedUnit', ['year', 4]],
                 'YYYYY' => ['getPaddedUnit', ['year', 5]],
-                'YYYYYY' => function (CarbonInterface $date) {
+                'YYYYYY' => function (Carbon $date) {
                     return ($date->year < 0 ? '' : '+').$date->getPaddedUnit('year', 6);
                 },
                 'z' => ['rawFormat', ['T']],
@@ -293,12 +302,15 @@ class Carbon
         if ($name=='hour') return date('H', $this->date);
         if ($name=='minute') return (int)date('i', $this->date);
         if ($name=='second') return (int)date('s', $this->date);
-        if ($name=='daysInMonth') { return date('t', $this->date); };
-        if ($name=='dayOfWeek') { return date('w', $this->date); };
-        if ($name=='firstWeekDay') { return 0; };
-        if ($name=='lastWeekDay') { return 6; };
-        if ($name=='timestamp') { return $this->date; };
-        
+        if ($name=='daysInMonth') return date('t', $this->date);
+        if ($name=='dayOfWeek') return date('w', $this->date);
+        if ($name=='firstWeekDay') return 0;
+        if ($name=='lastWeekDay') return 6;
+        if ($name=='timestamp') return $this->date;
+        if ($name=='quarter') return (int) ceil($this->month / self::MONTHS_PER_QUARTER);
+        if ($name=='decade') return (int) ceil($this->year / static::YEARS_PER_DECADE);
+        if ($name=='age') return $this->diffInYears();
+
         return null;
     }
 
@@ -403,7 +415,196 @@ class Carbon
         );
     }
 
+    private function _date_range_limit($start, $end, $adj, $a, $b, &$result)
+    {
+        if ($result[$a] < $start) {
+            $result[$b] -= intval(($start - $result[$a] - 1) / $adj) + 1;
+            $result[$a] += $adj * intval(($start - $result[$a] - 1) / $adj + 1);
+        }
+
+        if ($result[$a] >= $end) {
+            $result[$b] += intval($result[$a] / $adj);
+            $result[$a] -= $adj * intval($result[$a] / $adj);
+        }
+
+        return $result;
+    }
+
+    private function _date_range_limit_days(&$base, &$result)
+    {
+        $days_in_month_leap = array(31, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
+        $days_in_month = array(31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
+
+        $this->_date_range_limit(1, 13, 12, "m", "y", $base);
+
+        $year = $base["y"];
+        $month = $base["m"];
+
+        if (!$result["invert"]) {
+            while ($result["d"] < 0) {
+                $month--;
+                if ($month < 1) {
+                    $month += 12;
+                    $year--;
+                }
+
+                $leapyear = $year % 400 == 0 || ($year % 100 != 0 && $year % 4 == 0);
+                $days = $leapyear ? $days_in_month_leap[$month] : $days_in_month[$month];
+
+                $result["d"] += $days;
+                $result["m"]--;
+            }
+        } else {
+            while ($result["d"] < 0) {
+                $leapyear = $year % 400 == 0 || ($year % 100 != 0 && $year % 4 == 0);
+                $days = $leapyear ? $days_in_month_leap[$month] : $days_in_month[$month];
+
+                $result["d"] += $days;
+                $result["m"]--;
+
+                $month++;
+                if ($month > 12) {
+                    $month -= 12;
+                    $year++;
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    private function _date_normalize(&$base, &$result)
+    {
+        $result = $this->_date_range_limit(0, 60, 60, "s", "i", $result);
+        $result = $this->_date_range_limit(0, 60, 60, "i", "h", $result);
+        $result = $this->_date_range_limit(0, 24, 24, "h", "d", $result);
+        $result = $this->_date_range_limit(0, 12, 12, "m", "y", $result);
+
+        $result = $this->_date_range_limit_days($base, $result);
+
+        $result = $this->_date_range_limit(0, 12, 12, "m", "y", $result);
+
+        return $result;
+    }
+
+    /**
+     * Accepts two unix timestamps.
+     */
+    private function _date_diff($one, $two)
+    {
+        $invert = false;
+        if ($one > $two) {
+            list($one, $two) = array($two, $one);
+            $invert = true;
+        }
+
+        $key = array("y", "m", "d", "h", "i", "s");
+        $a = array_combine($key, array_map("intval", explode(" ", date("Y m d H i s", $one))));
+        $b = array_combine($key, array_map("intval", explode(" ", date("Y m d H i s", $two))));
+
+        $result = array();
+        $result["y"] = $b["y"] - $a["y"];
+        $result["m"] = $b["m"] - $a["m"];
+        $result["d"] = $b["d"] - $a["d"];
+        $result["h"] = $b["h"] - $a["h"];
+        $result["i"] = $b["i"] - $a["i"];
+        $result["s"] = $b["s"] - $a["s"];
+        $result["invert"] = $invert ? 1 : 0;
+        $result["days"] = intval(abs(($one - $two)/86400));
+
+        if ($invert) {
+            $this->_date_normalize($a, $result);
+        } else {
+            $this->_date_normalize($b, $result);
+        }
+
+        return $result;
+    }
+
     public function diffForHumans($other=null, $syntax=Carbon::DIFF_ABSOLUTE, $short=false, $parts=1)
+    {
+        $modifiers = 1;
+        $date = null;
+        
+        if (isset($syntax) && is_numeric($syntax)) {
+            $modifiers = $syntax;
+        }
+
+        if (isset($syntax['syntax'])) {
+            $modifiers = $syntax['syntax'];
+        }
+
+        if ($modifiers==1 && !$date) {
+            $modifiers = 2;
+        }
+
+        if (!is_array($syntax) && is_array($other)) {
+            $syntax = $other;
+        }
+
+        if (isset($syntax['parts'])) {
+            $parts = $syntax['parts'];
+        }
+        
+        $join = ' ';
+        
+        if (isset($syntax['join'])) {
+            $join = $syntax['join'];
+        }
+
+        $aUnit = $short;
+
+        if (isset($syntax['aUnit'])) {
+            $aUnit = $syntax['aUnit'];
+        }
+
+        if ($other instanceof Carbon) {
+            $date = $other;
+        } elseif (!is_array($other)) {
+            $date = new Carbon($other);
+        } elseif (!isset($other) || is_array($other)) {
+            $date = new Carbon();
+        }
+
+        $res = $this->_date_diff($this->date, $date->date);
+
+        $result = array(
+            'year' => $res['y'],
+            'month' => $res['m'],
+            'day' => $res['d'],
+            'hour' => $res['h'],
+            'minute' => $res['i'],
+            'second' => $res['s']
+        );
+
+        $negative = $res['invert'];
+
+        $str = array();
+        $added = 0;
+        $keys = array_keys($result);
+
+        foreach ($keys as $key)
+        {
+            if ($result[$key] > 0 && $added < $parts) {
+                $str[] = Helpers::trans_choice(
+                    'carbon.' .(!$aUnit? $key : $this->getShort($key) ),
+                    array('count' => $result[$key])
+                );
+                $added++;
+            }
+        }
+
+
+        if ($modifiers==0 || $modifiers==1)
+            return implode($join, $str);
+        elseif ($modifiers==2)
+            return Helpers::trans(($negative? 'carbon.ago' : 'carbon.from_now'), array('time' => implode($join, $str)));
+        elseif ($modifiers==3)
+            return Helpers::trans(($negative? 'carbon.after' : 'carbon.before'), array('time' => implode($join, $str)));
+
+    }
+
+    /* public function diffForHumans($other=null, $syntax=Carbon::DIFF_ABSOLUTE, $short=false, $parts=1)
     {
         
         if ($other instanceof Carbon)
@@ -478,7 +679,7 @@ class Carbon
         elseif ($modifiers==3)
             return Helpers::trans(($negative? 'carbon.after' : 'carbon.before'), array('time' => implode($join, $str)));
 
-    }
+    } */
 
     public static function now()
     {
@@ -490,9 +691,56 @@ class Carbon
         return self::instance()->startOfDay();
     }
 
+    public static function yesterday()
+    {
+        return self::instance()->subDay()->startOfDay();
+    }
+
+    public static function tomorrow()
+    {
+        return self::instance()->addDay()->startOfDay();
+    }
+
     public static function parse($time)
     {
         return self::instance($time);
+    }
+
+    public static function create($year, $month, $day, $hour=0, $minute=0, $second=0)
+    {
+        return self::instance("$year-$month-$day $hour:$minute:$second");
+    }
+
+    public static function createFromDate($year, $month, $day)
+    {
+        return self::instance("$year-$month-$day");
+    }
+
+    public static function createFromTime($hour=0, $minute=0, $second=0)
+    {
+        $current = now();
+        $year = $current->year;
+        $month = $current->month;
+        $day = $current->day;
+        return self::instance("$year-$month-$day $hour:$minute:$second");
+    }
+
+    public static function createFromTimeString($time='00:00:00')
+    {
+        $current = now();
+        $year = $current->year;
+        $month = $current->month;
+        $day = $current->day;
+        $time = explode(':', $time);
+        $hour = $time[0];
+        $minute = count($time)>1 ? $time[1] : 0; 
+        $second = count($time)>2 ? $time[2] : 0; 
+        return self::instance("$year-$month-$day $hour:$minute:$second");
+    }
+
+    public static function createMidnightDate($year, $month, $day)
+    {
+        return self::instance("$year-$month-$day 00:00:00");
     }
 
     private function getDateForCompare($date)
@@ -635,6 +883,67 @@ class Carbon
         return date('Y', $this->date) == date('Y', strtotime(' - 1 years'));
     }
 
+
+    /* public function addMillenia($value = 1)
+    {
+        return $this->addYears(self::YEARS_PER_CENTURY * $value);
+    }
+
+    public function addMillenium()
+    {
+        return $this->addMillenia(1);
+    }
+
+    public function subMillenia($value = 1)
+    {
+        return $this->subYears(self::YEARS_PER_CENTURY * $value);
+    }
+
+    public function subMillenium()
+    {
+        return $this->subMillenia(1);
+    }
+
+    public function addCenturies($value = 1)
+    {
+        return $this->addYears(self::YEARS_PER_CENTURY * $value);
+    }
+
+    public function addCentury()
+    {
+        return $this->addCenturies(1);
+    }
+
+    public function subCenturies($value = 1)
+    {
+        return $this->subYears(self::YEARS_PER_CENTURY * $value);
+    }
+
+    public function subCentury()
+    {
+        return $this->subCenturies(1);
+    }
+
+    public function addDecades($value = 1)
+    {
+        return $this->addYears(self::YEARS_PER_DECADE * $value);
+    }
+
+    public function addDecade()
+    {
+        return $this->addDecades(1);
+    }
+
+    public function subDecades($value = 1)
+    {
+        return $this->subYears(self::YEARS_PER_DECADE * $value);
+    }
+
+    public function subDecade()
+    {
+        return $this->subDecades(1);
+    }
+
     public function addYears($value = 1)
     {
         $this->date = strtotime($this->__toString() . " + $value years");
@@ -657,8 +966,56 @@ class Carbon
         return $this->subYears(1);
     }
 
+    public function addQuarters($value = 1)
+    {
+        return $this->addMonths(self::MONTHS_PER_QUARTER * $value);
+    }
+
+    public function addQuarter()
+    {
+        return $this->addQuarters(1);
+    }
+
+    public function subQuarters($value = 1)
+    {
+        return $this->subMonths(self::MONTHS_PER_QUARTER * $value);
+    }
+
+    public function subQuarter()
+    {
+        return $this->subQuarters(1);
+    }
+
     public function addMonths($value = 1)
     {
+        if (!$this->overflow) {
+
+            $day = (int) $this->day;
+
+            $y = (int) $this->year;
+            $m = (int) $this->month + $value;
+            $d = 1;
+            $h = (int) $this->hour;
+            $i = (int) $this->minute;
+            $s = (int) $this->second;
+
+            while ($m > 12) {
+                $m = $m -12;
+                $y++;
+            }
+
+            $new = self::parse("$y/$m/$d $h:$i:$s");
+            $lastday = (int) $new->endOfMonth()->day;
+
+            if ($day > $lastday) {
+                $d = $lastday;
+            } else {
+                $d = $day;
+            }
+
+            return self::parse("$y/$m/$d $h:$i:$s");
+        }
+
         $this->date = strtotime($this->__toString() . " + $value months");
         return $this;
     }
@@ -670,6 +1027,34 @@ class Carbon
 
     public function subMonths($value = 1)
     {
+        if (!$this->overflow) {
+
+            $day = (int) $this->day;
+
+            $y = (int) $this->year;
+            $m = (int) $this->month - $value;
+            $d = 1;
+            $h = (int) $this->hour;
+            $i = (int) $this->minute;
+            $s = (int) $this->second;
+
+            while ($m < 1) {
+                $m = $m +12;
+                $y--;
+            }
+
+            $new = self::parse("$y/$m/$d $h:$i:$s");
+            $lastday = (int) $new->endOfMonth()->day;
+
+            if ($day > $lastday) {
+                $d = $lastday;
+            } else {
+                $d = $day;
+            }
+
+            return self::parse("$y/$m/$d $h:$i:$s");
+        }
+        
         $this->date = strtotime($this->__toString() . " - $value months");
         return $this;
     }
@@ -677,7 +1062,7 @@ class Carbon
     public function subMonth()
     {
         return $this->subMonths(1);
-    }
+    } */
 
     public function addDays($value = 1)
     {
@@ -907,21 +1292,6 @@ class Carbon
         return $this->rawFormat('Y-m-d '.self::getTimeFormatByPrecision($unitPrecision));
     }
 
-    /* public static function singularUnit(string $unit)
-    {
-        $unit = rtrim(mb_strtolower($unit), 's');
-
-        if ($unit === 'centurie') {
-            return 'century';
-        }
-
-        if ($unit === 'millennia') {
-            return 'millennium';
-        }
-
-        return $unit;
-    } */
-
     public static function getTimeFormatByPrecision($unitPrecision)
     {
         switch (/* self::singularUnit( */$unitPrecision/* ) */) {
@@ -937,7 +1307,7 @@ class Carbon
                 return 'H:i:s.u';
         }
 
-        throw new Exception('Precision unit expected among: minute, second, millisecond and microsecond.');
+        throw new RuntimeException('Precision unit expected among: minute, second, millisecond and microsecond.');
     }
 
     public function toDateTimeLocalString($unitPrecision = 'second')
@@ -959,5 +1329,319 @@ class Carbon
     {
         return $this->rawFormat($format);
     }
+
+    public function isAfter($date)
+    {
+        return $this->greaterThan($date);
+    }
+
+    public function gt($date)
+    {
+        return $this->greaterThan($date);
+    }
+
+    public function greaterThan($date)
+    {
+        $this->discourageNull($date);
+        $this->discourageBoolean($date);
+
+        return $this->date > $this->resolveCarbon($date)->date;
+    }
+
+    public function eq($date)
+    {
+        return $this->equalTo($date);
+    }
+
+    public function equalTo($date)
+    {
+        $this->discourageNull($date);
+        $this->discourageBoolean($date);
+
+        return $this->date == $this->resolveCarbon($date)->date;
+    }
+
+    public function ne($date)
+    {
+        return $this->notEqualTo($date);
+    }
+
+    public function notEqualTo($date)
+    {
+        return !$this->equalTo($date);
+    }
+
+    public function gte($date)
+    {
+        return $this->greaterThanOrEqualTo($date);
+    }
+
+    public function greaterThanOrEqualTo($date)
+    {
+        $this->discourageNull($date);
+        $this->discourageBoolean($date);
+
+        return $this->date >= $this->resolveCarbon($date)->date;
+    }
+
+    public function lt($date)
+    {
+        return $this->lessThan($date);
+    }
+
+    public function lessThan($date)
+    {
+        $this->discourageNull($date);
+        $this->discourageBoolean($date);
+
+        return $this->date < $this->resolveCarbon($date)->date;
+    }
+
+    public function isBefore($date)
+    {
+        return $this->lessThan($date);
+    }
+
+    public function lte($date)
+    {
+        return $this->lessThanOrEqualTo($date);
+    }
+
+    public function lessThanOrEqualTo($date)
+    {
+        $this->discourageNull($date);
+        $this->discourageBoolean($date);
+
+        return $this->date <= $this->resolveCarbon($date)->date;
+    }
+
+    public function between($date1, $date2, $equal = true)
+    {
+        $date1 = $this->resolveCarbon($date1);
+        $date2 = $this->resolveCarbon($date2);
+
+        if ($date1->greaterThan($date2)) {
+            $temp1 = $date1->date;
+            $temp2 = $date2->date;
+            $date1->date = $temp2;
+            $date2->date = $temp1;
+        }
+
+        if ($equal) {
+            return $this->date >= $date1->date && $this->date <= $date2->date;
+        }
+
+        return $this->date > $date1->date && $this->date < $date2->date;
+    }
+    
+    public function betweenIncluded($date1, $date2)
+    {
+        return $this->between($date1, $date2, true);
+    }
+
+    public function betweenExcluded($date1, $date2)
+    {
+        return $this->between($date1, $date2, false);
+    }
+
+    public function isBetween($date1, $date2, $equal = true)
+    {
+        return $this->between($date1, $date2, $equal);
+    }
+
+    public function isWeekday()
+    {
+        return !$this->isWeekend();
+    }
+
+    public function isWeekend()
+    {
+        return $this->dayOfWeek > 5;
+    }
+    
+    public function isYesterday()
+    {
+        return $this->toDateString() === self::yesterday()->toDateString();
+    }
+
+    public function isToday()
+    {
+        return $this->toDateString() === self::now()->toDateString();
+    }
+
+    public function isTomorrow()
+    {
+        return $this->toDateString() === self::tomorrow()->toDateString();
+    }
+
+    public function isFuture()
+    {
+        return $this->greaterThan(self::now());
+    }
+
+    public function isPast()
+    {
+        return $this->lessThan(self::now());
+    }
+
+    public function isSameQuarter($date = null, $ofSameYear = true)
+    {
+        $date = $this->resolveCarbon($date);
+
+        return $this->quarter === $date->quarter && (!$ofSameYear || $this->isSameYear($date));
+    }
+    
+    public function isBirthday($date = null)
+    {
+        return $this->isSameAs('md', $date);
+    }
+
+    public function isSameAs($format, $date = null)
+    {
+        return $this->rawFormat($format) === $this->resolveCarbon($date)->rawFormat($format);
+    }
+
+
+    private function discourageNull($value)
+    {
+        if ($value === null) {
+            throw new LogicException("It's deprecated to compare a date to null, you should explicitly pass 'now' or make an other check to eliminate null values.");
+        }
+    }
+
+    private function discourageBoolean($value)
+    {
+        if (is_bool($value)) {
+            throw new LogicException("Since 2.61.0, it's deprecated to compare a date to true or false, you should explicitly pass 'now' or make an other check to eliminate boolean values.");
+        }
+    }
+
+
+    public static function singularUnit($unit)
+    {
+        $unit = rtrim(strtolower($unit), 's');
+
+        if ($unit === 'centurie') {
+            return 'century';
+        }
+
+        if ($unit === 'millennia') {
+            return 'millennium';
+        }
+
+        return $unit;
+    }
+
+    public function __call($method, $arguments)
+    {
+        $unit = rtrim($method, 's');
+        $action = substr($unit, 0, 3);
+
+        if ($action === 'add' || $action === 'sub') {
+            $unit = substr($unit, 3);
+
+            if (preg_match('/^(Month|Quarter|Year|Decade|Century|Centurie|Millennium|Millennia)s?(No|With|Without|WithNo)Overflow$/', $unit, $match)) {
+                $unit = str_replace($match[2], '', $match[0]);
+                $unit = str_replace('Overflow', '', $unit);
+                $unit = self::singularUnit($unit);
+
+                $this->overflow = $match[2] === 'With';
+
+                $param = count($arguments) > 0 ? reset($arguments) : 1;
+
+                return $this->modifyUnit($action, $unit, $param);
+            }
+
+            elseif (preg_match('/^(Month|Quarter|Year|Decade|Century|Centurie|Millennium|Millennia)s?$/', $unit, $match)) {
+
+                $param = count($arguments) > 0 ? reset($arguments) : 1;
+                $unit = self::singularUnit($unit);
+
+                return $this->modifyUnit($action, $unit, $param);
+            }
+        }
+
+        elseif (preg_match('/^(short|long)(Absolute|Relative|RelativeToNow|RelativeToOther)DiffForHumans?$/', $method, $match)) {
+
+            $diffSyntaxModes = array(
+                'Absolute' => Carbon::DIFF_ABSOLUTE,
+                'Relative' => Carbon::DIFF_RELATIVE_AUTO,
+                'RelativeToNow' => Carbon::DIFF_RELATIVE_TO_NOW,
+                'RelativeToOther' => Carbon::DIFF_RELATIVE_TO_OTHER,
+            );
+
+            $param1 = count($arguments) > 0 ? array_shift($arguments) : null;
+            $param2 = count($arguments) > 0 ? reset($arguments) : 1;
+
+            $modifier = $diffSyntaxModes[$match[2]];
+
+            return $this->diffForHumans($param1, $modifier, $match[1]=='short', $param2);
+        }
+
+        throw new BadMethodCallException("Method $method does not exist");
+    }
+
+    public function modifyUnit($action, $unit, $value)
+    {
+        if ($unit=='millenium') {
+            $value = $value * self::YEARS_PER_MILLENNIUM * self::MONTHS_PER_YEAR;
+        } elseif ($unit=='century') {
+            $value = $value * self::YEARS_PER_CENTURY * self::MONTHS_PER_YEAR;
+        } elseif ($unit=='decade') {
+            $value = $value * self::YEARS_PER_DECADE * self::MONTHS_PER_YEAR;
+        } elseif ($unit=='year') {
+            $value = $value * self::MONTHS_PER_YEAR;
+        } elseif ($unit=='quarter') {
+            $value = $value * self::MONTHS_PER_QUARTER;
+        }
+
+        if (!$this->overflow) {
+
+            $day = (int) $this->day;
+
+            $y = (int) $this->year;
+
+            if ($action=='sub') {
+                $m = (int) $this->month - $value;
+            } else {
+                $m = (int) $this->month + $value;
+            }
+
+            $d = 1;
+            $h = (int) $this->hour;
+            $i = (int) $this->minute;
+            $s = (int) $this->second;
+
+            while ($m < 1) {
+                $m = $m +12;
+                $y--;
+            }
+
+            while ($m > 12) {
+                $m = $m -12;
+                $y++;
+            }
+
+            $new = self::parse("$y/$m/$d $h:$i:$s");
+            $lastday = (int) $new->endOfMonth()->day;
+
+            if ($day > $lastday) {
+                $d = $lastday;
+            } else {
+                $d = $day;
+            }
+
+            return self::parse("$y/$m/$d $h:$i:$s");
+        }
+        
+        if ($action=='sub') {
+            $this->date = strtotime($this->__toString() . " - $value months");
+        } else {
+            $this->date = strtotime($this->__toString() . " + $value months");
+        }
+
+        return $this;
+    }
+
 
 }

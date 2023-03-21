@@ -22,7 +22,7 @@ class RetryHelper
     {
         if (is_closure($callback))
         {
-            list($class, $method, $params) = getCallbackFromString($callback);
+            list($class, $method) = getCallbackFromString($callback);
             
             return call_user_func_array(array($class, $method), $parameters);
         }

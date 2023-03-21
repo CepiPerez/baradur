@@ -2,7 +2,7 @@
 
 return [
 
-    'default' => env('FILESYSTEM_DISK', 'public'),
+    'default' => env('FILESYSTEM_DISK', 'local'),
 
     'links' => [
         public_path('storage') => storage_path('app/public'),

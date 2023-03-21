@@ -29,7 +29,8 @@ Class Helpers
 
     public static function getPlural($string)
     {
-        global $locale, $fallback_locale;
+        $locale = config('app.locale');
+        $fallback_locale = config('app.fallback_locale');
 
         $filepath = _DIR_.'lang/'.$locale.'/plurals.php';
         
@@ -39,7 +40,7 @@ Class Helpers
         if (!file_exists($filepath))
             throw new Exception("FILE $filepath NOT FOUND\n");
         
-        $lang = CoreLoader::loadConfigFile($filepath);
+        $lang = CoreLoader::loadConfigFile($filepath, false);
         $result = '';
         foreach ($lang as $key => $value)
         {
@@ -60,7 +61,8 @@ Class Helpers
 
     public static function getSingular($string)
     {
-        global $locale, $fallback_locale, $artisan;
+        $locale = config('app.locale');
+        $fallback_locale = config('app.fallback_locale');
 
         $filepath = _DIR_.'lang/'.$locale.'/plurals.php';
         
@@ -70,7 +72,7 @@ Class Helpers
         if (!file_exists($filepath))
             throw new Exception("FILE $filepath NOT FOUND\n");
 
-        $lang = CoreLoader::loadConfigFile($filepath);
+        $lang = CoreLoader::loadConfigFile($filepath, false);
         $result = '';
         //dd($lang);
         foreach ($lang as $key => $value)
@@ -113,7 +115,9 @@ Class Helpers
 
     public static function trans($string, $placeholder=null)
     {
-        global $locale, $fallback_locale;
+        $locale = config('app.locale');
+        $fallback_locale = config('app.fallback_locale');
+
         $array = explode('.', $string);
 
         $file = array_shift($array);
@@ -218,27 +222,40 @@ Class Helpers
         return str_replace(':'.$helper, $value, $selected);
     }
 
+    /* private static function getBoostrapConfig()
+    {
+        global $config;
+
+        if (file_exists(_DIR_.'bootstrap/cache/config.php')) {
+            $content = file_get_contents(_DIR_.'bootstrap/cache/config.php');
+            $config = json_decode($content, true);
+        }
+    } */
+
     public static function config($val)
     {
+        global $config;
+
+        /* if (empty($config)) {
+            self::getBoostrapConfig();
+        } */
 
         $array = explode('.', $val);
+
+        if (!empty($config) && isset($config[$array[0]])) {
+            return Arr::get($config, $val);
+        }
+
+
         $file = array_shift($array);
 
-        if (!file_exists(_DIR_.'config/'.$file.'.php'))
+        if (!file_exists(_DIR_.'config/'.$file.'.php')) {
             throw new Exception("File not found: $file.php");
-
-        $config = CoreLoader::loadConfigFile(_DIR_.'config/'.$file.'.php');
-
-        $value = array_shift($array);
-        $result = $config[$value] ? $config[$value] : $value;
-
-        while (count($array)>0)
-        {
-            $value = array_shift($array);            
-            $result = $result[$value] ? $result[$value] : $value;
         }
-        
-        return $result;
+
+        CoreLoader::loadConfigFile(_DIR_.'config/'.$file.'.php');
+
+        return Arr::get($config, $val);
     }
 
     public static function verifiedArray($array)
@@ -284,6 +301,14 @@ Class Helpers
             {
                 $arr[$key] = (string)$val;
             }
+            elseif ($val instanceof Model)
+            {
+                $arr[$key] = $val->toArray();
+            }
+            elseif ($val instanceof EnumHelper)
+            {
+                $arr[$key] = $val->value;
+            }
             elseif (is_array($val) || is_object($val))
             {
                 $arr[$key] = self::toArray($val);
@@ -293,7 +318,57 @@ Class Helpers
                 $arr[$key] = $val;
             }
         }
+
         return $arr;
+    }
+
+    public static function loadFile($path, $start=null, $end=null)
+    {
+        $lines = file($path);
+
+        $result = array();
+
+        $start = $start ? $start : 0;
+        $end = $end ? $end : 100;
+
+        while ($start < 0) {
+            $start++;
+            $end++;
+        }
+        
+        $count = 0;
+
+        foreach ($lines as $line)
+        {
+            if ($count >= $start) {
+                $result[] = htmlentities($line);
+            }
+
+            $count++;
+
+            if ($count >= $end) {
+                break;
+            }
+        }
+
+        return $result;
+    }
+
+    public static function ensureValueIsNotObject($val)
+    {
+        if ($val instanceof Carbon) {
+            return $val->toDateTimeString();
+        }
+
+        if ($val instanceof Lottery) {
+            return $val->choose();
+        }
+
+        if ($val instanceof EnumHelper) {
+            return $val->value;
+        }
+
+        return $val;
     }
 
 }

@@ -7,7 +7,7 @@ Class Cache
     private static function getDriver($driver=null)
     {
         if (!isset($driver))
-            $driver = env('CACHE_DRIVER', 'file');
+            $driver = config('app.cache_driver');
 
         if (!isset(self::$drivers[$driver]))
         {
@@ -51,6 +51,11 @@ Class Cache
     public static function put($key, $value)
     {
         return self::getDriver()->put($key, $value, 86400);
+    }
+
+    public static function forever($key, $value)
+    {
+        return self::getDriver()->forever($key, $value);
     }
 
     public static function forget($key)

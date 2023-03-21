@@ -18,27 +18,32 @@ Class App {
         # Autologin
         if (!isset($_SESSION['user']))
         {
-            if (isset($_COOKIE[env('APP_NAME').'_token']) && !Auth::user() && Route::has('login'))
+            if (isset($_COOKIE[config('app.name').'_token']) && !Auth::user() && Route::has('login'))
             {
-                Auth::autoLogin($_COOKIE[env('APP_NAME').'_token']);
+                Auth::autoLogin($_COOKIE[config('app.name').'_token']);
             }
         }
 
-        return Route::start();
+        //echo Route::start();
+        ob_start();
+        $content = Route::start();
+        //ob_end_clean();
+
+        if ($content !== null) {
+            CoreLoader::processResponse($content);
+        }
+        
+        __exit();
     }
 
     public function inProduction()
     {
-        return env('APP_ENV')=='production';
+        return config('app.env')=='production';
     }
 
-    public function __call($method, $parameters)
+    public function maintenanceMode()
     {
-        if (! Str::startsWith($method, 'with')) {
-            throw new Exception("Method [$method] does not exist on view.");
-        }
-
-        return $this->with(Str::camel(substr($method, 4)), $parameters[0]);
+        return file_exists(_DIR_.'storage/.maintenance_on');
     }
 
     public static function getError($error)
@@ -49,17 +54,22 @@ Class App {
 
     public static function generateToken()
     {
+        if ( config('app.key') === null ) {
+            throw new MissingAppKeyException('No application encryption key has been specified.');
+        }
+        
         $timestamp = date('Y-m-d H:i:s');
-        $csrf = hash_hmac('sha256', Route::current()->url, $_SESSION['key']);
+        $csrf = hash_hmac('sha256', Route::current()->url, config('app.key'));
+        
         $_SESSION['tokens'][$csrf]['timestamp'] = $timestamp;
         $_SESSION['tokens'][$csrf]['counter'] = 1;
+        
         return $csrf;
     }
 
     public static function getLocale()
     {
-        global $locale;
-        return $locale;
+        return config('app.locale');
     }
 
     public function bind($abstract, $concrete = null, $shared = false)

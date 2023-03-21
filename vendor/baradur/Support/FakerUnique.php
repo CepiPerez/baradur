@@ -88,7 +88,7 @@ Class FakerUnique
                 ++$count;
                 if ($count >= self::$counter)
                 {
-                    throw new Exception("Faker unique error: items quanqtity is greater than existent elements");
+                    throw new RuntimeException("Faker unique error: items quanqtity is greater than existent elements");
                 }
             }
         }

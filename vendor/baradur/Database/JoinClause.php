@@ -3,8 +3,8 @@
 Class JoinClause extends Builder
 {
 
-    public $type;
-    public $table;
+    public $type = null;
+    public $table = null;
     //protected $parentConnection;
     //protected $parentGrammar;
     //protected $parentProcessor;

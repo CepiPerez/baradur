@@ -5,6 +5,7 @@ class AppServiceProvider extends ServiceProvider
 
     public function register()
     {
+
     }
 
     public function boot()
@@ -14,6 +15,7 @@ class AppServiceProvider extends ServiceProvider
         //Model::preventAccessingMissingAttributes(!$this->app->inProduction());
 
         //Paginator::useBootstrapFour();
+
     }
 
 }

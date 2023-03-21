@@ -3,7 +3,9 @@
 Class RouteItem 
 {
     public $method;
+    public $domain;
     public $url;
+    public $full_url;
     public $middleware;
     public $name;
     public $scope_bindings;
@@ -29,6 +31,12 @@ Class RouteItem
     public function middleware($middleware)
     {
         $this->middleware[] = $middleware;
+        return $this;
+    }
+
+    public function can($action, $param=null)
+    {
+        $this->middleware[] = 'can:'.$action.($param? ','.$param : '');
         return $this;
     }
 

@@ -126,24 +126,28 @@ class Http
         return $instance;
     }
 
+    /** @return Response */
     public static function get($url)
     {
         $instance = self::instance();
         return $instance->getResults('get', $url);
     }
 
+    /** @return Response */
     public static function post($url, $data=array())
     {
         $instance = self::instance();
         return $instance->getResults('post', $url, $data);
     }
 
+    /** @return Response */
     public static function put($url, $data=array())
     {
         $instance = self::instance();
         return $instance->getResults('put', $url, $data);
     }
 
+    /** @return Response */    
     public static function delete($url, $data=array())
     {
         $instance = self::instance();

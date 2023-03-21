@@ -39,7 +39,7 @@ class URL
             return $route . (count($parameters)>0 ? '?'.http_build_query($parameters) : '');
         }
 
-        throw new Exception("Route [{$name}] not defined.");
+        throw new RouteNotFoundException("Route [{$name}] not defined.");
     }
 
     public static function hasValidSignature($request, $absolute = true, $ignoreQuery = array())

@@ -2,14 +2,17 @@
 
 /**
  * @method static JsonResource collection($resource)
+ * @method static JsonResource make($resource)
  */
 
 class JsonResource
 {
-    static $withoutWrapping = false;
+    public static $wrap = 'data';
 
     protected $parent;
     protected $resource;
+
+    public $preserveKeys = false;
 
     /** @return JsonResource */
     public static function instance($parent)
@@ -19,14 +22,14 @@ class JsonResource
 
     public static function withoutWrapping()
     {
-        self::$withoutWrapping = true;
+        self::$wrap = null;
     }
 
-    public static function getWrapping()
+    public function make($resource)
     {
-        return self::$withoutWrapping;
+        $instance = get_class($this);
+        return new $instance($resource);
     }
-
 
     public function collection($collection)
     {
@@ -36,81 +39,140 @@ class JsonResource
         }
 
         $res = array();
-        foreach ($collection as $item)
-        {
-            $class = $this->parent;
-            $it = new $class($item);
+        $class = get_class($this);
 
-            if (JsonResource::getWrapping())
-                $res[] = $it;
-            else
-                $res[] = $it->data;
+        foreach ($collection as $key => $item) {
+            $item = new $class($item);
+
+            $item = $this::$wrap? $item->{$this::$wrap} : $item;
+
+            if ($this->preserveKeys) {
+                $res[$key] = $item;
+            } else {
+                $res[] = $item;
+            }
         }
+        
+        if ($this::$wrap) {
+            $result = collect(array($this::$wrap => $res));
+        } else {
+            $result = collect($res);
 
-        if (!JsonResource::getWrapping())
-            return collect($res);
+            foreach ($result as $item) {
+                unset($item->preserveKeys);
+            }
+        }
+        
+        return $result;
 
-        return collect(array('data' => $res));
-        //return new JsonResource($collection);
     }
 
     public function __construct($resource=null)
     {
         $this->parent = get_class($this);
 
-        if (!isset($resource))
+        if ($resource)
         {
-            return;
-        }
-
-        $this->resource = $resource;
-        
-        $data = array();
-        foreach ($this->toArray(request()) as $key => $val)
-        {
-            if($val != '_value_not_loaded')
+            $this->resource = $resource;
+            
+            /* $data = array();
+            foreach ($this->toArray(request()) as $key => $val)
             {
-                if (is_array($val) && isset($val['_merged']))
+                if($val!='_value_not_loaded')
                 {
-                    foreach($val['_merged'] as $k => $v)
+                    if (is_array($val) && isset($val['_merged']))
                     {
-                        $data[$k] = $v;
+                        foreach($val['_merged'] as $k => $v)
+                        {
+                            $data[$k] = $v;
+                        }
+                    }
+                    else
+                    {
+                        $data[$key] = $this->_toArray($val);
                     }
                 }
-                else
+            } */
+            $data = $this->toArray(request());
+            
+            
+            foreach ($data as $key => $val)
+            {
+                if($val!='_value_not_loaded')
                 {
-                    $data[$key] = $this->_toArray($val);
+                    if (is_array($val) && isset($val['_merged']))
+                    {
+                        foreach($val['_merged'] as $k => $v)
+                        {
+                            $data[$k] = $v;
+                        }
+                    }
+                    else
+                    {
+                        $data[$key] = $this->_toArray($val);
+                    }
                 }
+                else {
+                    unset($data[$key]);
+                }
+
             }
-        }
 
-        if (JsonResource::getWrapping())
-            $res = $data;
+            if (!$this::$wrap)
+                $res = $data;
+            else
+                $res = array($this::$wrap => $data);
+
+            foreach ($this as $key => $val) {
+                unset($this->$key);
+            }
+
+            foreach ($res as $key => $val)
+            {
+                $this->$key = $val;
+            }
+
+        }
         else
-            $res = array('data' => $data);
-
-        foreach ($this as $key => $val)
-            unset($this->$key);
-
-        foreach ($res as $key => $val)
         {
-            $this->$key = $val;
+            unset($this->parent);
+            unset($this->resource);
         }
+
     }
 
     private function _toArray($item)
     {
-        if ($item instanceof Model)
-        {
+        if ($item instanceof Model) {
             return $item->toArray();
         }
 
-        if (is_array($item) || $item instanceof Collection)
+        /* if ($item instanceof JsonResource) {
+            return $item->toArray(request());
+        } */
+        //dump($item, true);
+
+        if ($item instanceof Collection || $item instanceof Paginator) {
+            return $item->toArray();
+            /* $res = array();
+            foreach ($item as $value) {
+                if ($this::$wrap) {
+                    unset($value->preserveKeys);
+                    $res[] = $value; //->{$this::$wrap};
+                } else {
+                    $res = $value;
+                }
+            }
+            return $res; */
+        }
+
+        if (is_array($item) )//|| $item instanceof Collection)
         {
             $res = array();
             foreach ($item as $key => $val)
             {
-                $res[$key] = $this->_toArray($val);
+                if ($key != 'preserveKeys')
+                    $res[$key] = $this->_toArray($val);
             }
             return $res;
         }
@@ -120,7 +182,8 @@ class JsonResource
 
     public function toArray($request)
     {
-        return (array)$this;
+        //ddd($this);
+        return $this->_toArray($this->resource);
     }
 
     public function __get($name)

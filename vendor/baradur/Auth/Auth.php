@@ -17,8 +17,7 @@ class Auth extends Controller
 
     public static function check()
     {
-        $user = self::user();
-        return isset($user);
+        return self::user() ? true : false;
     }
 
     public function id()
@@ -26,7 +25,63 @@ class Auth extends Controller
         return Auth::user()->getKey();
     }
 
-    public function login($referer = null)
+
+    public static function login($user, $remember = true)
+    {
+        $token = md5($user->username.'_'.$user->password.'_'.Carbon::now()->getTimestamp());
+        $user->token = $token;
+        $user->token_timestamp = Carbon::now()->getTimestamp();
+        $user->save();
+
+        if ($remember)
+        {
+            $domain = $_SERVER["HTTP_HOST"];
+            setcookie(config('app.name').'_token', $token, time()+86400, '/', $domain, false, true);
+        }
+
+        $user->unsetAttribute('password');
+
+        $_SESSION['user'] = $user; 
+        self::$_currentUser = $user;
+    }
+
+    public static function loginUsingId($id, $remember = true)
+    {
+        $user = Model::instance('User')->findOrFail($id);
+
+        self::login($user, $remember);
+    }
+
+
+    public static function api_login($username, $password)
+    {
+        $user = Model::instance('User')->where('email', $username)
+                    ->orWhere('username', $username)->first();
+
+        if (!$user || strcmp($user->password, md5($password))) {
+            header('HTTP/1.1 401 Unauthorized');
+            header('Content-Type: application/json');
+            echo json_encode(array("error"=>"Access denied. Bad credentials"));
+            __exit();
+        }
+
+        if (!$user->token) {
+            header('HTTP/1.1 401 Unauthorized');
+            header('Content-Type: application/json');
+            echo json_encode(array("error"=>"Access denied. User validation required!"));
+            __exit();
+        }
+
+        $token = md5($user->username.'_'.$user->password.'_'.Carbon::now()->getTimestamp());
+        $user->token = $token;
+        $user->token_timestamp = Carbon::now()->getTimestamp();
+        $user->save();
+
+        return $token;
+
+    }
+
+    public function start_login($referer = null)
     {
         if (isset($_SESSION['url_history'][1]) && isset($_SESSION['_requestedRoute']) && $_SESSION['url_history'][1] != $_SESSION['_requestedRoute']) {
             $_SESSION['_requestedRoute'] = $_SESSION['url_history'][1];
@@ -42,50 +97,7 @@ class Auth extends Controller
         return view('auth/login', compact('title', 'breadcrumb'));
     }
 
-    public static function api_login($username, $password)
-    {
-        $user = Model::instance('User')->where('email', $username)
-                    ->orWhere('username', $username)->first();
-
-        if (!$user || strcmp($user->password, md5($password))) {
-            header('HTTP/1.1 401 Unauthorized');
-            header('Content-Type: application/json');
-            echo json_encode(array("error"=>"Access denied. Bad credentials"));
-            exit();
-        }
-
-        if (!$user->token) {
-            header('HTTP/1.1 401 Unauthorized');
-            header('Content-Type: application/json');
-            echo json_encode(array("error"=>"Access denied. User validation required!"));
-            exit();
-        }
-
-        $token = md5($user->username.'_'.$user->password.'_'.Carbon::now()->getTimestamp());
-        $user->token = $token;
-        $user->token_timestamp = Carbon::now()->getTimestamp();
-        $user->save();
-
-        return $token;
-
-    }
-
-    /* private static function generateToken($user = null)
-    {
-        $token = hash_hmac('sha256', $user, bin2hex(random_bytes(32)));
-        $date = new DateTime;
-        $timestamp = $date->format('Y-m-d H:i:s');
-
-        DB::statement('CREATE TABLE IF NOT EXISTS api_tokens (`token` VARCHAR(100), `timestamp` TIMESTAMP)');
-
-        DB::statement('INSERT INTO api_tokens (token, timestamp)'. ' VALUES ("' . $token . '", "' .$timestamp . '")');
-
-        return $token;
-
-    } */
-
-
-    public function send_login(Request $request)
+    public function confirm_login(Request $request)
     {
         $user = Model::instance('User')->where('email', $request->username)
                     ->orWhere('username', $request->username)->first();
@@ -98,33 +110,19 @@ class Auth extends Controller
             return back()->with("error", __("login.validation_required"));
         }
 
-        $token = md5($user->username.'_'.$user->password.'_'.Carbon::now()->getTimestamp());
-        $user->token = $token;
-        $user->token_timestamp = Carbon::now()->getTimestamp();
-        $user->save();
+        self::login($user, $request->remember);
 
-        if ($request->remember)
-        {
-            $domain = $_SERVER["HTTP_HOST"];
-            setcookie(env('APP_NAME').'_token', $token, time()+86400, '/'.env('APP_FOLDER'), $domain, false, true);
-        }
-
-        $user->unsetAttribute('password');
-        $user->unsetAttribute('validation');
-
-        $_SESSION['user'] = $user; //Helpers::arrayToObject($user->getAttributes());
-        self::$_currentUser = $user;
-
+        //return redirect(config('app.url'));
         if (isset($_SESSION['_requestedRoute']))
         {
             $res = $_SESSION['_requestedRoute'];
             unset($_SESSION['_requestedRoute']);
-            $res = str_replace(env('APP_URL'), '', $res);
+            //$res = str_replace(config('app.url'), '', $res);
+            //dd($res);
             return redirect($res);
         }
 
-        return redirect(env('APP_URL'));
-
+        return redirect(config('app.url'));
     }
 
     public function logout()
@@ -134,7 +132,7 @@ class Auth extends Controller
         $user->save();
 
         $domain = $_SERVER["HTTP_HOST"];
-        setcookie(env('APP_NAME').'_token', '', time() - 3600, '/'.env('APP_FOLDER'), $domain);
+        setcookie(config('app.name').'_token', '', time() - 3600, '/', $domain);
 
         unset($_SESSION['user']);
         unset($_SESSION['tokens']);
@@ -174,7 +172,7 @@ class Auth extends Controller
 
         $message = __('login.content_registration')."\n".
             __('login.follow_finish')."\n\n"
-            .rtrim(env('APP_URL'), '/') . "/email_confirm" . "/".
+            .rtrim(config('app.url'), '/') . "/email_confirm" . "/".
             $request->email . "/" . $random . "\n\n".__('login.thanks'); 
     
         Mail::to($request->email)
@@ -228,6 +226,18 @@ class Auth extends Controller
         return view('auth/completed', compact('title', 'breadcrumb'));
     }
 
+    public function verify()
+    {
+        $title = __('login.registration');
+
+        $breadcrumb = array(
+            __('login.home') => '/',
+            __('login.register_confirmation') => '#'
+        );
+
+        return view('auth/verify', compact('title', 'breadcrumb'));
+    }
+
     public function reset()
     {
         $title = __('login.restore');
@@ -268,7 +278,7 @@ class Auth extends Controller
 
         $message = __('login.content_reset')."\n".
             __('login.follow_finish')."\n\n"
-            .rtrim(env('APP_URL'), '/') . "/restore" . "/".
+            .rtrim(config('app.url'), '/') . "/restore" . "/".
             $user->email . "/" . $random . "\n\n".__('login.thanks'); 
 
         Mail::to($user->email)
@@ -340,9 +350,9 @@ class Auth extends Controller
         if ($user)
         {
             $domain = $_SERVER["HTTP_HOST"];
-            setcookie(env('APP_NAME').'_token', $user->token, time()+86400, '/'.env('APP_FOLDER'), $domain, false, true);
-            unset($user->password);
-            unset($user->validation);
+            setcookie(config('app.name').'_token', $user->token, time()+86400, '/', $domain, false, true);
+            $user->unsetAttribute('password');
+            //unset($user->validation);
             self::$_currentUser = $user;
             $_SESSION['user'] = $user;
         }
@@ -356,26 +366,27 @@ class Auth extends Controller
         $register = isset($routes['register'])? $routes['register'] : true;
         $reset = isset($routes['reset'])? $routes['reset'] : true;
 
-        Route::get('login', 'Auth@login')->name('login')->withoutMiddleware('auth');
-        Route::post('login', 'Auth@send_login')->name('confirm_login')->withoutMiddleware('auth');
+        Route::get('login', 'Auth@start_login')->name('login')->withoutMiddleware('auth')->middleware('auth:guest');
+        Route::post('login', 'Auth@confirm_login')->name('confirm_login')->withoutMiddleware('auth')->middleware('auth:guest');
 
         if ($register)
         {
-            Route::get('register', 'Auth@register')->name('registration')->withoutMiddleware('auth');
-            Route::post('register', 'Auth@send_register')->name('confirm_registration')->withoutMiddleware('auth');
+            Route::get('register', 'Auth@register')->name('registration')->withoutMiddleware('auth')->middleware('auth:guest');
+            Route::post('register', 'Auth@send_register')->name('confirm_registration')->withoutMiddleware('auth')->middleware('auth:guest');
         }
 
         if ($reset)
         {
-            Route::get('reset', 'Auth@reset')->name('reset_password')->withoutMiddleware('auth');
-            Route::post('reset', 'Auth@restore')->name('send_reset_password')->withoutMiddleware('auth');
-            Route::get('restore/{email}/{token}', 'Auth@restore_confirm')->name('restore_password')->withoutMiddleware('auth');
-            Route::post('restore', 'Auth@restore_confirmed')->name('confirm_restore_password')->withoutMiddleware('auth');
+            Route::get('reset', 'Auth@reset')->name('reset_password')->withoutMiddleware('auth')->middleware('auth:guest');
+            Route::post('reset', 'Auth@restore')->name('send_reset_password')->withoutMiddleware('auth')->middleware('auth:guest');
+            Route::get('restore/{email}/{token}', 'Auth@restore_confirm')->name('restore_password')->withoutMiddleware('auth')->middleware('auth:guest');
+            Route::post('restore', 'Auth@restore_confirmed')->name('confirm_restore_password')->withoutMiddleware('auth')->middleware('auth:guest');
         }
 
         if ($register || $reset)
         {
-            Route::get('email_confirm/{email}/{token}', 'Auth@confirm')->name('email_confirm')->withoutMiddleware('auth');
+            Route::get('email_confirm/{email}/{token}', 'Auth@confirm')->name('email_confirm')->withoutMiddleware('auth')->middleware('auth:guest');
+            Route::get('email_verify', 'Auth@verify')->name('email_verify')->withoutMiddleware('auth')->middleware('auth:guest');
         }
 
         Route::get('logout', 'Auth@logout')->name('logout');

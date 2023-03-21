@@ -2,16 +2,19 @@
 
 Class Request
 {
-    private $get = array();
-    private $post = array();
+    //private $get = array();
+    //private $post = array();
     private $files = array();
 
     private $session;
 
     public $route = null;
     private $method = null;
-    private $uri = array();
+    private $host = null;
+    private $uri = null;
     private $ip = null;
+    private $query = null;
+    private $input = null;
     private $headers = array();
     private $server = array();
 
@@ -23,18 +26,28 @@ Class Request
 
         $this->route = $route;
         $this->method = $_SERVER['REQUEST_METHOD'];
-        $this->uri = env('HOME').$_SERVER['REQUEST_URI'];
+        $this->uri = config('app.url').$_SERVER['REQUEST_URI'];
         $this->ip = $_SERVER['REMOTE_ADDR'];
+        $this->host = $_SERVER['HTTP_HOST'];
+        //$this->input = $_REQUEST;
+        //$this->query = $_GET;
         $this->headers = getallheaders();
         $this->server = $_SERVER;
+
+        //unset($this->input['csrf']);
+        //unset($this->input['_method']);
+        //unset($this->input['Baradur_token']);
+        //unset($this->input['PHPSESSID']);
 
         # Adding GET values into Request
         if (isset($_GET))
         {
             foreach ($_GET as $key => $val)
             {
-                if ($key!='_method' && $key!='csrf')
-                    $this->get[$key] = $val;
+                if ($key!='_method' && $key!='csrf' && $key!='ruta') {
+                    $this->query[$key] = $val;
+                    $this->input[$key] = $val;
+                }
             }
         }
 
@@ -43,19 +56,21 @@ Class Request
         {
             foreach ($_POST as $key => $val)
             {
-                if ($key!='_method' && $key!='csrf')
-                    $this->post[$key] = $val;
+                if ($key!='_method' && $key!='csrf' && $key!='ruta') {
+                    $this->input[$key] = $val;
+                }
             }
         }
 
         # Adding PUT values into Request
-        if ($_SERVER['REQUEST_METHOD']=='PUT')
+        if ($_SERVER['REQUEST_METHOD']=='PUT' || $_SERVER['REQUEST_METHOD']=='PATCH')
         {
             parse_str(file_get_contents("php://input"), $data);
             foreach ($data as $key => $val)
             {
-                if ($key!='_method' && $key!='csrf')
-                    $this->post[$key] = $val;
+                if ($key!='_method' && $key!='csrf' && $key!='ruta') {
+                    $this->input[$key] = $val;
+                }
             }
         }
 
@@ -81,7 +96,16 @@ Class Request
                 }
                 else
                 {
-                    $this->files[$key] = new UploadedFile($val);
+                    //$this->files[$key] = new UploadedFile($val);
+                    $fileinfo = array();
+                    $fileinfo['name'] = $val['name'];
+                    $fileinfo['type'] = $val['type'];
+                    $fileinfo['path'] = $val['tmp_name'];
+                    $fileinfo['error'] = $val['error'];
+                    $fileinfo['size'] = $val['size'];
+
+                    if ($fileinfo['name'] && $fileinfo['type'] && $fileinfo['error']==0)
+                        $this->files[$key] = new UploadedFile($fileinfo);
                 }
             }
         }
@@ -110,7 +134,6 @@ Class Request
         }
     }
 
-
     public function headers()
     {
         return $this->headers;
@@ -126,9 +149,69 @@ Class Request
         return isset($this->headers[$key]);
     }
 
+    public function accepts($content_type)
+    {
+        $acceptable = $this->getAcceptableContentTypes();
+
+        return Str::contains($acceptable, array($content_type));
+    }
+
+    public function getAcceptableContentTypes()
+    {
+        $acceptable = array(); 
+
+        foreach ($this->headers as $key => $val) {
+            if ($key=='Accept') {
+                $acceptable[] = $val;
+            }
+        } 
+
+        return implode(', ', $acceptable);
+    }
+
+    public function expectsJson()
+    {
+        return ($this->ajax() && ! $this->pjax() && $this->acceptsAnyContentType()) || $this->wantsJson();
+    }
+
+    public function wantsJson()
+    {
+        //return $this->header('Accept') == 'application/json';
+        $acceptable = $this->getAcceptableContentTypes();
+
+        return Str::contains(strtolower($acceptable), array('/json', '+json'));
+    }
+
+    public function acceptsAnyContentType()
+    {
+        $acceptable = $this->getAcceptableContentTypes();
+
+        return strlen($acceptable)===0 || Str::contains($acceptable, array('*/*', '*'));
+    }
+
+    public function ajax()
+    {
+        return $this->isXmlHttpRequest();
+    }
+
+    public function pjax()
+    {
+        return isset($this->headers['X-PJAX']);
+    }
+
+    public function isXmlHttpRequest()
+    {
+        return isset($this->headers['X-Requested-With']) && $this->headers['X-Requested-With']=='XMLHttpRequest';
+    }
+
     public function bearerToken()
     {
         $token = $this->header('Authorization');
+        
+        if (!$token) {
+            return null;
+        }
+        
         return str_replace('Bearer ', '', $token);
     }
 
@@ -152,10 +235,15 @@ Class Request
 
     public function clear()
     {
+        $this->method = null;
+        $this->ip = null;
+        $this->host = null;
+        $this->headers = getallheaders();
+        $this->server = $_SERVER;
         $this->route = null;
         $this->uri = null;
-        $this->get = array();
-        $this->post = array();
+        $this->query = array();
+        $this->input = array();
         $this->files = array();
         $this->validated = array();
         $this->session = new RequestSession;
@@ -170,11 +258,6 @@ Class Request
     public function validated()
     {
         return $this->validated;
-    }
-
-    private function setPost($post)
-    {
-        $this->post = $post;
     }
 
     public function validate($arguments)
@@ -209,64 +292,239 @@ Class Request
         return $this->uri;
     }
 
+    public function fullUrlWithQuery($query = array())
+    {
+        parse_str($this->query, $result);
+        
+        foreach ($query as $key => $value) {
+            $result[$key] = $value;
+        }
+
+        $res = $this->url();
+
+        if (count($result)> 0) {
+            $res .= '?' . http_build_query($result);
+        }
+
+        return $res;
+    }
+
+    public function fullUrlWithoutQuery($query = array())
+    {
+        parse_str($this->query, $result);
+        
+        foreach ($query as $key) {
+            unset($result[$key]);
+        }
+
+        $res = $this->url();
+        if (count($result)> 0) {
+            $res .= '?' . http_build_query($result);
+        }
+
+        return $res;
+    }
+
+    public function method()
+    {
+        return $this->method;
+    }
+
+    public function host()
+    {
+        return $this->host;
+    }
+
+    public function route()
+    {
+        return $this->route;
+    }
+
     public function routeIs($name)
     {
         return $this->route->named($name);
+    }
+
+    public function isJson()
+    {
+        if (!$this->hasHeader('Content-Type')) {
+            return false;
+        }
+
+        $header = $this->header('Content-Type');
+        $header = is_array($header) ? $header : array($header);
+
+        foreach ($header as $val) {
+            if (str_contains($val, 'json')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function keys()
+    {
+        return array_merge(array_keys($this->input), array_keys($this->files));
     }
 
     public function all()
     {
         $array = array();
 
-        if($this->method=='GET')
-        {
-            foreach ($this->get as $key => $val)
-                $array[$key] = $val;
-        }
+        foreach ($this->input as $key => $val)
+            $array[$key] = $val;
 
-        elseif($this->method=='POST' || $this->method=='PUT')
-        {
-            foreach ($this->post as $key => $val)
-                $array[$key] = $val;
-
-            foreach ($this->files as $key => $val)
-                $array[$key] = $val;
-        }
+        foreach ($this->files as $key => $val)
+            $array[$key] = $val;
 
         return $array;
     }
 
     public function only()
     {
-        $array = array();
-        foreach ($this->post as $key => $val)
-        {
-            if (in_array($key, func_get_args()))
-                $array[$key] = $val;
-        }
+        $keys = func_get_args();
 
-        foreach ($this->files as $key => $val)
+        $array = array();
+
+        foreach ($this->all() as $key => $val)
         {
-            if (in_array($key, func_get_args()))
+            if (in_array($key, $keys))
                 $array[$key] = $val;
         }
-            
+        
+        return $array;
+    }
+
+    public function except()
+    {
+        $keys = func_get_args();
+
+        $array = array();
+
+        foreach ($this->all() as $key => $val)
+        {
+            if (!in_array($key, $keys))
+                $array[$key] = $val;
+        }
+        
         return $array;
     }
     
-    public function query($key=null)
+    public function query($key=null, $default=null)
     {
-        if ($key)
-            return $this->get[$key];
+        if ($key) {
+            return array_key_exists($key, $this->query) 
+                ? $this->query[$key] 
+                : $default;
+        }
 
-        $res = $this->get;
+        $res = $this->query;
         unset($res['ruta']);
         return $res;
     }
 
-    public function hasValidSignature()
+    public function missing($key)
     {
-        return URL::hasValidSignature($this);
+        $keys = is_array($key) ? $key : func_get_args();
+
+        return ! $this->has($keys);
+    }
+
+    public function exists($key)
+    {
+        return $this->has($key);
+    }
+
+    public function has($key)
+    {
+        $keys = is_array($key) ? $key : func_get_args();
+
+        $input = $this->all();
+
+        foreach ($keys as $value) {
+            if (! Arr::has($input, $value)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public function hasAny($keys)
+    {
+        $keys = is_array($keys) ? $keys : func_get_args();
+
+        $input = $this->all();
+
+        return Arr::hasAny($input, $keys);
+    }
+
+    public function filled($key)
+    {
+        $keys = is_array($key) ? $key : func_get_args();
+
+        foreach ($keys as $value) {
+            if ($this->isEmptyString($value)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public function isNotFilled($key)
+    {
+        $keys = is_array($key) ? $key : func_get_args();
+
+        foreach ($keys as $value) {
+            if (! $this->isEmptyString($value)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public function anyFilled($keys)
+    {
+        $keys = is_array($keys) ? $keys : func_get_args();
+
+        foreach ($keys as $key) {
+            if ($this->filled($key)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function isEmptyString($key)
+    {
+        $value = $this->input($key);
+
+        return !is_bool($value) && !is_array($value) && trim((string) $value)==='';
+    }
+
+
+    public function user()
+    {
+        return Auth::user();
+    }
+
+    public function hasValidSignature($absolute = true)
+    {
+        return URL::hasValidSignature($this, $absolute);
+    }
+
+    public function hasValidRelativeSignature()
+    {
+        return URL::hasValidSignature($this, false);
+    }
+
+    public function hasValidSignatureWhileIgnoring($ignoreQuery = array(), $absolute = true)
+    {
+        return URL::hasValidSignature($this, $absolute, $ignoreQuery);
     }
 
     /**
@@ -280,14 +538,27 @@ Class Request
         return $this->files[$key];
     }
 
-    public function input($key)
+    public function input($key=null, $default=null)
     {
-        return isset($this->post[$key]) ? $this->post[$key] : null;
+        $array = $this->input; //array_merge($this->get, $this->post, $this->files);
+
+        if (!$key) {
+            return $array;
+        }
+
+        return array_key_exists($key, $array) ? $array[$key] : $default;
     }
 
-    public function get($key)
+    public function get($key, $default = null)
     {
-        return isset($this->get[$key]) ? $this->get[$key] : null;
+        $array = $this->all(); //array_merge($this->get, $this->post, $this->files);
+
+        return array_key_exists($key, $array) ? $array[$key] : $default;
+    }
+
+    public function collect($key)
+    {
+        return collect($this->input($key, array()));
     }
 
     public function ip()
@@ -297,24 +568,29 @@ Class Request
 
     public function serialize()
     {
-        return serialize((array)$this);
+        return serialize((array)$this->all());
     }
 
     public function __set($name, $value)
     {
-        $this->post[$name] = $value;
+        if (array_key_exists($name, $this->input)) {
+            $this->input[$name] = $value;
+        } elseif (array_key_exists($name, $this->query)) {
+            $this->query[$name] = $value;
+        } elseif (array_key_exists($name, $this->files)) {
+            $this->files[$name] = $value;
+        }
     }
-
 
     public function __get($key)
     {
-        if (isset($this->post[$key]))
-            return $this->post[$key];
+        if (array_key_exists($key, $this->input))
+            return $this->input[$key];
 
-        if (isset($this->get[$key]))
-            return $this->get[$key];
+        if (array_key_exists($key, $this->query))
+            return $this->query[$key];
 
-        if (isset($this->files[$key]))
+        if (array_key_exists($key, $this->files))
             return $this->files[$key];
 
         return null;
@@ -329,20 +605,18 @@ Class Request
     /** @return bool|null */
     public function boolean($name)
     {
-        $value = $this->__get($name);
+        $value = $this->input($name);
 
         return isset($value)? Str::of($value)->toBoolean() : null;
     }
 
-    /** @return string|null */
-    public function string($name)
+    /** @return Stringable|null */
+    public function string($key, $default = null)
     {
-        $value = $this->__get($name);
-
-        return $value? Str::of($value)->__toString() : null;
+        return str($this->input($key, $default));
     }
 
-    /** @return string|null */
+    /** @return Stringable|null */
     public function str($name)
     {
         return $this->string($name);
@@ -351,8 +625,19 @@ Class Request
     /** @return Carbon|null */
     public function date($name)
     {
-        $value = $this->__get($name);
-
+        $value = $this->input($name);
         return $value? Carbon::parse($value) : null;
+    }
+
+    /** @return int|null */
+    public function integer($key, $default = 0)
+    {
+        return intval($this->input($key, $default));
+    }
+
+    /** @return float|null */
+    public function float($key, $default = 0.0)
+    {
+        return floatval($this->input($key, $default));
     }
 }

@@ -62,6 +62,7 @@ class HttpResponse
         416 => 'Requested range not satisfiable',
         417 => 'Expectation Failed',
         418 => 'I\'m a teapot',
+        419 => 'Page Expired',
         422 => 'Unprocessable Entity',
         423 => 'Locked',
         424 => 'Failed Dependency',
@@ -256,6 +257,10 @@ class HttpResponse
         return $new;
     }
     
+
+    public function setStatusCode($code) {
+        $this->status_code = $code;
+    }
     /**
      * Get response status code
      * 

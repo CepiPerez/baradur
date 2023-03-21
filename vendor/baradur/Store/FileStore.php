@@ -374,7 +374,6 @@ class FileStore implements Store
         else
         {
             list($class, $method, $params) = getCallbackFromString($callback);
-            array_shift($params);
             $value = call_user_func_array(array($class, $method), $params);
             $this->put($key, $value, $seconds);
             return $value;

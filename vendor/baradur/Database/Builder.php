@@ -6,6 +6,7 @@ Class Builder
 
     public $_model = null;
     public $table;
+    public $_table_alias=null;
     public $_primary;
     public $_parent = null;
     public $_fillable;
@@ -15,14 +16,11 @@ Class Builder
     public $_routeKey;
     public $_softDelete;
     public $_collection = array();
-    public $_timestamps;
-    public $_timestamp_created;
-    public $_timestamp_updated;
-    
+
     public $_foreign;
     public $_fillableOff = false;
 
-    public $_factory = null;
+    //public $_factory = null;
 
     public $_relationship;
 
@@ -53,7 +51,7 @@ Class Builder
 
     public $_scopes = array();
 
-    protected $grammar;
+    public $grammar;
 
     public $_lastInsert = null;
 
@@ -89,13 +87,9 @@ Class Builder
         $this->_routeKey = $base->getRouteKeyName();
         $this->_softDelete = $base->usesSoftDeletes()? 1 : 0;
         $this->_collection = new Collection(); //collectWithParent(null, $model);
-        $this->_timestamps = $base->getTimestamps();
 
         $this->grammar = new Grammar();
         
-        $this->_timestamp_created = $base->getCreatedAt();
-        $this->_timestamp_updated = $base->getUpdatedAt();
-
         foreach ($base->__getWith() as $with)
         {
             $this->_eagerLoad[$with] = array();
@@ -128,7 +122,6 @@ Class Builder
             {
                 list($c, $m) = getCallbackFromString($class);
                 $class = new $c($this->_parent);
-
             }
             elseif (isset($_class_list[$class]))
             {
@@ -137,7 +130,7 @@ Class Builder
             }
 
             $this->_clone($class);
-            return executeCallback($class, $m, $parameters, $this);
+            return executeCallback($class, $m, $parameters, $class, false);
         }
 
         if (Str::startsWith($method, 'where'))
@@ -150,7 +143,7 @@ Class Builder
             return $this->_as($parameters);
         }
 
-        throw new Exception("Method $method does not exist");
+        throw new BadMethodCallException("Method $method does not exist");
     }
 
     public function __paramsToArray()
@@ -166,6 +159,7 @@ Class Builder
         return $params;
     }
 
+    /** @return Builder */
     public function _clone($cloned=null)
     {
         if (!$cloned) {
@@ -174,7 +168,7 @@ Class Builder
 
         $cloned->_foreign = $this->_foreign; 
         $cloned->_fillableOff = $this->_fillableOff; 
-        $cloned->_factory = $this->_factory; 
+        $cloned->_table_alias = $this->_table_alias; 
         $cloned->_relationship = $this->_relationship; 
         $cloned->_method = $this->_method; 
         $cloned->_where = $this->_where; 
@@ -197,9 +191,6 @@ Class Builder
         $cloned->_relationVars = $this->_relationVars; 
         $cloned->_loadedRelations = $this->_loadedRelations; 
         $cloned->_scopes = $this->_scopes; 
-        $cloned->_timestamps = $this->_timestamps;
-        $cloned->_timestamp_created = $this->_timestamp_created;
-        $cloned->_timestamp_updated = $this->_timestamp_updated;
         $cloned->_toBase = $this->_toBase;
         $cloned->distinct = $this->distinct;
 
@@ -209,6 +200,7 @@ Class Builder
     private function clear()
     {
         $this->_method = "SELECT `$this->table`.*";
+        $this->_table_alias = null;
         $this->_where = '';
         $this->joins = array();
         $this->_limit = null;
@@ -225,6 +217,12 @@ Class Builder
 
     protected function setConnectorDriver($driver, $host, $user, $password, $database, $port=3306)
     {
+        global $artisan;
+
+        if (isset($_SERVER['USERNAME'])) {
+            $host = "127.0.0.1";
+        }
+    
         if ($driver=='mysql') {
             return new PdoConnector($host, $user, $password, $database, $port);
         }
@@ -245,7 +243,6 @@ Class Builder
     {
         if (!$this->sql_connector)
         {
-            
             if ($this->_connector)
             {
                 $config = config('database.connections.'.$this->_connector);
@@ -266,7 +263,8 @@ Class Builder
                 {
                     $default = config('database.default');
                     $config = config('database.connections.'.$default);
-    
+
+
                     $database = $this->setConnectorDriver(
                         $config['driver'],
                         $config['host'],
@@ -298,6 +296,8 @@ Class Builder
                 $res .= ' FROM `' . $this->table . '` ';
             else
                 $res .= ' FROM ' . $this->table . ' ';
+
+            if ($this->_table_alias) $res .= ' as ' . $this->_table_alias . ' ';
         }
         if (!empty($this->joins)) $res .= $this->implodeJoinClauses() . ' ';
         if ($this->_where != '') $res .= $this->_where . ' ';
@@ -310,10 +310,10 @@ Class Builder
         if ($this->_limit && !$this->_offset) $this->_offset = 0;
         if ($this->_offset) $res .= ' OFFSET '.$this->_offset;
 
-        if (strpos(strtolower($res), ' join ')===false && count($this->_loadedRelations)==0)
+        /* if (strpos(strtolower($res), ' join ')===false && count($this->_loadedRelations)==0)
         {
             $res = str_replace("`$this->table`.", '', $res);
-        }
+        } */
 
         return trim(str_replace('  ', ' ', str_replace(' )', ')', $res)));
     }
@@ -329,9 +329,10 @@ Class Builder
                 $res .= ' ' . strtoupper($query->type) . ' JOIN ';
 
                 if ($query->table instanceof Expression) {
-                    $res .= (string)$query->table;
+                    $res .= $query->table->__toString();
                 } else {
-                    $res .= '`'.$query->table.'`';
+                    $query->grammar->setTablePrefix('');
+                    $res .=  $query->grammar->wrapTable($query->table); //'`'.$query->table.'`';
                 }
                               
                 if ($query->_where) {
@@ -345,25 +346,6 @@ Class Builder
         }
 
         return $res;
-    }
-
-
-
-    private function checkObserver($function, $model)
-    {
-        global $observers;
-        $class = $this->_parent;
-        if (isset($observers[$class]))
-        {
-            $observer = new $observers[$class];
-            if (method_exists($observer, $function))
-            {
-                if (is_array($model))
-                    $model = $this->insertUnique($model); 
-
-                $observer->$function($model);
-            }
-        }
     }
 
     private function __mergeBindings($clause, $bindings, $remove_actual_values = false)
@@ -404,30 +386,36 @@ Class Builder
         return $query;
     }
 
+    /**
+     * Dump the current SQL and bindings.
+     *
+     * @return $this
+     */
+    public function dump()
+    {
+        dump($this->toSql() . "<br>" . str_replace('"', "'", json_encode($this->getBindings())));
+
+        return $this;
+    }
+
+    /**
+     * Die and dump the current SQL and bindings.
+     *
+     * @return never
+     */
+    public function dd()
+    {
+        dd($this->toSql(), str_replace('"', "'", json_encode($this->getBindings())));
+    }
     
     /**
      * Returns an array with the full query as a string
-     * and binded values
      * 
      * @return array
      */
     public function toSql()
     {
-        $res = $this->buildQuery();
-
-        return array($res, json_encode(self::__joinBindings($this->_bindings)));
-    }
-
-    /**
-     * Returns with the full query as a string
-     * without binded values
-     * 
-     * @return string
-     */
-    private function toSqlFirst()
-    {
-        $res = $this->toSql();
-        return $res[0];
+        return $this->buildQuery();
     }
 
     /**
@@ -488,7 +476,7 @@ Class Builder
         {
             if ($value instanceof Builder)
             {
-                $columns[] = '(' . $value->toSqlFirst() . ') as ' . $key;
+                $columns[] = '(' . $value->toSql() . ') as ' . $key;
             }
             elseif ($value instanceof Raw)
             {
@@ -553,6 +541,15 @@ Class Builder
         return $this;
     }
 
+    public function from($table, $as = null)
+    {
+        $this->table = $table;
+        $this->_table_alias = $as;
+
+        return $this;
+    }
+
+
     /**
      * Specifies custom from\
      * Returns the Query builder
@@ -563,31 +560,43 @@ Class Builder
      */
     public function fromSub($subquery, $alias)
     {
-        $this->_fromSub = ' (' . $subquery->toSqlFirst() . ') ' . $alias;
+        $this->_fromSub = ' (' . $subquery->toSql() . ') ' . $alias;
         return $this;
     }
 
     /**
-     * Specifies the WHERE clause\
-     * Returns the Query builder
-     * 
-     * @param string $where
+     * Add a raw or where clause to the query.
+     *
+     * @param  string  $sql
+     * @param  mixed  $bindings
+     *
      * @return Builder
      */
-    public function whereRaw($where, $bindings=array())
+    public function whereRaw($sql, $bindings = array(), $boolean = 'AND')
     {
         foreach ($bindings as $v)
         {
-            //$where = preg_replace('/\?/', $v, $where, 1);
             $this->_bindings['where'][] = $v;
         }
 
         if ($this->_where == '')
-            $this->_where = 'WHERE ' . $where ;
+            $this->_where = 'WHERE ' . $sql ;
         else
-            $this->_where .= ' AND ' . $where;
+            $this->_where .= " $boolean " . $sql;
 
         return $this;
+    }
+
+    /**
+     * Add a raw or where clause to the query.
+     *
+     * @param  string  $sql
+     * @param  mixed  $bindings
+     * @return Builder
+     */
+    public function orWhereRaw($sql, $bindings = array())
+    {
+        return $this->whereRaw($sql, $bindings, 'OR');
     }
 
     private function dynamicWhere($method, $parameters)
@@ -704,7 +713,7 @@ Class Builder
         if ($this->_where == '')
             $this->_where = 'WHERE ' . $result; //$column . ' ' . $cond . ' ' . $val; // ' ?';
         else
-            $this->_where .= ' '.$boolean.' ' . $result; //$column . ' ' .$cond . ' ' . $val; // ' ?';
+            $this->_where .= " $boolean " . $result; //$column . ' ' .$cond . ' ' . $val; // ' ?';
 
         return $this;
     }
@@ -774,18 +783,31 @@ Class Builder
     {
         $final_array = array();
 
-        if (is_string($values))
-        {
+        $column = $this->grammar->wrapTable($column);
+
+        if ($values instanceof Builder) {
+
+            if ($this->_where == '')
+                $this->_where = 'WHERE ' . $column . ($not? ' NOT' : '') . ' IN ('. $values->toSql() .')';
+            else
+                $this->_where .= " $boolean " . $column . ($not? ' NOT' : '') . ' IN ('. $values->toSql() .')';
+
+            $this->addBinding($values->getBindings(), 'where');
+
+            return $this;
+        }
+
+
+        if (is_string($values)) {
             $values = $this->splitStringIntoArray($values);
         }
 
-        foreach ($values as $val)
-        {
+        foreach ($values as $val) {
             $final_array[] = '?';
             $this->_bindings['where'][] = $val;
         }
 
-        $column = $this->grammar->setTablePrefix(null)->wrapTable($column);
+        /* $column = $this->grammar->wrapTable($column); */
 
         if ($this->_where == '')
             $this->_where = 'WHERE ' . $column . ($not? ' NOT' : '') . ' IN ('. implode(',', $final_array) .')';
@@ -966,6 +988,180 @@ Class Builder
     {
         return $this->whereNotNull($column, 'or');
     }
+
+    /**
+     * Add a "where in raw" clause for integer values to the query.
+     *
+     * @param  string  $column
+     * @param  array  $values
+     * @param  string  $boolean
+     * @param  bool  $not
+     * 
+     * @return Builder
+     */
+    public function whereIntegerInRaw($column, $values, $boolean = 'AND', $not = false)
+    {
+        $values = Arr::flatten($values);
+
+        foreach ($values as &$value) {
+            $value = (int) $value;
+        }
+
+        $values = implode(', ', $values);
+
+        if ($this->_where == '')
+            $this->_where = 'WHERE ' . $column . ($not? ' NOT' : '') . ' IN ('. $values .')';
+        else
+            $this->_where .= " $boolean " . $column . ($not? ' NOT' : '') . ' IN ('. $values .')';
+
+        return $this;
+    }
+
+    /**
+     * Add an "or where in raw" clause for integer values to the query.
+     *
+     * @param  string  $column
+     * @param  array  $values
+     * @return $this
+     */
+    public function orWhereIntegerInRaw($column, $values)
+    {
+        return $this->whereIntegerInRaw($column, $values, 'or');
+    }
+
+    /**
+     * Add a "where not in raw" clause for integer values to the query.
+     *
+     * @param  string  $column
+     * @param  array  $values
+     * @param  string  $boolean
+     * @return $this
+     */
+    public function whereIntegerNotInRaw($column, $values, $boolean = 'and')
+    {
+        return $this->whereIntegerInRaw($column, $values, $boolean, true);
+    }
+
+    /**
+     * Add an "or where not in raw" clause for integer values to the query.
+     *
+     * @param  string  $column
+     * @param  array  $values
+     * @return $this
+     */
+    public function orWhereIntegerNotInRaw($column, $values)
+    {
+        return $this->whereIntegerNotInRaw($column, $values, 'or');
+    }
+
+    /**
+     * Add an exists clause to the query.
+     * Check Laravel doumentation.
+     *
+     * @return Builder
+     */
+    public function whereExists($callback, $boolean = 'AND', $not = false)
+    {
+        if (is_closure($callback)) {
+            list($class, $method, $params) = getCallbackFromString($callback);
+            $query = $this->query();
+            $params[0] = $query;
+            executeCallback($class, $method, $params, $this);
+        } else {
+            $query = $callback;
+        }
+
+        return $this->addWhereExistsQuery($query, $boolean, $not);
+    }
+
+    /**
+     * Add an or exists clause to the query.
+     * Check Laravel doumentation.
+     *
+     * @return Builder
+     */
+    public function orWhereExists($callback, $not = false)
+    {
+        return $this->whereExists($callback, 'OR', $not);
+    }
+
+    /**
+     * Add a where not exists clause to the query.
+     * Check Laravel doumentation.
+     *
+     * @return Builder
+     */
+    public function whereNotExists($callback, $boolean = 'AND')
+    {
+        return $this->whereExists($callback, $boolean, true);
+    }
+
+    /**
+     * Add a where not exists clause to the query.
+     * Check Laravel doumentation.
+     *
+     * @return Builder
+     */
+    public function orWhereNotExists($callback)
+    {
+        return $this->orWhereExists($callback, true);
+    }
+
+    /**
+     * Add an exists clause to the query.
+     * Check Laravel doumentation.
+     *
+     * @return Builder
+     */
+    public function addWhereExistsQuery($query, $boolean = 'AND', $not = false)
+    {
+        if ($this->_where == '')
+            $this->_where = 'WHERE EXISTS('. $query->toSql() . ')';
+        else
+            $this->_where .= " $boolean " . 'EXISTS('. $query->toSql() . ')';
+
+        $this->addBinding($query->getBindings(), 'where');
+
+        return $this;
+    }
+
+    /**
+     * Adds a where condition using row values.
+     *
+     * @param  array  $columns
+     * @param  string  $operator
+     * @param  array  $values
+     * @param  string  $boolean
+     * 
+     * @return Builder
+     */
+    public function whereRowValues($columns, $operator, $values, $boolean = 'AND')
+    {
+        if (count($columns) !== count($values)) {
+            throw new InvalidArgumentException('The number of columns must match the number of values');
+        }
+
+        for ($i=0; $i < count($columns); $i++) {
+            $this->where($columns[$i], $operator, $values[$i], $boolean);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Adds an or where condition using row values.
+     *
+     * @param  array  $columns
+     * @param  string  $operator
+     * @param  array  $values
+     * 
+     * @return Builder
+     */
+    public function orWhereRowValues($columns, $operator, $values)
+    {
+        return $this->whereRowValues($columns, $operator, $values, 'or');
+    }
+
 
     /**
      * Add a "where" clause comparing two columns to the query
@@ -1249,7 +1445,7 @@ Class Builder
         if ($this->_having == '')
             $this->_having = 'HAVING ' . $sql;
         else
-            $this->_having = ' ' . $boolean . ' ' . $sql;
+            $this->_having = " $boolean " . $sql;
 
         return $this;
     }
@@ -1271,11 +1467,10 @@ Class Builder
         if (is_closure($callback))
         {
             list($class, $method, $params) = getCallbackFromString($callback);
-            array_shift($params);
-            return executeCallback($class, $method, array_merge(array($query), $params), $this);
+            $params[0] = $query;
+            return executeCallback($class, $method, $params, $this);
         }
     }
-
 
     public function when($value, $callback, $default = null)
     {
@@ -1498,12 +1693,15 @@ Class Builder
 
     protected function createSub($query)
     {
-        if (is_string($query) && is_closure($query))
-        {
+        if (is_string($query) && !is_closure($query)) {
+            return array($query, array());
+        }
+
+        if (is_string($query) && is_closure($query)) {
             $query = $this->getCallback($query, $this);
         }
 
-        return array($query->toSqlFirst(), $query->getBindings());
+        return array($query->toSql(), $query->getBindings());
     }
 
 
@@ -1516,7 +1714,7 @@ Class Builder
      */
     public function union($query)
     {
-        $this->_union = 'UNION ' . $query->toSqlFirst();
+        $this->_union = 'UNION ' . $query->toSql();
 
         if (count($query->_bindings['union'])>0) {
             $this->_bindings['union'] = array_merge($this->_bindings['union'], $query->_bindings['union']);
@@ -1535,7 +1733,7 @@ Class Builder
      */
     public function unionAll($query)
     {
-        $this->_union = 'UNION ALL ' . $query->toSqlFirst();
+        $this->_union = 'UNION ALL ' . $query->toSql();
 
         $bindings = self::__joinBindings($query->_bindings);
         $this->__mergeBindings('union', $bindings);
@@ -1664,6 +1862,35 @@ Class Builder
     }
 
     /**
+     * Put the query's results in random order.
+     *
+     * @return $this
+     */
+    public function inRandomOrder()
+    {
+        return $this->orderByRaw('RANDOM()');
+    }
+
+    /**
+     * Remove all existing orders and optionally add a new order.
+     *
+     * @param  Expression|string|null $column
+     * @param  string $direction
+     * @return $this
+     */
+    public function reorder($column = null, $direction = 'ASC')
+    {
+        $this->_order = null;
+
+        if ($column) {
+            return $this->orderBy($column, $direction);
+        }
+
+        return $this;
+    }
+
+
+    /**
      * Alias to set the "limit" value of the query.
      *
      * @param  int  $value
@@ -1734,7 +1961,7 @@ Class Builder
         {
             array_push($this->_keys, $key);
 
-            $camel = Helpers::snakeCaseToCamelCase($key);
+            /* $camel = Helpers::snakeCaseToCamelCase($key);
 
             if (method_exists($this->_parent, 'set'.ucfirst($camel).'Attribute'))
             {
@@ -1751,6 +1978,12 @@ Class Builder
                 if (isset($modelvalue['set'])) $val = $modelvalue['set'];
             }
 
+            array_push($this->_values, isset($val)? $val : "NULL"); */
+            
+            //$val = $this->_model->__getMutatorAttribute($key, $val);
+
+            $val = Helpers::ensureValueIsNotObject($val);
+            
             array_push($this->_values, isset($val)? $val : "NULL");
         }
 
@@ -1813,22 +2046,30 @@ Class Builder
     {
         $this->clear();
 
-        $record = CastHelper::processCastsBack(
-            $record,
-            $this->_model
-        );
-        
-        foreach ($record as $key => $val)
+        //$record = CastHelper::processCastsBack($record, $this->_model);
+
+        if ($this->_parent=='Model') {
+            $this->_fillableOff = true;
+        }
+
+        foreach ($record as $key => $val) {
             $this->setValues($key, $val);
+        }
 
-        if (count($this->_values)==0)
-            throw new Exception ("Error setting values for new model");
+        if (count($this->_values)==0) {
+            throw new LogicException("Error setting values for new model");
+        }
 
-        if ($this->_timestamps && !isset($this->_values[$this->_timestamp_created]) && $this->_parent!='DB')
-            $this->set($this->_timestamp_created, now()->toDateTimeString());
-
+        if ($this->_model->timestamps && 
+            !isset($this->_values[$this->_model->getCreatedAtColumn()]) && 
+            $this->_parent!='DB' && 
+            $this->_parent!='Model')
+        {
+            $this->set($this->_model->getCreatedAtColumn(), now()->toDateTimeString());
+        }
 
         $qmarks = array();
+
         for ($i=0; $i<count($this->_values); $i++) {
             $qmarks[] = '?';
         }
@@ -1836,13 +2077,14 @@ Class Builder
         $sql = 'INSERT ' . ($ignore? 'IGNORE ' : '') . 'INTO `' . $this->table . 
             '` (' . implode(', ', $this->_keys) . ') VALUES (' . implode(', ', $qmarks) . ')';
 
-        $query = $this->connector()->query($sql, $this->_values);
+        $query = $this->connector()->execSql($sql, $this->_values);
     
         $last = array();
-        for ($i=0; $i<count($this->_keys); ++$i)
-        {
+
+        for ($i=0; $i<count($this->_keys); ++$i) {
             $last[$this->_keys[$i]] = $this->_values[$i];
         }
+
         $this->_lastInsert = $last;
 
         $this->clear();
@@ -1877,25 +2119,28 @@ Class Builder
     {
         global $preventSilentlyDiscardingAttributes;
 
-        if ($key=='_global_scopes' || $key=='_query' || $key=='timestamps')
+        if ($key=='_global_scopes' || $key=='_query' || $key=='timestamps') {
             return $this;
+        }
 
-        if (in_array($key, $this->_fillable) || $this->_fillableOff)
-        {
+        if (in_array($key, $this->_fillable) || $this->_fillableOff) {
             $this->set($key, $val);
         }
-        elseif (isset($this->_guarded) && !in_array($key, $this->_guarded))
-        {
+
+        elseif (isset($this->_guarded) && !in_array($key, $this->_guarded)) {
             $this->set($key, $val);
         }
-        else
-        {
+
+        else {
             if ($unset)
                 unset($record[$key]);
 
-            if ($preventSilentlyDiscardingAttributes)
-                throw new Exception("Add fillable property [$key] to allow mass assignment on [$this->_parent]");
-
+            if ($preventSilentlyDiscardingAttributes) {
+                throw new MassAssignmentException(sprintf(
+                    'Add [%s] to fillable property to allow mass assignment on [%s].',
+                    $key, $this->_parent
+                ));
+            }
         }
         
         return $this; 
@@ -1923,12 +2168,12 @@ Class Builder
             if (!isset($record[$this->_relationVars['foreign']]))
                $record[$this->_relationVars['foreign']] = $this->_relationVars['where_in'][0];
         }
-        
-        $this->checkObserver('creating', $record);
+
+        $this->_model->checkObserver('creating', $record);
 
         if ($this->_insert($record))
         {
-            $this->checkObserver('created', $record);
+            $this->_model->checkObserver('created', $record);
             $item = $this->insertNewItem();
             $item->_setRecentlyCreated(true);
             return $item;
@@ -1946,10 +2191,9 @@ Class Builder
      */
     public function createMany($records=array())
     {
-
         if (!isset($this->_relationVars['foreign']) || count($this->_relationVars['where_in'])==0)
         {
-            throw new Exception('Parent relation is missing');
+            throw RelationNotFoundException::make($this->_parent, $this->_relationVars['foreign']);
         }
 
         foreach($records as $record)
@@ -1969,11 +2213,11 @@ Class Builder
     public function save($model)
     {
         if(!($model instanceof Model)) {
-            throw new Exception('No model asigned');
+            throw new LogicException('No model asigned');
         }
 
         if(!isset($this->_relationVars['foreign'])) {
-            throw new Exception('Parent relation is missing');
+            throw RelationNotFoundException::make($this->_parent, $this->_relationVars['foreign']);
         }
 
         $res = Model::instance(get_class($model));
@@ -1996,13 +2240,13 @@ Class Builder
         $models = is_array($models)? $models : array($models);
 
         if(!isset($this->_relationVars['foreign'])) {
-            throw new Exception('Parent relation is missing');
+            throw RelationNotFoundException::make($this->_parent, $this->_relationVars['foreign']);
         }
 
         foreach ($models as $val)
         {
             if(!($models[0] instanceof Model)) {
-                throw new Exception('No model asigned');
+                throw new LogicException('No model asigned');
             }
 
             $res = Model::instance(get_class($val));
@@ -2035,24 +2279,24 @@ Class Builder
                 $val = is_object($attributes) ? $attributes->$primary : $attributes[$primary];
 
                 if (!isset($val))
-                    throw new Exception("Error in model's primary key");
+                    throw new LogicException("Error in model's primary key");
                     
                 $this->where($primary, $val);
             }
         }
 
-        $attributes = CastHelper::processCastsBack(
+        /* $attributes = CastHelper::processCastsBack(
             $attributes,
             $this->_model
-        );
+        ); */
 
         $values = array();
         $bindings = array();
         foreach ($attributes as $key => $val)
         {
-            if (!is_object($val) && !in_array($key, $this->_appends))
+            if (/* !is_object($val) && */ !in_array($key, $this->_appends))
             {
-                if (is_bool($val)) {
+                /* if (is_bool($val)) {
                     $val = $val==true? 1 : 0;
                 }
 
@@ -2076,24 +2320,36 @@ Class Builder
                 $values[$key] = "`$key` = ". ($val!==null ? '?' : 'NULL');
                 
                 if ($val!==null) 
+                    $bindings[] = $val; */
+
+                    
+                //$val = $this->_model->__getMutatorAttribute($key, $val);
+
+                $val = Helpers::ensureValueIsNotObject($val);
+
+                $values[$key] = "`$key` = ". ($val!==null ? '?' : 'NULL');
+                
+                if ($val!==null) {
                     $bindings[] = $val;
+                }
+
             }
         }
     
         if ($this->_where == '')
-            throw new Exception('WHERE not assigned.');
+            throw new LogicException('WHERE not assigned.');
 
         if (count($values)==0)
-           throw new Exception('No values assigned for update');
+           throw new LogicException('No values assigned for update');
 
         $sql = 'UPDATE `' . $this->table . '` SET ' . implode(', ', $values) . ' ' . $this->_where;
 
-        $this->checkObserver('updating', $attributes);
+        $this->_model->checkObserver('updating', $attributes);
 
-        $query = $this->connector()->query($sql, array_merge($bindings, $this->_bindings['where'])); //, $this->_where, $this->_bindings);
+        $query = $this->connector()->execSql($sql, array_merge($bindings, $this->_bindings['where'])); //, $this->_where, $this->_bindings);
 
         if ($query)
-            $this->checkObserver('updated', $attributes);
+            $this->_model->checkObserver('updated', $attributes);
 
         $this->clear();
         
@@ -2219,11 +2475,11 @@ Class Builder
     public function delete()
     {
         if ($this->_where == '')
-            throw new Exception('WHERE not assigned');
+            throw new LogicException('WHERE not assigned');
 
         $sql = 'DELETE FROM `' . $this->table . '` ' . $this->_where;
 
-        $query = $this->connector()->query($sql, $this->_bindings);
+        $query = $this->connector()->execSQL($sql, $this->_bindings);
 
         $this->clear();
         
@@ -2261,7 +2517,7 @@ Class Builder
     public function withTrashed()
     {
         if (!$this->_softDelete)
-            throw new Exception('Trying to use softDelete method on a non-softDelete Model');
+            throw new BadMethodCallException('Trying to use softDelete method on a non-softDelete Model');
 
         $this->_withTrashed = true;
         return $this;
@@ -2275,14 +2531,14 @@ Class Builder
     public function softDeletes($record)
     {
         if (!$this->_softDelete)
-            throw new Exception('Trying to use softDelete method on a non-softDelete Model');
+            throw new BadMethodCallException('Trying to use softDelete method on a non-softDelete Model');
         
         $date = date("Y-m-d H:i:s");
 
         foreach ($this->_primary as $primary)
         {
             if (!isset($record[$primary]))
-                throw new Exception("Error in model's primary key");
+                throw new LogicException("Error in model's primary key");
                 
             $this->where($primary, $record[$primary]);
         }
@@ -2291,7 +2547,7 @@ Class Builder
 
         $sql = 'UPDATE `' . $this->table . '` SET `'.$deleted_name.'` = ' . "'$date'" . ' ' . $this->_where;
 
-        $query = $this->connector()->query($sql);
+        $query = $this->connector()->execSQL($sql, array());
 
         $this->clear();
         
@@ -2306,14 +2562,14 @@ Class Builder
     public function restore($record=null)
     {
         if (!$this->_softDelete)
-            throw new Exception('Trying to use softDelete method on a non-softDelete Model');
+            throw new BadMethodCallException('Trying to use softDelete method on a non-softDelete Model');
 
         if (isset($record))
         {
             foreach ($this->_primary as $primary)
             {
                 if (!isset($record[$primary]))
-                    throw new Exception("Error in model's primary key");
+                    throw new LogicException("Error in model's primary key");
                     
                 $this->where($primary, $record[$primary]);
             }
@@ -2321,7 +2577,7 @@ Class Builder
 
         $sql = 'UPDATE `' . $this->table . '` SET `deleted_at` = NULL ' . $this->_where;
 
-        $query = $this->connector()->query($sql); //, $this->_where, $this->_bindings);
+        $query = $this->connector()->execSQL($sql, array()); //, $this->_where, $this->_bindings);
 
         $this->clear();
         
@@ -2338,14 +2594,14 @@ Class Builder
         foreach ($this->_primary as $primary)
         {
             if (!isset($record[$primary]))
-                throw new Exception("Error in model's primary key");
+                throw new LogicException("Error in model's primary key");
                 
             $this->where($primary, $record[$primary]);
         }
         
         $sql = 'DELETE FROM `' . $this->table . '` ' . $this->_where;
 
-        $query = $this->connector()->query($sql); //, $this->_bindings);
+        $query = $this->connector()->execSQL($sql, array()); //, $this->_bindings);
 
         $this->clear();
         
@@ -2362,7 +2618,7 @@ Class Builder
     {
         $sql = 'TRUNCATE TABLE `' . $this->table . '`';
 
-        $query = $this->connector()->query($sql);
+        $query = $this->connector()->execSQL($sql, array());
 
         $this->clear();
         
@@ -2380,12 +2636,12 @@ Class Builder
     {
         if (!($model instanceof Model))
         {
-            throw new Exception("Model not found");
+            throw new LogicException("Model not found");
         }
 
         if ($this->_relationVars['relationship'] != 'belongsTo')
         {
-            throw new Exception("Associate method only works for belongsTo relations");
+            throw new LogicException("Associate method only works for belongsTo relations");
         }
 
 
@@ -2409,7 +2665,7 @@ Class Builder
 
         if ($this->_relationVars['relationship'] != 'belongsTo')
         {
-            throw new Exception("Associate method only works for belongsTo relations");
+            throw new LogicException("Associate method only works for belongsTo relations");
         }
 
         $item = $this->_relationVars['collection'];
@@ -2436,13 +2692,14 @@ Class Builder
     {        
         $model = $this->first($columns);
 
-        if (!$model)
-            abort(404);
+        if (!$model) {
+            $ex = new ModelNotFoundException;
+            $ex->setModel($this->_parent);
+            throw $ex;
+        }
 
         return $model;
     }
-
-
 
     /**
      * Retrieves the first record matching the attributes, and fill it with values (if asssigned)\
@@ -2534,24 +2791,27 @@ Class Builder
             $this->where($this->_primary[0], $id);
         }
 
-        return is_array($id)? $this->get($columns) : $this->first($columns);
+        return is_array($id)? $this->get($columns) : $this->sole($columns);
     }
 
     public function findOrFail($val, $columns=null)
     {
-        $val = is_array($val)? $val : array($val);
+        $items = is_array($val)? $val : array($val);
 
-        $i = 0;
+        /* $i = 0;
         foreach ($this->_primary as $primary)
         {
             $this->where($primary, $val[$i]);
             ++$i;
+        } */
+
+        $res = $this->find($val, $columns);
+
+        if (is_array($val) && $res->count() != count($items)) {
+            $ex = new ModelNotFoundException;
+            $ex->setModel($this->_parent);
+            throw $ex;
         }
-
-        $res = $this->first($columns);
-
-        if (!$res)
-            abort(404);
     
         return $res;
     }
@@ -2566,8 +2826,7 @@ Class Builder
             $keys = is_array($this->_primary) ? $this->_primary : array($this->_primary);
 
             $this->clear();
-            foreach ($keys as $key)
-            {
+            foreach ($keys as $key) {
                 $this->where($key, $this->_lastInsert[$key]);
             }
 
@@ -2585,43 +2844,37 @@ Class Builder
         $class = $this->_parent;
         $item = new $class;
 
-        foreach ($data as $key => $val)
+        /* foreach ($data as $key => $val)
         {
             $item->$key = $val;
-        }
+        } */
+
+        $item->setAttributes($data);
 
         $item->_setOriginalRelations($this->_eagerLoad);
 
-        unset($item->_global_scopes);
+        $item->__setGlobalScopes();
         unset($item->timestamps);
 
-        $item->setAttributes(CastHelper::processCasts(
+        /* $item->setAttributes(CastHelper::processCasts(
             $item->getAttributes(),
             $this->_model,
             false
-        ));
+        )); */
 
-        foreach ($item->getAttributes() as $key => $val)
+        /* foreach ($item->getAttributes() as $key => $val)
         {
-            if ($this->_softDelete)
-            {
+            if ($this->_softDelete) {
                 $item->unsetAttribute('deleted_at');
             }
 
-            $camel = Helpers::snakeCaseToCamelCase($key);
+            $item->$key = $item->__getMutatorAttribute($key, $val);
+        } */
 
-            if (method_exists($this->_parent, 'get'.ucfirst($camel).'Attribute'))
-            {
-                $method = 'get'.ucfirst($camel).'Attribute';
-                $val = $item->$method($val);
-            }
-            if (method_exists($this->_parent, $camel.'Attribute'))
-            {
-                $method = $camel.'Attribute';
-                $itemvalues = $item->$method($val, (array)$item);
-                if (isset($itemvalues['get'])) $item->$key = $itemvalues['get'];
-            }
+        if ($this->_softDelete) {
+            $item->unsetAttribute('deleted_at');
         }
+
 
         $item->syncOriginal();
 
@@ -2634,9 +2887,9 @@ Class Builder
      * 
      * @return Collection
      */
-    public function all()
+    public function all($columns='*')
     {
-        return $this->get();
+        return $this->get($columns);
     }
 
     private function addGlobalScopes()
@@ -2644,7 +2897,7 @@ Class Builder
         if (method_exists($this->_model, 'booted')) 
             $this->_model->booted();
 
-        foreach($this->_model->_global_scopes as $scope => $callback)
+        foreach($this->_model->__getGlobalScopes() as $scope => $callback)
         {
             $this->_scopes[$scope] = $callback;
         }
@@ -2652,19 +2905,21 @@ Class Builder
 
     private function applyGlobalScopes()
     {
+        global $_class_list;
+        
         $this->addGlobalScopes();
 
         foreach($this->_scopes as $scope => $callback)
         {
-            if (class_exists($scope))
+            if (isset($_class_list[$scope]))
             {
                 $callback->apply($this, $this->_model);
             }
             else
             {
                 list($class, $method, $params) = getCallbackFromString($callback);
-                array_shift($params);
-                executeCallback($class, $method, array_merge(array($this), $params), $this);
+                $params[0] = $this;
+                executeCallback($class, $method, $params, $this);
             }
         }
     }
@@ -2730,12 +2985,12 @@ Class Builder
 
         $this->connector()->execSQL($sql, $this, true);
 
-        if ($this->_collection->count()==0)
-            return $this->_collection;
-
-        $this->processEagerLoad();
+        if ($this->_collection->count()>0) {
+            $this->processEagerLoad();
+        }
 
         $this->clear();
+        $this->_collection->rewind();
 
         return $this->_collection; //$this->insertData($this->_collection);
 
@@ -2747,24 +3002,33 @@ Class Builder
      * Send Pagination values to View class 
      * 
      * @param int $records
-     * @return Collection
+     * @return Paginator
      */
-    public function paginate($cant = 10)
+    public function paginate($cant=15, $columns=null, $pageName = 'page')
     {
         $filtros = $_GET;
 
-        $pagina = $filtros['p']>0? $filtros['p'] : 1;
+        $pagina = $filtros[$pageName]>0? $filtros[$pageName] : 1;
         $offset = ($pagina-1) * $cant; 
-
-        if ($this->_softDelete && !$this->_withTrashed)
-            $this->whereNull('deleted_at');
-
+        
         $this->_limit = null;
         $this->_offset = null;
 
+        if ($this->_softDelete && !$this->_withTrashed) {
+            $this->whereNull('deleted_at');
+        }
+
         $this->applyGlobalScopes();
+
+        if ($columns) {
+            $this->select($columns);
+        }
             
         $sql = $this->buildQuery() . " LIMIT $cant OFFSET $offset";
+
+        $this->_collection = new Paginator;
+
+        $this->_collection->setPageName($pageName);
 
         $this->connector()->execSQL($sql, $this, true);
 
@@ -2788,29 +3052,29 @@ Class Builder
         $pagina = (int)$pagina;
         $pages = (int)$pages;
 
-        $pagination = new Paginator;
-
-        $pagination->first = $pagina<=1? null : 'p=1';
-        $pagination->last = $pagina==$pages? null : 'p='.$pages;
-        $pagination->previous = $pagina<=1? null : 'p='.($pagina-1);
-        $pagination->next = $pagina==$pages? null : 'p='.($pagina+1);
+        $this->_collection->first = $pagina<=1? null : $pageName.'=1';
+        $this->_collection->last = $pagina==$pages? null : $pageName.'='.$pages;
+        $this->_collection->previous = $pagina<=1? null : $pageName.'='.($pagina-1);
+        $this->_collection->next = $pagina==$pages? null : $pageName.'='.($pagina+1);
 
         $meta = array();
         $meta['current'] = $pagina;
         $meta['from'] = $offset +1;
         $meta['last_page'] = $pages;
-        $meta['path'] = env('APP_URL') . '/' . request()->route->url;
+        $meta['path'] = config('app.url') . '/' . request()->route->url;
         $meta['per_page'] = $cant;
         $meta['to'] = $total < ($cant*$pagina)? $total : ($cant*$pagina);
         $meta['total'] = $total;
 
-        $pagination->meta = $meta;
+        $this->_collection->meta = $meta;
 
-        $this->_collection->setPaginator($pagination);
+        //$this->_collection->setPaginator($pagination);
         
         $this->processEagerLoad();
         
         $this->clear();
+        $this->_collection->rewind();
+
 
         return $this->_collection; //$this->insertData($this->_collection);
 
@@ -2839,21 +3103,37 @@ Class Builder
      *
      * @param  array|string  $columns
      */
-    public function sole($columns=null)
+    private function baseSole($columns=null)
     {
         $result = $this->take(2)->get($columns);
 
         $count = $result->count();
 
         if ($count === 0) {
-            throw new Exception('Record not found');
+            throw new RecordsNotFoundException;
         }
 
         if ($count > 1) {
-            throw new Exception('Multiple records found');
+            throw new MultipleRecordsFoundException($count);
         }
 
         return $result->first();
+    }
+
+    /**
+     * Execute the query and get the first result if it's the sole matching record.
+     *
+     * @param  array|string  $columns
+     */
+    public function sole($columns=null)
+    {
+        try {
+            return $this->baseSole($columns);
+        } catch (RecordsNotFoundException $exception) {
+            $ex = new ModelNotFoundException;
+            $ex->setModel($this->_parent);
+            throw $ex;
+        }
     }
 
     /**
@@ -2881,6 +3161,7 @@ Class Builder
 
         $this->_eagerLoad = $relations;
 
+        $this->_collection = new Collection();
         return $this->first();
     }
 
@@ -2897,7 +3178,7 @@ Class Builder
      */
     public function runQuery($sql)
     {
-        return $this->connector()->query($sql);
+        return $this->connector()->execSQL($sql, array());
     }
 
 
@@ -2920,6 +3201,16 @@ Class Builder
         {
             if (in_array($this->_relationVars['relationship'], array('belongsToMany', 'morphToMany', 'morphedByMany')))
                 $this->_relationVars['pivot_name'] = is_array($pivot_name) ? $pivot_name[0] : $pivot_name;
+        }
+        return $this;
+    }
+
+    public function using($model)
+    {
+        if ($this->_relationVars && isset($this->_relationVars['relationship']))
+        {
+            if (in_array($this->_relationVars['relationship'], array('belongsToMany', 'morphToMany', 'morphedByMany')))
+                $this->_relationVars['pivot_model'] = $model;
         }
         return $this;
     }
@@ -3050,6 +3341,10 @@ Class Builder
 
             $res = $this->_model->$key();
 
+            if (!$res) {
+                throw RelationNotFoundException::make($this->_parent, $key);
+            }
+
             $res->_toBase = $this->_toBase;
 
             Relations::insertRelation($q, $res, $key);
@@ -3079,7 +3374,7 @@ Class Builder
         return $this->_collection;
     }
 
-    public function _has($relation, $constraints=null, $comparator=null, $value=null)
+    public function _has($relation, $constraints=null, $comparator=null, $value=null, $boolean='AND')
     {
         $data = null;
         
@@ -3114,7 +3409,8 @@ Class Builder
                 $this->_bindings['where'] = array_merge($this->_bindings['where'], $data->_bindings['where']);
             }
                 
-            $filter = str_replace('WHERE', ' AND', $data->_where);
+            $filter = ' AND ('. ltrim($data->_where, 'WHERE') . ')';
+            //dump("FILTER: $filter");
         } 
         elseif (isset($constraints) && !is_array($constraints) && !is_closure($constraints))
         {
@@ -3143,14 +3439,14 @@ Class Builder
         {
             if ($data->_relationVars['relationship']=='morphedByMany')
             {
-                $ct = $data->_relationVars['classthrough'];
+                $ct = $data->_relationVars['tablethrough'];
                 $cp = $data->_relationVars['primary'];
                 $cf = $data->_relationVars['foreignthrough'];
                 $primary = $data->_relationVars['primarythrough'];
             }
             elseif ($data->_relationVars['relationship']=='morphToMany')
             {
-                $ct = $data->_relationVars['classthrough'];
+                $ct = $data->_relationVars['tablethrough'];
                 $cp = $data->_relationVars['foreignthrough'];
                 $cf = $data->_relationVars['foreign'];
                 $foreign = $data->_relationVars['primary'];
@@ -3158,7 +3454,7 @@ Class Builder
             }
             else
             {
-                $ct = $data->_relationVars['classthrough'];
+                $ct = $data->_relationVars['tablethrough'];
                 $cp = $data->_relationVars['foreignthrough'];
                 $cf = $data->_relationVars['primarythrough'];
             }
@@ -3177,10 +3473,11 @@ Class Builder
         if ($this->_where == '')
             $this->_where = 'WHERE ' . $where;
         else
-            $this->_where .= ' AND ' . $where;
+            $this->_where .= " $boolean " . $where;
 
         return $this;
     }
+
 
     /**
      * Filter current query based on relationships\
@@ -3188,20 +3485,16 @@ Class Builder
      * 
      * @return Builder
      */
-    public function has($relation, $comparator=null, $value=null)
+    public function has($relation, $operator = '>=', $count = 1, $boolean = 'AND', $callback = null)
     {
-        return $this->_has($relation, null, $comparator, $value);
+        return $this->_has($relation, $callback, $operator, $count, $boolean);
     }
 
 
     /**
-     * Filter current query based on relationships
+     * Add a basic where clause to a relationship query.
      * Check Laravel documentation
      * 
-     * @param string $relation
-     * @param string $colum
-     * @param string $comparator
-     * @param string|int $value
      * @return Builder
      */
     public function whereRelation($relation, $column, $comparator=null, $value=null)
@@ -3209,11 +3502,19 @@ Class Builder
         return $this->_has($relation, $column, $comparator, $value);
     }
 
+    /**
+     * Add an "or where" clause to a relationship query.
+     * Check Laravel documentation
+     * 
+     * @return Builder
+     */
+    public function orWhereRelation($relation, $column, $comparator=null, $value=null)
+    {
+        return $this->_has($relation, $column, $comparator, $value, 'OR');
+    }
 
     /**
-     * Filter current query based on relationships\
-     * Allows to specify additional filters\
-     * Filters can be nested\
+     * Add a relationship count / exists condition to the query with where clauses.
      * Check Laravel documentation
      * 
      * @param string $relation
@@ -3225,6 +3526,61 @@ Class Builder
     public function whereHas($relation, $filter=null, $comparator=null, $value=null)
     {
         return $this->_has($relation, $filter, $comparator, $value);
+    }
+
+    /**
+     * Add a relationship count / exists condition to the query with where clauses and an "or".
+     * Check Laravel documentation
+     * 
+     * @return Builder
+     */
+    public function orWhereHas($relation, $filter=null, $comparator=null, $value=null)
+    {
+        return $this->_has($relation, $filter, $comparator, $value, 'OR');
+    }
+
+    /**
+     * Add a relationship count / exists condition to the query with where clauses.
+     * Check Laravel documentation
+     *
+     * @return Builder
+     */
+    public function whereDoesntHave($relation, Closure $callback = null)
+    {
+        return $this->doesntHave($relation, 'and', $callback);
+    }
+
+    /**
+     * Add a relationship count / exists condition to the query with where clauses and an "or".
+     * Check Laravel documentation
+     *
+     * @return Builder
+     */
+    public function orWhereDoesntHave($relation, Closure $callback = null)
+    {
+        return $this->doesntHave($relation, 'or', $callback);
+    }
+
+    /**
+    * Add a relationship count / exists condition to the query.
+    * Check Laravel documentation
+    *
+    * @return Builder
+    */
+    public function doesntHave($relation, $boolean = 'AND', $callback = null)
+    {
+        return $this->has($relation, '<', 1, $boolean, $callback);
+    }
+
+    /**
+     * Add a relationship count / exists condition to the query with an "or".
+    * Check Laravel documentation
+     *
+     * @return Builder
+     */
+    public function orDoesntHave($relation)
+    {
+        return $this->doesntHave($relation, 'OR');
     }
 
     /**
@@ -3244,6 +3600,30 @@ Class Builder
         return $this->with(array($relation => $constraints))->_has($relation, $constraints);
     }
 
+
+    /**
+     * Convert the relationship to a "has one" relationship.
+     *
+     * @return Illuminate\Database\Eloquent\Relations\HasOne
+     */
+    public function one()
+    {
+        if (!isset($this->_relationVars['relationship'])) {
+            throw new LogicException("Relationship is missing.");
+        }
+
+        if ($this->_relationVars['relationship'] == 'hasMany') {
+            $this->_relationVars['relationship'] = 'hasOne';
+        }
+        elseif ($this->_relationVars['relationship'] == 'morphMany') {
+            $this->_relationVars['relationship'] = 'morphOne';
+        }
+        else {
+            throw new LogicException("Relationship [".$this->_relationVars['relationship']."] can't be converted.");
+        }
+
+        return $this;
+    }
 
     /**
      * Indicate that the relation is the latest single result of a larger one-to-many relationship.
@@ -3280,8 +3660,11 @@ Class Builder
      */
     public function ofMany($column = 'id', $aggregate = 'MAX', $relation = 'latestOfMany')
     {
-        $this->_relationVars['oneOfMany'] = true;
+        if (!isset($this->_relationVars['relationship'])) {
+            throw new LogicException("Relationship is missing.");
+        }
 
+        $this->_relationVars['oneOfMany'] = true;
 
         if (is_array($column))
         {
@@ -3555,7 +3938,7 @@ Class Builder
             {
                 $subquery .= ' ' . $data->implodeJoinClauses() . ' ' .
                     ($data->_where? $data->_where . ' AND `' : ' WHERE `') . 
-                    $data->_relationVars['classthrough'] . '`.`' . 
+                    $data->_relationVars['tablethrough'] . '`.`' . 
                     ($data->_relationVars['relationship']=='morphedByMany'? 
                     $data->_relationVars['primary'] : $data->_relationVars['foreignthrough']) . '` = `' .
                     $this->table . '`.`' . ($data->_relationVars['relationship']=='morphedByMany'? 
@@ -3613,13 +3996,15 @@ Class Builder
 
         foreach($relations as $relation)
         {
+            list($relation, $forced_name) = explode(' as ', $relation);
+
             $this->_model->_query = new Builder($this->_parent);
             $this->_model->getQuery()->varsOnly = true;
             $data = $this->_model->$relation();
 
-            $column_name = $relation.'_'.$function;
+            $column_name = $forced_name? $forced_name : $relation.'_'.$function;
 
-            if ($function!='count' && $function!='exists')
+            if ($function!='count' && $function!='exists' && !$forced_name)
                 $column_name .= '_'.$column;
 
             $select = "(SELECT $function($column)";
@@ -3654,7 +4039,7 @@ Class Builder
             $this->whereIn($parentkey, $this->_collection->pluck($this->_primary[0])->toArray());
 
             $records = $this->_clone();
-            $records = $records->connector()->execSQL($this->toSqlFirst(), $records, true);
+            $records = $records->connector()->execSQL($this->toSql(), $records, true);
 
             foreach ($records as $record)
             {
@@ -3663,6 +4048,8 @@ Class Builder
             }
 
             $this->_loadedRelations[] = 'count_'.$relation;
+
+            //$this->clear();
         }
         
         return $this;
@@ -3830,8 +4217,17 @@ Class Builder
                 return false;
             }
 
+            /* $pivot_model = isset($this->_relationVars['pivot_model'])
+                ? $this->_relationVars['pivot_model']
+                : null; */
+
             foreach ($extra as $key => $value)
             {
+                /* if ($pivot_model) {
+                    $model = new $pivot_model;
+                    $value = $model->__getMutatorAttribute($key, $value);
+                } */
+
                 $record[$key] = $value;
             }
 
@@ -3841,35 +4237,41 @@ Class Builder
     }
 
 
-    public function dettach($value, $extra=array())
+    public function detach($value=null, $extra=array())
     {
-        if (is_array($value))
-        {
-            foreach ($value as $val)
-                $this->dettach($val);
+        if (is_array($value)) {
+            foreach ($value as $val) {
+                $this->detach($val);
+            }
+            return true;
         }
-        else
+
+        if ($this->_relationVars['relationship']=='belongsToMany')
         {
-            if ($this->_relationVars['relationship']=='belongsToMany')
-            {
-                DB::table($this->_relationVars['classthrough'])
-                    ->where($this->_relationVars['foreignthrough'], $this->_relationVars['current'])
-                    ->where($this->_relationVars['primarythrough'], $value)
-                    ->delete();
+            $query = DB::table($this->_relationVars['classthrough'])
+                ->where($this->_relationVars['foreignthrough'], $this->_relationVars['current']);
+
+            if ($value) {
+               $query = $query->where($this->_relationVars['primarythrough'], $value);
             }
-            elseif ($this->_relationVars['relationship']=='morphToMany')
-            {
-                DB::table($this->_relationVars['classthrough'])
-                    ->where($this->_relationVars['foreignthrough'], $this->_relationVars['current_id'])
-                    ->where($this->_relationVars['relation_type'], $this->_relationVars['current_type'])
-                    ->where($this->_relationVars['foreign'], $value)
-                    ->delete();
-            }
-            else
-            {
-                return false;
-            }
+
+
+            return $query->delete();
         }
+        elseif ($this->_relationVars['relationship']=='morphToMany')
+        {
+            $query = DB::table($this->_relationVars['classthrough'])
+                ->where($this->_relationVars['foreignthrough'], $this->_relationVars['current_id'])
+                ->where($this->_relationVars['relation_type'], $this->_relationVars['current_type']);
+
+            if ($value) {
+               $query = $query->where($this->_relationVars['foreign'], $value);
+            }
+
+            return $query->delete();
+        }
+
+        return false;
     
     }
 
@@ -3956,7 +4358,8 @@ Class Builder
                 break;
 
             list($class, $method, $params) = getCallbackFromString($callback);
-            executeCallback($class, $method, array_merge(array($results), $params), $this);
+            $params[0] = $results;
+            executeCallback($class, $method, $params, $this);
 
             unset($results);
             unset($this->_collection);
@@ -4006,7 +4409,8 @@ Class Builder
             $lastId = $results->last()->$alias;
 
             list($class, $method, $params) = getCallbackFromString($callback);
-            executeCallback($class, $method, array_merge(array($results), $params), $this);
+            $params[0] = $results;
+            executeCallback($class, $method, $params, $this);
 
             unset($results);
             unset($this->_collection);
@@ -4039,5 +4443,12 @@ Class Builder
     {
         return self::$_macros;
     }
+
+
+    ### MACROS
+    ###(macros)
+
+    ### CLOSURES
+    ###(closures)
 
 }

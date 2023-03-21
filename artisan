@@ -17,44 +17,105 @@ require_once('vendor/baradur/Core.php');
 ini_set('display_errors', false);
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_WARNING & ~E_NOTICE);
 
+$default_commands = array(
+    'about' => "Display basic information about your application",
+    'down' => "Put the application into maintenance / demo mode",
+    'env' => "Display the current framework environment",
+    'migrate' => "Run the database migrations",
+    'up' => "Bring the application out of maintenance mode",
+    'cache:clear' => "Flush the application cache",
+    'config:cache' => "Create a cache file for faster configuration loading",
+    'config:clear' => "Remove the configuration cache file",
+    'db:seed' => "Seed the database with records",
+    'event:generate' => "Generate the missing events and listeners based on registration",
+    'event:list' => "List the application's events and listeners",
+    'key:generate' => "Set the application key",
+    'make:command' => "Create a new Artisan command",
+    'make:component' => "Create a new view component class",
+    'make:controller' => "Create a new controller class",
+    'make:event' => "Create a new event class",
+    'make:factory' => "Create a new model factory",
+    'make:listener' => "Create a new event listener class",
+    'make:mail' => "Create a new email class",
+    'make:middleware' => "Create a new middleware class",
+    'make:migration' => "Create a new migration file",
+    'make:model' => "Create a new Eloquent model class",
+    'make:observer' => "Create a new observer class",
+    'make:policy' => "Create a new policy class",
+    'make:request' => "Create a new form request class",
+    'make:resource' => "Create a new resource",
+    'make:rule' => "Create a new validation rule",
+    'make:seeder' => "Create a new seeder class",
+    'migrate:fresh' => "Drop all tables and re-run all migrations",
+    'migrate:reset' => "Rollback all database migrations",
+    'migrate:rollback' => "Rollback the last database migration",
+    'model:prune' => "Prune models that are no longer needed",
+    'model:show' => "Show information about an Eloquent model",
+    'optimize:clear' => "Remove the cached bootstrap files",
+    'pennant:feature' => "Create a new feature class",
+    'queue:work' => "Start processing jobs on the queue as a daemon",
+    'queue:stop' => "Terminates the running queue",
+    'route:cache' => "Create a route cache file for faster route registration",
+    'route:clear' => "Remove the route cache file",
+    'route:list' => "List all registered routes",
+    'storage:link' => "Create the symbolic links configured for the application",
+    'view:cache' => "Compile all of the application's Blade templates",
+    'view:clear' => "Clear all compiled view files"
+);
 
+
+
+function getStub($class)
+{
+    return file_get_contents(_DIR_.'/vendor/baradur/Artisan/Stubs/'.$class.'.stub');
+}
 
 function upper($text) { return strtoupper(str_replace('_', '', $text[0])); }
 
 function migrate()
 {
+    global $artisan, $_class_list;
+
     Schema::checkMainTable();
-    $applied = DB::table('migrations')->get()->pluck('migration')->toArray();
+
+    $applied = DB::table('migrations')->toBase()->get()->pluck('migration')->toArray();
 
     $count = 0;
 
     $files = array();
+
     $it = new RecursiveDirectoryIterator(_DIR_.'database/migrations');
-    foreach(new RecursiveIteratorIterator($it) as $file)
-    {
-        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
-        {
+
+    foreach(new RecursiveIteratorIterator($it) as $file) {
+
+        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP') {
             $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
-            if (is_file($file))
+            if (is_file($file)) {
                 $files[] = basename($file);
+            }
         }
     }
-    sort($files);
 
+    sort($files);
     
-    foreach($files as $file)
-    {
+    foreach($files as $file) {
+
         $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
         $short =  substr($name, 18);
-        $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
+        //$converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
+        $converted = Str::camel($short);
 
-        if (!in_array($name, $applied))
-        {
-            $startTime = microtime(true);
-            printf("\033[33mMigrating:\033[m " .$name."\n");
+        if (!in_array($name, $applied)) {
+                        
+            if ($artisan && $count==0) {
+                Artisan::info("Running migrations.");
+            }
 
-            if (!class_exists($converted))
-            {
+            if ($artisan) {
+                $startTime = microtime(true);
+            }
+            
+            if (!isset($_class_list[$converted])) {
                 CoreLoader::loadClass(_DIR_.'database/migrations/'.$file, false, $converted);
             }
 
@@ -63,20 +124,29 @@ function migrate()
 
             DB::statement('INSERT INTO migrations (migration) VALUES ("'. $name . '")');
 
-            $endTime = microtime(true);
-            $time =($endTime-$startTime)*1000;
-            printf("\033[32mMigrated: \033[m ".$name." (". round($time, 2) ."ms)\n");
+            if ($artisan) {
+                $endTime = microtime(true);
+                $time = ($endTime-$startTime)*1000;
+                $time = round($time, 2) ."ms";
+                
+                Artisan::lineInfo($name, 'DONE', $time);
+                //printf("\033[32mMigrated: \033[m ".$name." (". round($time, 2) ."ms)\n");
+            }
 
             ++$count;
         }
     }
 
-    if ($count == 0)
-        printf("Nothing to migrate\n");
+    if ($count > 0 && $artisan) printf("\n");
+
+    return $count>0;
 }
 
 function rollback($rollback, $output = true)
 {
+    global $_class_list;
+
+    Artisan::info("Rolling back migrations.");
 
     $it = new RecursiveDirectoryIterator(_DIR_.'database/migrations');
     foreach(new RecursiveIteratorIterator($it) as $file)
@@ -91,29 +161,35 @@ function rollback($rollback, $output = true)
                 $startTime = microtime(true);
                 $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
 
-                if ($output) printf("\033[33mRolling back:\033[m ".$short."\n");
-    
+                /* if ($output) {
+                    printf("\033[33mRolling back:\033[m ".$short."\n");
+                } */
 
-                if (!class_exists($converted))
+                if (!isset($_class_list[$converted]))
                 {
                     CoreLoader::loadClass($file, false, $converted);
                 }
-
 
                 $class = new $converted;
                 $class->down();
 
                 DB::table('migrations')->where('migration', $name)->delete();
 
-                $endTime = microtime(true);
-                $time =($endTime-$startTime)*1000;
-                printf("\033[32mRolled back: \033[m ".$short." (". round($time, 2) ."ms)\n");
+                if ($output) {
+                    $endTime = microtime(true);
+                    $time =($endTime-$startTime)*1000;
+                    $time = round($time, 2) ."ms";
+    
+                    Artisan::lineInfo($name, 'DONE', $time);
+                    printf("\n");
+                    //printf("\033[32mRolled back: \033[m ".$short." (". round($time, 2) ."ms)\n");
+                }
             }
         }
     }
 }
 
-function seed($seeder)
+function seed($seeder=null)
 {
     $dbseeder = new DatabaseSeeder;
 
@@ -123,70 +199,89 @@ function seed($seeder)
         $dbseeder->run();
     }
 
-    printf("\033[32mDatabase seeding completed successfully.\033[m\n");
+    Artisan::info("Database seeding completed successfully.");
 }
 
 function makeController($controller, $resource=false, $api=false, $singleton=false)
 {
-    /* $config = new Config;
-    $config->boot(); */
-    CoreLoader::loadClass(_DIR_.'app/providers/RouteServiceProvider.php', true);
-
-    $class = '';
-
-    //if ($api==false)
-        $class = "<?php\n\nclass ".$controller." extends Controller\n";
-    //else
-    //    $class = "<?php\n\nclass ".$controller." extends ApiController\n";
-
-    $class .= "{\n\n";
+    $class = null;
     
-    if ($resource)
-    {
-        $class .= "\tpublic function index()\n\t{\n\t\t//\n\t}\n\n";
-        if ($api==false)
-        {
-            $class .= "\tpublic function create()\n\t{\n\t\t//\n\t}\n\n";
-        }
-        $class .= "\tpublic function store(".'$request'.")\n\t{\n\t\t//\n\t}\n\n";
-        $class .= "\tpublic function show(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
-        if ($api==false)
-        {
-            $class .= "\tpublic function edit(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
-        }
-        $class .= "\tpublic function update(".'$request, $id'.")\n\t{\n\t\t//\n\t}\n\n";
-        $class .= "\tpublic function destroy(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";        
+    if ($resource) {
+        $class = getStub('controller.resource');
+    } elseif ($api) {
+        $class = getStub('controller.api');
+    } elseif ($singleton) {
+        $class = getStub('controller.singleton');
+    } else {
+        $class = getStub('controller.plain');
     }
 
-    if ($singleton)
-    {
-        $class .= "\tpublic function show(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
-        $class .= "\tpublic function edit(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";
-        $class .= "\tpublic function update(".'$request, $id'.")\n\t{\n\t\t//\n\t}\n\n";
-        $class .= "\tpublic function destroy(".'$id'.")\n\t{\n\t\t//\n\t}\n\n";        
-    }
-        
-    $class .= "\n}";
+    $class = str_replace('{{ class }}', $controller, $class);
+
     file_put_contents('app/http/controllers/'.$controller.'.php', $class);
-    printf("\033[32mController created successfully.\033[m\n");
+    
+    Artisan::info("Controller [$controller] created successfully.");
 
 }
 
 function makeModel($model)
 {
-    $class = "<?php\n\nclass ".$model." extends Model\n{\n\n\n}";
+    $class = getStub('model');
+
+    $class = str_replace('{{ class }}', $model, $class);
+
     file_put_contents('app/models/'.$model.'.php', $class);
     
-    printf("\033[32mModel created successfully.\033[m\n");
+    Artisan::info("Model [$model] created successfully.");
 
 }
 
 function makePolicy($policy)
 {
-    $class = "<?php\n\nclass ".$policy."\n{\n\n\n}";
+    $class = getStub('policy');
+
+    $class = str_replace('{{ class }}', $policy, $class);
+
     file_put_contents('app/policies/'.$policy.'.php', $class);
     
-    printf("\033[32mPolicy created successfully.\033[m\n");
+    Artisan::info("Policy [$policy] created successfully.");
+}
+
+function makeCommand($command)
+{
+    if (!file_exists('app/console')) {
+        mkdir('app/console');
+    }
+
+    if (!file_exists('app/console/commands')) {
+        mkdir('app/console/commands');
+    }
+
+    $class = getStub('console');
+
+    $run = Str::snake($command, ':');
+
+    $class = str_replace('{{ class }}', $command, $class);
+    $class = str_replace('dummy:command', $run, $class);
+    
+    file_put_contents('app/console/commands/'.$command.'.php', $class);
+    
+    Artisan::info("Artisan command [$command] created successfully.");
+}
+
+function makeFeature($feature)
+{
+    if (!file_exists('app/features')) {
+        mkdir('app/features');
+    }
+
+    $class = getStub('feature');
+
+    $class = str_replace('{{ class }}', $feature, $class);
+    
+    file_put_contents('app/features/'.$feature.'.php', $class);
+    
+    Artisan::info("Feature [$feature] created successfully.");
 }
 
 function makeMigration($command)
@@ -198,42 +293,38 @@ function makeMigration($command)
     list($table, $create) = TableGuesser::guess($command);
     $converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $command);
 
-    if ($create)
-    {
-        $class = "<?php\n\nclass ".$converted." extends Migration\n".
-            "{\n\tpublic function up()\n\t{\n\t\t".'$table = new Table'.";\n\n\t\t".
-            "Schema::create('".$table."',\n\t\t\t".'$table->id()'."\n\t\t);\n\n\t}".
-            "\n\n\tpublic function down()\n\t{\n\t\tSchema::dropIfExists('".$table."');\n\t}\n}";
+    if ($create) {
+        $class = getStub('migration');
+    } else {
+        $class = getStub('migration.edit');
     }
-    else
-    {
-        $class = "<?php\n\nclass ".$converted." extends Migration\n".
-        "{\n\tpublic function up()\n\t{\n\t\t".'$table = new Table'.";\n\n\t\t".
-        "Schema::table('".$table."',\n\t\t\t".'//$table->string(?)'."\n\t\t);\n\n\t}".
-        "\n\n\tpublic function down()\n\t{\n\t\t".'$table = new Table'.";\n\n\t\t".
-        "Schema::table('".$table."',\n\t\t\t".'$table->dropColumn('."'')\n\t\t);\n\n\t}\n\n}";
-    }
+
+    if (!$table) $table = 'table';
+
+    $class = str_replace('{{ class }}', $converted, $class);
+    $class = str_replace('{{ table }}', $table, $class);
 
     $timestamp = date("Y_m_d_His");
 
     file_put_contents('database/migrations/'.$timestamp.'_'.$command.'.php', $class);
 
-    printf("\033[32mMigration created successfully.\033[m\n");
+    Artisan::info("Migration created successfully.");
 
 }
 
 function resetAll()
 {
-    $applied = DB::table('migrations')->get()->pluck('migration')->toArray();
+    $applied = DB::table('migrations')->toBase()->get()->pluck('migration')->toArray();
 
     $applied = array_reverse($applied);
 
+    Artisan::info("Dropping all tables.");
+
     foreach ($applied as $rollback)
     {
-        rollback($rollback, false);
+        rollback($rollback, true);
     }
 
-    printf("\033[32mDropped all tables successfully\033[m\n");
 }
 
 function sortRoutesByUri($a, $b) { return strcmp($a->url, $b->url); }
@@ -261,52 +352,78 @@ function ce($show) { if ($show) printf("\033[m"); }
 
 function showMenu($ex = true)
 {
-    if ($ex) printf("Baradur Framework\033[32m 1.0\033[m\n\n");
+    global $default_commands;
+
+    $kernel = ConsoleKernel::getKernel();
+    $kernel->loadCommands();
+
+    foreach ($kernel->getCommands() as $command)
+    {
+        $class = new $command;
+        $default_commands[$class->signature()] =  $class->description();
+    }
+
+    $artisan_commands = array();
+
+    foreach ($default_commands as $key => $value) {
+        list($header, $command) = explode(':', $key);
+
+        if (strpos($key, ':')===false) {
+            $header = 'root';
+            $command = $key;
+        } else {
+            $arr = explode(':', $key);
+            $header = $arr[0];
+            $command = $arr[1];
+        }
+
+        $artisan_commands[$header][$command] = $value;
+    }
+
+    printCommands($ex, $artisan_commands);
+
+}
+
+function printCommands($ex, $commands)
+{
+    if ($ex) printf("Baradur Framework\033[32m ".BARADUR_VERSION."\033[m\n\n");
     if ($ex) printf("\033[33mUsage:\033[m\n");
     if ($ex) printf("  command [options] [arguments]\n\n");
 
     if ($ex) printf("\033[33mAvailable commands:\033[m\n");
-    cs($ex); printf("migrate                     "); ce($ex); printf("Run the database migrations\n");
-    if ($ex) printf("\033[33m cache\033[m\n");
-    cs($ex); printf("cache:clear                 "); ce($ex); printf("Flush the application cache\n");
-    if ($ex) printf("\033[33m config\033[m\n");
-    cs($ex); printf("config:cache                "); ce($ex); printf("Create a cache file for faster configuration loading\n");
-    cs($ex); printf("config:clear                "); ce($ex); printf("Remove the configuration cache file\n");
-    if ($ex) printf("\033[33m db\033[m\n");
-    cs($ex); printf("db:seed                     "); ce($ex); printf("Seed the database with records\n");
-    if ($ex) printf("\033[33m make\033[m\n");
-    cs($ex); printf("make:component              "); ce($ex); printf("Create a new view component class\n");
-    cs($ex); printf("make:controller             "); ce($ex); printf("Create a new controller class\n");
-    cs($ex); printf("make:factory                "); ce($ex); printf("Create a new model factory\n");
-    cs($ex); printf("make:middleware             "); ce($ex); printf("Create a new middleware class\n");
-    cs($ex); printf("make:migration              "); ce($ex); printf("Create a new migration file\n");
-    cs($ex); printf("make:mail                   "); ce($ex); printf("Create a new email class\n");
-    cs($ex); printf("make:model                  "); ce($ex); printf("Create a new Eloquent model class\n");
-    cs($ex); printf("make:observer               "); ce($ex); printf("Create a new observer class\n");
-    cs($ex); printf("make:policy                 "); ce($ex); printf("Create a new policy class\n");
-    cs($ex); printf("make:request                "); ce($ex); printf("Create a new form request class\n");
-    cs($ex); printf("make:resource               "); ce($ex); printf("Create a new resource\n");
-    cs($ex); printf("make:seeder                 "); ce($ex); printf("Create a new seeder class\n");
-    if ($ex) printf("\033[33m migrate\033[m\n");
-    cs($ex); printf("migrate:fresh               "); ce($ex); printf("Drop all tables and re-run all migrations\n");
-    cs($ex); printf("migrate:reset               "); ce($ex); printf("Rollback all database migrations\n");
-    cs($ex); printf("migrate:rollback            "); ce($ex); printf("Rollback the last database migration\n");
-    if ($ex) printf("\033[33m model\033[m\n");
-    cs($ex); printf("model:prune                 "); ce($ex); printf("Prune models that are no longer needed\n");
-    if ($ex) printf("\033[33m optimize\033[m\n");
-    cs($ex); printf("optimize:clear              "); ce($ex); printf("Remove the cached bootstrap files\n");
-    if ($ex) printf("\033[33m queue\033[m\n");
-    cs($ex); printf("queue:work                  "); ce($ex); printf("Start processing jobs on the queue as a daemon\n");
-    cs($ex); printf("queue:stop                  "); ce($ex); printf("Terminates the running queue\n");
-    if ($ex) printf("\033[33m route\033[m\n");
-    cs($ex); printf("route:cache                 "); ce($ex); printf("Create a route cache file for faster route registration\n");
-    cs($ex); printf("route:clear                 "); ce($ex); printf("Remove the route cache file\n");
-    cs($ex); printf("route:list                  "); ce($ex); printf("List all registered routes\n");
-    if ($ex) printf("\033[33m storage\033[m\n");
-    cs($ex); printf("storage:link                "); ce($ex); printf("Create the symbolic links configured for the application\n");
-    if ($ex) printf("\033[33m view\033[m\n");
-    cs($ex); printf("view:cache                  "); ce($ex); printf("Compile all of the application's Blade templates\n");
-    cs($ex); printf("view:clear                  "); ce($ex); printf("Clear all compiled view files\n");
+
+    //$commands = Arr::sort($commands);
+
+    foreach ($commands['root'] as $key => $value) {
+
+        $signature = $key;
+        $signature = str_pad($signature, 28, ' ');
+
+        cs($ex); printf($signature); ce($ex); printf($value."\n");
+    }
+
+    unset($commands['root']);
+
+    ksort($commands);
+
+    foreach ($commands as $header => $values) {
+
+        if ($header != 'root') {
+            if ($ex) printf("\033[33m $header\033[m\n");
+        }
+
+        ksort($values);
+
+        foreach ($values as $key => $value) {
+            $signature = $header!='root' ? $header.':' : '';
+            $signature .= $key;
+            $signature = str_pad($signature, 28, ' ');
+
+            cs($ex); printf($signature); ce($ex); printf($value."\n");
+        }
+
+    }
+
     printf("\n");
 }
 
@@ -332,37 +449,48 @@ if ($action == '--raw')
     showMenu(false);
 }
 
-if ($action == 'make:migration' && count($argv)>0)
+if ($action == 'make:migration')
 {
-    makeMigration($argv[0]);
+    if (count($argv)==0) {
+        $migration = Artisan::input("What should the migration be named?");
+    } else {
+        $migration = $argv[0];
+    }
+
+    makeMigration($migration);
 }
 
 elseif ($action == 'migrate')
 {
-    migrate();
+    if (migrate()==0) {
+        Artisan::info("Nothing to migrate.");
+    }
 }
 
 elseif ($action == 'migrate:rollback')
 {
-    $last = DB::table('migrations')->get()->pluck('migration')->last();
+    $last = DB::table('migrations')->toBase()->get()->pluck('migration')->last();
 
-    if ($last)
-    {
+    if ($last) {
         rollback($last);
-    }
-    else
-    {
-        printf("Nothing to rollback\n");
+    } else {
+        Artisan::info("Nothing to rollback.");
     }
 }
 
-elseif ($action == 'make:controller' && count($argv)>0)
+elseif ($action == 'make:controller')
 {
     $controller = null;
     $model = null;
     $resource = false;
     $singleton = false;
     $api = false;
+
+    if (count($argv)==0) {
+        $controller = Artisan::input("What should the controller be named?");
+    } else {
+        $controller = $argv[0];
+    }
 
     foreach ($argv as $arg)
     {
@@ -380,13 +508,12 @@ elseif ($action == 'make:controller' && count($argv)>0)
             $api = true;
             $resource = true;
         }
-
-        elseif (strrpos($arg, '-')==false)
-            $controller = $arg;
     }
 
-    if (file_exists('app/http/controllers/'.$controller.'.php'))
-        die ("Error: controller ".$controller." already exists\n");
+    if (file_exists('app/http/controllers/'.$controller.'.php')) {
+        Artisan::error("Controller [$controller] already exists.");
+        die();
+    }
 
     makeController($controller, $resource, $api, $singleton);
 
@@ -396,22 +523,32 @@ elseif ($action == 'make:controller' && count($argv)>0)
     }
 }
 
-elseif ($action == 'make:policy' && count($argv)>0)
+elseif ($action == 'make:policy')
 {
-    $policy = $argv[0];
+    if (count($argv)==0) {
+        $polocy = Artisan::input("What should the polocy be named?");
+    } else {
+        $polocy = $argv[0];
+    }
     
-    if (file_exists('app/policies/'.$policy.'.php'))
-        die ("Error: policy ".$policy." already exists\n");
+    if (file_exists('app/policies/'.$policy.'.php')) {
+        Artisan::error("Policy [$policy] already exists.");
+        die();
+    }
 
     makePolicy($policy);
 }
 
-elseif ($action == 'make:model' && count($argv)>0)
+elseif ($action == 'make:model')
 {
     $model = null;
     $controller = false;
     $resource = false;
     $migration = false;
+
+    if (count($argv)==0) {
+        $model = Artisan::input("What should the model be named?");
+    }    
 
     foreach ($argv as $arg)
     {
@@ -431,8 +568,10 @@ elseif ($action == 'make:model' && count($argv)>0)
         else $model = ucfirst($arg);
     }
 
-    if (file_exists('app/models/'.$model.'.php'))
-        die ("Error: model ".$model." already exists\n");
+    if (file_exists('app/models/'.$model.'.php')) {
+        Artisan::error("Model [$model] already exists.");
+        die();
+    }
         
     makeModel(ucfirst($model));
 
@@ -454,115 +593,149 @@ elseif ($action == 'make:model' && count($argv)>0)
     }
 }
 
-elseif ($action == 'make:mail' && count($argv)>0)
+elseif ($action == 'make:mail')
 {
-    $mail = $argv[0];
+    if (count($argv)==0) {
+        $mail = Artisan::input("What should the mail be named?");
+    } else {
+        $mail = $argv[0];
+    }
 
     if (!file_exists('app/mail'))
         mkdir('app/mail');
 
-    if (file_exists('app/mail/'.$mail.'.php'))
-        die ("Error: there's already a mail class called ".$mail."\n");
-
+    if (file_exists('app/mail/'.$mail.'.php')) {
+        Artisan::error("Mail [$mail] already exists.");
+        die();
+    }
     
-    $class = "<?php\n\nclass ".$mail." extends Mailable\n".
-        "{\n\tpublic function build()\n\t{\n\t\t".
-        '$this->view('."'mail.view');\n\t}\n\n}";
+    $class = getStub('mail');
+
+    $class = str_replace('{{ class }}', $mail, $class);
 
     file_put_contents('app/mail/'.$mail.'.php', $class);
 
-    printf("\033[32mMail created successfully.\033[m\n");
+    Artisan::info("Mail [$mail] created successfully.");
 
 }
 
-elseif ($action == 'make:seeder' && count($argv)>0)
+elseif ($action == 'make:seeder')
 {
-    $seeder = $argv[0];
+    if (count($argv)==0) {
+        $seeder = Artisan::input("What should the seeder be named?");
+    } else {
+        $seeder = $argv[0];
+    }
 
-    if (file_exists('database/seeders/'.$seeder.'.php'))
-        die ("Error: there's already a seeder called ".$seeder."\n");
+    if (file_exists('database/seeders/'.$seeder.'.php')) {
+        Artisan::error("Seeder [$seeder] already exists.");
+        die();
+    }
 
-    
-    $class = "<?php\n\nclass ".$seeder." extends Seeder\n".
-        "{\n\tpublic function run()\n\t{\n\t\t//\n\t}\n\n}";
+    $class = getStub('seeder');
+
+    $class = str_replace('{{ class }}', $seeder, $class);
 
     file_put_contents('database/seeders/'.$seeder.'.php', $class);
 
-    printf("\033[32mSeeder created successfully.\033[m\n");
+    Artisan::info("Seeder [$seeder] created successfully.");
 
 }
 
-elseif ($action == 'make:factory' && count($argv)>0)
+elseif ($action == 'make:factory')
 {
     $factory = null;
-    $model = null;
+
+    if (count($argv)==0) {
+        $factory = Artisan::input("What should the factory be named?");
+    } else {
+        $factory = $argv[0];
+    }
+
+    $model = 'Model';
 
     foreach ($argv as $arg)
     {
         if (strpos($arg, '-model=')==1)
             $model = str_replace('--model=', '', $arg);
-
-        elseif (strrpos($arg, '-')==false)
-            $factory = $arg;
     }
 
-    if (file_exists('database/factories/'.$factory.'.php'))
-        die ("Error: factory ".$factory." already exists\n");
+    if (file_exists('database/factories/'.$factory.'.php')) {
+        Artisan::error("Factory [$factory] already exists.");
+        die();
+    }
 
 
     if (!isset($model)) $model = 'Model';
     
-    $class = "<?php\n\nclass ".$factory." extends Factory\n".
-        "{\n\tprotected ".'$model = '.$model."::class;\n\n\t".
-        "public function definition()\n\t{\n\t\treturn array(".
-        "\n\t\t\t//\n\t\t);\n\t}\n\n}";
+    $class = getStub('factory');
+
+    $class = str_replace('{{ class }}', $factory, $class);
+    $class = str_replace('{{ model }}', $model, $class);
 
     file_put_contents('database/factories/'.$factory.'.php', $class);
 
-    printf("\033[32mFactory created successfully.\033[m\n");
+    Artisan::info("Factory [$factory] created successfully.");
 
 }
 
-elseif ($action == 'make:middleware' && count($argv)>0)
+elseif ($action == 'make:middleware')
 {
-    $middleware = $argv[0];
+    if (count($argv)==0) {
+        $middleware = Artisan::input("What should the middleware be named?");
+    } else {
+        $middleware = $argv[0];
+    }
 
-    if (file_exists('app/http/middleware/'.$middleware.'.php'))
-        die ("Error: middleware ".$middleware." already exists\n");
+    if (file_exists('app/http/middleware/'.$middleware.'.php')) {
+        Artisan::error("Middleware [$middleware] already exists.");
+        die();
+    }
 
-    $class = "<?php\n\nclass ".$middleware." extends Middleware\n".
-        "{\n\tpublic function handle(".'$request, $next'.")\n\t".
-        "{\n\t\t//\n\n\t\treturn ".'$next($request);'."\n\t}\n\n}";
+    $class = getStub('middleware');
+
+    $class = str_replace('{{ class }}', $middleware, $class);
 
     file_put_contents('app/http/middleware/'.$middleware.'.php', $class);
 
-    printf("\033[32mMiddleware created successfully.\033[m\n");
+    Artisan::info("Middleware [$middleware] created successfully.");
 
 }
 
-elseif ($action == 'make:request' && count($argv)>0)
+elseif ($action == 'make:request')
 {
-    $request = $argv[0];
+    if (count($argv)==0) {
+        $request = Artisan::input("What should the request be named?");
+    } else {
+        $request = $argv[0];
+    }
 
     if (!file_exists('app/http/requests'))
         mkdir('app/http/requests');
 
-    if (file_exists('app/http/requests/'.$request.'.php'))
-        die ("Error: request ".$request." already exists\n");
+    if (file_exists('app/http/requests/'.$request.'.php')) {
+        Artisan::error("Request [$request] already exists.");
+        die();
+    }
 
-    $class = "<?php\n\nclass ".$request." extends FormRequest\n".
-        "{\n\tpublic function authorize()\n\t{\n\t\treturn true;\n\t}\n\n".
-        "\n\tpublic function roles()\n\t{\n\t\treturn array(\n\t\t\t//\n\t\t);\n\t}\n\n}";
+    $class = getStub('request');
+
+    $class = str_replace('{{ class }}', $request, $class);
 
     file_put_contents('app/http/requests/'.$request.'.php', $class);
 
-    printf("\033[32mRequest created successfully.\033[m\n");
+    Artisan::info("Request created successfully.");
 
 }
 
-elseif ($action == 'make:component' && count($argv)>0)
+elseif ($action == 'make:component')
 {
-    $component = $argv[0];
+    if (count($argv)==0) {
+        $component = Artisan::input("What should the component be named?");
+    } else {
+        $component = $argv[0];
+    }
+
     $kebab = Helpers::camelCaseToKebabCase($component, false);
 
     if (!file_exists('app/view'))
@@ -570,13 +743,14 @@ elseif ($action == 'make:component' && count($argv)>0)
     if (!file_exists('app/view/components'))
         mkdir('app/view/components');
 
-    if (file_exists('app/view/components/'.$component.'Component.php'))
-        die ("Error: component ".$component." already exists\n");
+    if (file_exists('app/view/components/'.$component.'Component.php')) {
+        Artisan::error("Component [$component] already exists.");
+        die();
+    }
 
-    $class = "<?php\n\nclass ".$component." extends Component\n".
-            "{\n\tpublic function __construct()\n\t{\n\t\t//\n\t}".
-            "\n\n\tpublic function render()\n\t{\n\t\t".
-            "return view('components.".$kebab."');\n\t}\n}";
+    $class = getStub('component');
+
+    $class = str_replace('{{ class }}', $component, $class);
 
     file_put_contents('app/view/components/'.$component.'Component.php', $class);
 
@@ -589,85 +763,125 @@ elseif ($action == 'make:component' && count($argv)>0)
     $class = "<div>\n\t<!-- Well begun is half done. - Aristotle -->\n</div>";
     file_put_contents('resources/views/components/'.$kebab.'.blade.php', $class);
 
-    printf("\033[32mComponent created successfully.\033[m\n");
+    Artisan::info("Component created successfully.");
 
 }
 
-elseif ($action == 'make:observer' && count($argv)>1)
+elseif ($action == 'make:observer')
 {
-    $observer = $argv[0];
-    $model = null;
+    if (count($argv)==0) {
+        $observer = Artisan::input("What should the observer be named?");
+    } else {
+        $observer = $argv[0];
+    }
+    
+    $model = 'Model';
 
     foreach ($argv as $arg)
     {
         if (strpos($arg, '-model=')==1)
             $model = str_replace('--model=', '', $arg);
-
-        elseif (strrpos($arg, '-')==false)
-            $observer = $arg;
     }
 
     if (!file_exists('app/observers'))
         mkdir('app/observers');
 
-    if (file_exists('app/observers/'.$observer.'.php'))
-        die ("Error: observer ".$observer." already exists\n");
+    if (file_exists('app/observers/'.$observer.'.php')) {
+        Artisan::error("Observer [$observer] already exists.");
+        die();
+    }
 
-    $class = "<?php\n\nclass ".$observer."\n{\n".
-            "\tpublic function creating(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
-            "\tpublic function created(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
-            "\tpublic function updating(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
-            "\tpublic function updated(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
-            "\tpublic function deleting(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n".
-            "\tpublic function deleted(".$model." $".strtolower($model).")\n\t{\n\t\t//\n\t}\n\n}";
+    $class = getStub('observer');
+
+    $class = str_replace('{{ class }}', $observer, $class);
 
     file_put_contents('app/observers/'.$observer.'.php', $class);
 
-    printf("\033[32mObserver created successfully.\033[m\n");
+    Artisan::info("Observer [$observer] created successfully.");
 
 }
 
-elseif ($action == 'make:resource' && count($argv)>0)
+elseif ($action == 'make:resource')
 {
-    $resource = $argv[0];
-    $collection = false;
+    if (count($argv)==0) {
+        $resource = Artisan::input("What should the resource be named?");
+    } else {
+        $resource = $argv[0];
+    }
 
-    //print("MAKE:$resource\n");
+    $collection = false;
 
     foreach ($argv as $arg)
     {
-        if ($arg=='--collection' || strpos($resource, 'Collection')>0)
+        if ($arg=='--collection' || strpos($resource, 'Collection')>0) {
             $collection = true;
-
+        }
     }
 
-    if (!file_exists('app/resources'))
+    if (!file_exists('app/resources')) {
         mkdir('app/resources');
+    }
 
-    if (file_exists('app/resources/'.$resource.'.php'))
-        die ("Error: resource ".$resource." already exists\n");
+    if (file_exists('app/resources/'.$resource.'.php')) {
+        Artisan::error("Resource [$resource] already exists.");
+        die();
+    }
 
     $class = null;
 
     if ($collection)
     {
         $resource = str_replace('Collection', '', $resource).'Collection';
-        $class = "<?php\n\nclass ".$resource." extends ResourceCollection\n".
-                "{\n\tpublic function toArray(".'$request'.")\n\t{\n".
-                "\t\treturn parent::toArray(".'$request'.");\n\t}\n\n}";
+        $class = getStub('resource.collection');    
     }
     else
     {
         $resource = str_replace('Resource', '', $resource).'Resource';
-        $class = "<?php\n\nclass ".$resource." extends JsonResource\n".
-                "{\n\tpublic function toArray(".'$request'.")\n\t{\n".
-                "\t\treturn parent::toArray(".'$request'.");\n\t}\n\n}";
+        $class = getStub('resource');    
     }
+
+    $class = str_replace('{{ class }}', $resource, $class);
 
     file_put_contents('app/resources/'.$resource.'.php', $class);
 
-    printf("\033[32mResource created successfully.\033[m\n");
+    Artisan::info("Resource created successfully.");
 
+}
+
+elseif ($action == 'make:rule')
+{
+    if (count($argv)==0) {
+        $rule = Artisan::input("What should the validation rule be named?");
+    } else {
+        $rule = $argv[0];
+    }
+
+    if (!file_exists('app/rules')) {
+        mkdir('app/rules');
+    }
+
+    if (file_exists('app/rules/'.$rule.'.php')) {
+        Artisan::error("Validation rule [$rule] already exists.");
+        die();
+    }
+
+    $class = getStub('validation.rule');    
+
+    $class = str_replace('{{ class }}', $rule, $class);
+
+    file_put_contents('app/rules/'.$rule.'.php', $class);
+
+    Artisan::info("Validation rule created successfully.");
+
+}
+
+elseif ($action == 'key:generate')
+{
+    if (Artisan::KeyGenerate()) {
+        Artisan::info("Application key set successfully.");
+    } else {
+        Artisan::error("Cannot create application key.");
+    }
 }
 
 elseif ($action == 'db:seed')
@@ -688,11 +902,13 @@ elseif ($action == 'db:seed')
     }
 
     if ($seeder && !isset($_class_list[$seeder])) {
-        die ("Error: $seeder not found\n");
+        Artisan::error("Seeder [$seeder] not found");
+        die();
     }
 
-    if (strtolower(env('APP_ENV'))=='production' && !$force) {
-        die ("Please use \033[32mdb:seed --force\033[m for production\n");
+    if (strtolower(config('app.env'))=='production' && !$force) {
+        Artisan::warning("Please use [db:seed --force] for production");
+        die();
     }
 
     seed($seeder);
@@ -713,7 +929,7 @@ elseif ($action == 'migrate:fresh')
 
     resetAll();
 
-    migrate();
+    Artisan::migrate();
 
     if ($seed)
     {
@@ -749,7 +965,7 @@ elseif ($action == 'route:list')
         }
     }
 
-    global $locale, $_service_providers;
+    global $_service_providers;
     CoreLoader::loadClass(_DIR_.'app/providers/RouteServiceProvider.php', true);
     $class = new RouteServiceProvider;
     $class->register();
@@ -775,20 +991,21 @@ elseif ($action == 'route:list')
         $line = str_replace('GET|HEAD', "GET|HEAD  ", $line);
         $line = str_replace('POST',     "POST      ", $line);
         $line = str_replace('DELETE',   "DELETE    ", $line);
-        $line = str_replace('PUT',      "PUT       ", $line);
+        $line = str_replace('PUT',      "PUT|PATCH ", $line);
 
         $line = str_replace('GET', "\033[34mGET\033[m", $line);
-        $line = str_replace('|HEAD', "\033[38;5;243m|HEAD\033[m", $line);
+        $line = str_replace('|HEAD', "\033[38;2;106;112;125m|HEAD\033[m", $line);
         $line = str_replace('POST', "\033[33mPOST\033[m", $line);
-        $line = str_replace('PUT', "\033[38;5;129mPUT\033[m", $line);
+        $line = str_replace('PUT|', "\033[33mPUT\033[38;5;243m|\033[m", $line);
+        $line = str_replace('PATCH', "\033[33mPATCH\033[m", $line);
         $line = str_replace('DELETE', "\033[38;5;160mDELETE\033[m", $line);
 
-        printf("  "); echo sprintf("%' -11s", $line);
+        printf("   "); echo sprintf("%' -11s", $line);
 
-        $line = str_replace('{', "\033[33m{", $route->url);
+        $line = str_replace('{', "\033[33m{", "$route->url");
         $line = str_replace('}', "}\033[m", $line);
 
-        printf(" /". $line .' ');
+        printf("\033[38;5;253m   %s \033[m", $line);
 
         if (isset($route->name) && $route->name == '') $route->name = null;
         if (isset($route->middleware) && $route->middleware == '') $route->middleware = null;
@@ -798,7 +1015,7 @@ elseif ($action == 'route:list')
 
         if (isset($route->controller) && strpos($route->controller, 'baradurClosures')!==false)
         {
-            $route->controller = '(Closure)';
+            $route->controller = 'Closure';
             $route->func = null;
         }
 
@@ -807,11 +1024,11 @@ elseif ($action == 'route:list')
             $route->controller = "(View: $route->view)";
         }
 
-        $line = ' '. (isset($route->name)? "\033[38;5;60m$route->name\033[38;5;243m › ":'');
+        $line = ' '. (isset($route->name)? "\033[38;5;60m$route->name\033[38;2;106;112;125m › ":'');
         $line .= $route->controller;
-        $line .= isset($route->func) && $route->func!='' ? '@'.$route->func : '';
+        $line .= isset($route->func) && $route->func!='' && $route->func!='__invoke' ? '@'.$route->func : '';
 
-        $spaces = $space + 6 - strlen($line) - (isset($route->name)? 0 : 23);
+        $spaces = $space + 3 - strlen($line) - (isset($route->name)? -8 : 23);
 
         if ($spaces<1)
         {
@@ -820,7 +1037,7 @@ elseif ($action == 'route:list')
             $spaces = $space -17 - strlen($line);
         }
 
-        printf("\033[38;5;243m".str_repeat('.', $spaces)."%s\033[m", $line);
+        printf("\033[38;2;106;112;125m".str_repeat('.', $spaces)."%s\033[m", $line);
         printf("\n");
 
         if ($showMiddleware && isset($route->middleware))
@@ -828,49 +1045,69 @@ elseif ($action == 'route:list')
             if (is_array($route->middleware))
             {
                 $line = implode(', ', $route->middleware);
-                printf("\033[38;5;243m             ⇂ ". $line ."\033[m\n");
+                printf("\033[38;2;106;112;125m                ⇂ ". $line ."\033[m\n");
             }
             else
             {
-                printf("\033[38;5;243m             ⇂ ". $route->middleware ."\033[m\n");
+                printf("\033[38;2;106;112;125m                ⇂ ". $route->middleware ."\033[m\n");
             }
         }
 
     }
+
+    printf("\n");
+    $space = (int)$screen_cols>80? $screen_cols : 90;
+    $total = "Showing [" . $list->count() . "] routes";
+    $space = $space - strlen($total) -3;
+    printf(str_repeat(' ', $space));
+    printf("\033[34;1m". $total ."\033[m\n");
+
+
+
+    /* for ($i=1; $i<255; $i++) {
+        printf("\033[38;5;".$i."m $i \033[m");
+    } */
+
+
     printf("\n");
 }
 
 elseif ($action == 'route:clear')
 {
-    Cache::store('file')->setDirectory(_DIR_.'storage/framework/routes')->flush();
-    printf("\033[32mRoute cache cleared successfully.\033[m\n");
+    @unlink(_DIR_.'bootstrap/cache/routes.php');
+    //Cache::store('file')->setDirectory(_DIR_.'storage/framework/routes')->flush();
+    Artisan::info("Route cache cleared successfully.");
 }
 
 elseif ($action == 'route:cache')
 {
-    Cache::store('file')->setDirectory(_DIR_.'storage/framework/routes')->flush();
-    printf("\033[32mRoute cache cleared successfully.\033[m\n");
+    /* Cache::store('file')->setDirectory(_DIR_.'storage/framework/routes')->flush();
+    //printf("\033[32mRoute cache cleared successfully.\033[m\n");
 
-    require_once(_DIR_.'vendor/baradur/Routing/Route_functions.php');
+    require_once(_DIR_.'vendor/baradur/PHPConverter.php');
 
     CoreLoader::loadClass(_DIR_.'app/providers/RouteServiceProvider.php', true);
     
     Cache::store('file')->setDirectory(_DIR_.'storage/framework/routes')
-        ->plainPut(_DIR_.'storage/framework/routes/web.php', serialize((array)Route::routeList()));
-    
-    printf("\033[32mRoutes cached successfully.\033[m\n");
+        ->plainPut(_DIR_.'storage/framework/routes/web.php', serialize((array)Route::routeList())); */
+
+    $routes = Route::getRoutes()->all();
+
+    Cache::store('file')->plainPut(_DIR_.'bootstrap/cache/routes.php', serialize($routes));
+        
+    Artisan::info("Routes cached successfully.");
 }
 
 elseif ($action == 'view:clear')
 {
     Cache::store('file')->setDirectory(_DIR_.'storage/framework/views')->flush(); 
-    printf("\033[32mCompiled views cleared successfully.\033[m\n");
+    Artisan::info("Compiled views cleared successfully.");
 }
 
 elseif ($action == 'view:cache')
 {
     Cache::store('file')->setDirectory(_DIR_.'storage/framework/views')->flush();
-    printf("\033[32mCompiled views cleared successfully.\033[m\n");
+    //printf("\033[32mCompiled views cleared successfully.\033[m\n");
 
     global $app;
     $app = new App();
@@ -885,27 +1122,29 @@ elseif ($action == 'view:cache')
 		    $res = View::loadTemplate($file, array());
         }
     }
-    printf("\033[32mBlade templates cached successfully.\033[m\n");
+    Artisan::info("Blade templates cached successfully.");
 
 }
 
 elseif ($action == 'cache:clear')
 {
-    Cache::store('file')->setDirectory(_DIR_.'storage/framework/cache')->flush();
-    Cache::store('file')->setDirectory(_DIR_.'storage/framework/classes')->flush();
-    printf("\033[32mApplication cache cleared successfully.\033[m\n");
+    //Cache::store('file')->setDirectory(_DIR_.'storage/framework/cache')->flush();
+    //Cache::store('file')->setDirectory(_DIR_.'storage/framework/classes')->flush();
+    Artisan::info("Application cache cleared successfully.");
 }
 
 elseif ($action == 'config:clear')
 {
-    Cache::store('file')->setDirectory(_DIR_.'storage/framework/config')->flush();
-    printf("\033[32mConfiguration cache cleared successfully.\033[m\n");
+    //Cache::store('file')->setDirectory(_DIR_.'storage/framework/config')->flush();
+    @unlink(_DIR_.'bootstrap/cache/config.php');
+    Artisan::info("Configuration cache cleared successfully.");
 }
 
 elseif ($action == 'config:cache')
 {
+    global $config;
+
     Cache::store('file')->setDirectory(_DIR_.'storage/framework/config')->flush();
-    printf("\033[32mConfiguration cache cleared successfully.\033[m\n");
 
     $it = new RecursiveDirectoryIterator(_DIR_.'config');
     foreach(new RecursiveIteratorIterator($it) as $file)
@@ -918,31 +1157,40 @@ elseif ($action == 'config:cache')
 
     require_once(_DIR_.'vendor/baradur/DotEnv.php');
     DotEnv::load(_DIR_.'', '.env');
-    printf("\033[32mConfiguration cached successfully.\033[m\n");
+
+    Cache::store('file')->plainPut(_DIR_.'bootstrap/cache/config.php', prettyPrint(json_encode($config)));
+
+    Artisan::info("Configuration cached successfully.");
 
 }
 
 elseif ($action == 'optimize:clear')
 {
+    Artisan::info("Clearing cached bootstrap files.");
+
     Cache::store('file')->setDirectory(_DIR_.'storage/framework/views')->flush(); 
-    printf("\033[32mCompiled views cleared successfully.\033[m\n");
+    Artisan::lineInfo("views");
 
     Cache::store('file')->setDirectory(_DIR_.'storage/framework/cache')->flush();
     Cache::store('file')->setDirectory(_DIR_.'storage/framework/classes')->flush();
-    printf("\033[32mApplication cache cleared successfully.\033[m\n");
+    Artisan::lineInfo("cache");
 
+    @unlink(_DIR_.'bootstrap/cache/routes.php');
     Cache::store('file')->setDirectory(_DIR_.'storage/framework/routes')->flush();
-    printf("\033[32mRoute cache cleared successfully.\033[m\n");
+    Artisan::lineInfo("route");
 
+    @unlink(_DIR_.'bootstrap/cache/config.php');
     Cache::store('file')->setDirectory(_DIR_.'storage/framework/config')->flush();
-    printf("\033[32mConfiguration cache cleared successfully.\033[m\n");
+    Artisan::lineInfo("config");
 
-    printf("\033[32mCaches cleared successfully.\033[m\n");
+    printf("\n");
+
 }
 
 elseif ($action == 'storage:link')
 {
     $links = include(_DIR_.'config/filesystems.php');
+
     foreach ($links['links'] as $key => $val)
     {
         //list ($back, $key, $val) = getRelativePath($key, $val);
@@ -954,7 +1202,8 @@ elseif ($action == 'storage:link')
         shell_exec("ln -sr $val ../$key");
         printf("\033[32mThe [$key] link has been connected to [$val].\033[m\n");
     }
-    printf("\033[32mThe links have been created.\033[m\n");
+
+    Artisan::info("The links have been created.");
 }
 
 elseif ($action == 'queue:work')
@@ -975,11 +1224,11 @@ elseif ($action == 'queue:work')
 
     if ($running)
     {
-        printf("\033[33mQueue already running. \033[m\n");
+        Artisan::error("Queue already running.");
         die();
     }
 
-    require_once(_DIR_.'Queue.php');    
+    require_once(_DIR_.'vendor/baradur/Jobs/Queue.php');    
 }
 
 elseif ($action == 'queue:stop')
@@ -1002,9 +1251,9 @@ elseif ($action == 'queue:stop')
     }
 
     if ($running)
-        printf("\033[32mQueue stopped.\033[m\n");
+        Artisan::info("Queue stopped.");
     else
-        printf("\033[33mQueue not running.\033[m\n");
+        Artisan::warning("Queue not running.");
 
 }
 
@@ -1028,9 +1277,9 @@ elseif ($action == 'model:prune')
                 $result = $class->prunable()->count();
 
                 if ($result>0)
-                    printf("\033[33m".$result." [".$model."] records will be pruned.\033[m\n");
+                    Artisan::info("$result [$model] records will be pruned.");
                 else
-                    printf("\033[33mNo prunable [".$model."] records found.\033[m\n");
+                    Artisan::info("No prunable [$model] records found.");
                 
             }
             else
@@ -1045,9 +1294,9 @@ elseif ($action == 'model:prune')
                 }
     
                 if ($result>0)
-                    printf("\033[32m".$result." [".$model."] records pruned.\033[m\n");
+                    Artisan::info("$result [$model] records pruned.");
                 else
-                    printf("\033[33mNo prunable [".$model."] records found.\033[m\n");
+                    Artisan::info("No prunable [$model] records found.");
 
             }
         }
@@ -1056,3 +1305,449 @@ elseif ($action == 'model:prune')
 
 }
 
+elseif ($action == 'make:command')
+{
+    if (count($argv)==0) {
+        $command = Artisan::input("What should the command be named?");
+    } else {
+        $command = $argv[0];
+    }
+    
+    if (file_exists('app/console/commands/'.$command.'.php')) {
+        Artisan::error("Artisan command [$command] already exists.");
+        die();
+    }
+
+    makeCommand($command);
+}
+
+elseif ($action == 'pennant:feature')
+{
+    if (count($argv)==0) {
+        $feature = Artisan::input("What should the feature be named?");
+    } else {
+        $feature = $argv[0];
+    }
+    
+    if (file_exists('app/features/'.$feature.'.php')) {
+        Artisan::error("feature [$feature] already exists.");
+        die();
+    }
+
+    makeFeature($feature);
+}
+
+elseif ($action == 'make:event')
+{
+    if (count($argv)==0) {
+        $event = Artisan::input("What should the event be named?");
+    } else {
+        $event = $argv[0];
+    }
+    
+    if (file_exists('app/events/'.$event.'.php')) {
+        Artisan::error("event [$event] already exists.");
+        die();
+    }
+
+    Artisan::makeEvent($event);
+}
+
+elseif ($action == 'make:listener')
+{
+    if (count($argv)==0) {
+        $listener = Artisan::input("What should the listener be named?");
+    } else {
+        $listener = $argv[0];
+    }
+
+    $event = null;
+
+    foreach ($argv as $arg)
+    {
+        if (strpos($arg, '-event=')==1)
+            $event = str_replace('--event=', '', $arg);
+    }
+
+    if (!$event) {
+        Artisan::warning("please specify parent event.");
+        die();
+    }
+
+    if (file_exists('app/listeners/'.$listener.'.php')) {
+        Artisan::error("listener [$listener] already exists.");
+        die();
+    }
+
+    Artisan::makeListener($listener, $event);
+}
+
+elseif ($action == 'event:generate')
+{
+    global $listeners;
+    
+    foreach ($listeners as $event => $values) {
+        Artisan::makeEvent($event, false);
+        
+        foreach($values as $listener) {
+            Artisan::makeListener($listener, $event, false);
+        }
+    }
+
+    Artisan::info("Events and listeners generated successfully.");
+}
+
+elseif ($action == 'event:list')
+{
+    global $listeners, $_class_list;
+    
+    printf("\n");
+
+    foreach ($listeners as $event => $values)
+    {
+        $screen_cols = (exec('tput cols'));
+
+        $space = (int)$screen_cols>80? $screen_cols : 90;
+
+        $line = "  " . $_class_list[$event]. " ";
+        $line = str_replace('.php', '', str_replace('.PHP', '', $line));
+
+        echo sprintf("%' -11s", $line);
+
+        $len = strlen($line) +1;
+        $space = $space - $len;
+        $line = ' ';
+        $spaces = $space - strlen($line);
+
+        printf("\033[38;5;243m".str_repeat('.', $spaces)."%s\033[m", $line);
+        printf("\n");
+
+        foreach ($values as $value)
+        {
+            if (is_closure($value)) {
+                list($class, $method) = getCallbackFromString($value);
+                $str = str_replace('baradurClosures_', '', $class);
+                $str = 'Closure at: ' . $_class_list[$str];
+                $str = str_replace('.php', '', str_replace('.PHP', '', $str));
+            } elseif (is_array($value)) {
+                $str = $_class_list[reset($value)];
+                $str = str_replace('.php', '', str_replace('.PHP', '', $str));
+                $str .= '@' . end($value);
+            } else {
+                $str = $_class_list[$value];
+                $str = str_replace('.php', '', str_replace('.PHP', '', $str));
+            }
+
+            printf("\033[38;5;243m  ⇂ ". $str ."\033[m\n");
+        }
+
+    }
+    printf("\n");
+
+}
+
+elseif ($action == 'env')
+{
+    Artisan::info("The application environment is [".config('app.env')."].");
+}
+
+elseif ($action == 'about')
+{
+    printf("\n");
+    Artisan::lineTitle("Environment");
+    Artisan::lineInfoNormal("Application name", config('app.name'));
+    Artisan::lineInfoNormal("Baradur version", BARADUR_VERSION);
+    Artisan::lineInfoNormal("PHP version", PHP_VERSION);
+    Artisan::lineInfoNormal("Environment", config('app.env'));
+    Artisan::lineInfoWarning("Debug mode", config('app.debug')?'ENABLED':'OFF', config('app.debug')?1:null);
+    $url = str_replace('http://', '', str_replace('https://', '', config('app.url')));
+    Artisan::lineInfoNormal("URL", $url);
+    $res = file_exists(_DIR_.'storage/.maintenance_on');
+    Artisan::lineInfoWarning("Maintenance mode", $res?'ENABLED':'OFF', $res?1:null);
+    printf("\n");
+    Artisan::lineTitle("Cache");
+    $res = file_exists(_DIR_.'bootstrap/cache/config.php');
+    Artisan::lineInfoWarning("Config", $res?'CACHED':'NOT CACHED', $res?2:1);
+    $res = file_exists(_DIR_.'bootstrap/cache/routes.php');
+    Artisan::lineInfoWarning("Routes", $res?'CACHED':'NOT CACHED', $res?2:1);
+    $res = is_dir(_DIR_.'storage/framework/views');
+    Artisan::lineInfoWarning("Views", $res?'CACHED':'NOT CACHED', $res?2:1);
+    printf("\n");
+    Artisan::lineTitle("Drivers");
+    Artisan::lineInfoNormal("Cache", 'file');
+    Artisan::lineInfoNormal("Database", config('database.default'));
+    Artisan::lineInfoNormal("Mail", config('mail.default'));
+    Artisan::lineInfoNormal("Session", 'file');
+    printf("\n");
+
+}
+
+elseif ($action == 'down')
+{
+    $secret = null;
+
+    foreach ($argv as $arg)
+    {
+        if (strpos($arg, '-secret=')==1)
+            $secret = str_replace('--secret=', '', $arg);
+    }
+
+    file_put_contents(_DIR_.'storage/.maintenance_on', $secret);
+    Artisan::info("Application is now in maintenance mode.");
+}
+
+elseif ($action == 'up')
+{
+    @unlink(_DIR_.'storage/.maintenance_on');
+    Artisan::info("Application is now live.");
+}
+
+elseif ($action == 'model:show')
+{
+    if (count($argv)==0) {
+        global $_model_list;
+        $available = array();
+        foreach ($_model_list as $model) {
+            if (is_subclass_of($model, 'Model')) {
+                $available[] = $model;
+            }
+        }
+        $model = Artisan::choice("Which model do you want to be inspected?", $available);
+        //$model = Artisan::input("Which model do you want to be inspected?");
+    } else {
+        $model = $argv[0];
+    }
+
+    global $_model_list, $_class_list;
+
+    if (!in_array($model, $_model_list)) {
+        Artisan::error("Model [$model] doesn't exists.");
+        die();
+    }
+
+    $class = new $model;
+
+    $res = Model::instance($model, $class->getTable());
+    $res->_bindings = $bindings;
+    $res->toBase()->connector()->execSQL('describe '. $class->getTable(), $res, true);
+
+    //$result =  $class->connector()->execSql('describe '. $class->getTable());  //DB::select('describe '. $class->getTable());
+
+    $result = $res->_collection;
+
+    printf("\n");
+    Artisan::lineTitle(str_replace('.php', '', str_replace('.PHP', '', $_class_list[$model])));
+    Artisan::lineInfoNormal("Database", $res->connector()->getDatabase());
+    Artisan::lineInfoNormal("Table", $class->getTable());
+    printf("\n");
+
+    Artisan::attributeTitle("Attributes");
+
+    $casts = $class->getCasts();
+    $appends = $class->getAppends();
+
+    $fields = array();
+
+    foreach ($result as $value) {
+        $field = $value->Field;
+        $attributes = array();
+
+        if ($value->Extra=='auto_increment') $attributes[] = 'increments';
+        if ($value->Null=='YES') $attributes[] = 'nullable';
+        if ($value->Key=='PRI') $attributes[] = 'primary';
+        if ($value->Key=='UNI') $attributes[] = 'unique';
+
+        if (in_array($field, $class->getFillable())) {
+            $attributes[] = 'fillable';
+        }
+
+        if (in_array($field, $class->getHidden())) {
+            $attributes[] = 'hidden';
+        }
+
+
+        $type = $value->Type=='timestamp' ? 'datetime' : $value->Type;
+
+        $type = str_replace('varchar', 'string', $type);
+
+        if (str_contains($type, '(')) {
+            if (!Str::startsWith($type, 'string')) {
+                $type = Str::before($type, '(') . Str::after($type, ')');
+            }
+        }
+
+
+        $cast = null;
+        if (array_key_exists($field, $casts)) {
+            $cast = $casts[$field];
+            $cast = reset(explode(':', $cast));
+        }        
+
+        Artisan::attributeInfo($field, implode(', ', $attributes), $type, $cast);
+
+        $fields[] = $field;
+    }
+    foreach ($appends as $append) {
+        if (!in_array($append, $fields)) {
+            Artisan::attributeInfo($append, 'appended', null, 'accessor');
+
+        }
+    }
+
+    $relationships = array();
+
+    $reflector = new ReflectionClass($model);
+    $methods = $reflector->getMethods();
+
+    $skip = array(
+        'newEloquentBuilder', 
+        '_setTrashed',
+        'trashed',
+        'delete',
+        'restore',
+        'forceDelete',
+        'getDeletedAtColumn',
+        'factory',
+        'notify'
+    );
+    
+    foreach ($methods as $method) {
+
+        if ($method->class!=='Model' 
+            && !Str::endsWith($method->name, 'Attribute')
+            && !in_array($method->name, $skip)
+            && !Str::startsWith($method->name, 'scope')) {
+
+            $res = $class->{$method->name}();
+
+            if ($res instanceof Builder && $res->_relationVars) {
+
+                $type = $res->_relationVars['relationship'];
+                $related = $_class_list[$res->_parent];
+                $related = str_replace('.php', '', str_replace('.PHP', '', $related));
+
+                $relationships[] = array(
+                    'name' => $method->name,
+                    'type' => ucfirst($type),
+                    'related' => $related
+                );
+            }
+        }
+    }
+
+    if (count($relationships) > 0) {
+        printf("\n");
+
+        Artisan::lineTitle("Relations");
+
+        foreach ($relationships as $relation) {
+            Artisan::attributeInfo($relation['name'], $relation['type'], $relation['related'], null);
+        }
+    }
+
+    global $observers;
+    if (isset($observers[$model])) {
+        printf("\n");
+
+        Artisan::lineTitle("Observers");
+
+        $reflector = new ReflectionClass($observers[$model]);
+        $methods = $reflector->getMethods();
+
+        $enabled = array(
+            'creating',
+            'created', 
+            'saving',
+            'saved',
+            'updating',
+            'updated',
+            'deleting',
+            'deleted',
+            'forceDeleting',
+            'forceDeleted',
+        );
+
+        $classname = str_replace('.php', '', str_replace('.PHP', '', $_class_list[$observers[$model]]));
+
+        foreach ($methods as $method) {
+            if (in_array($method->name, $enabled)) {
+                Artisan::attributeInfo($method->name, '', $classname.'@'.$method->name, null);
+            }
+        }
+    }
+
+    if (isset(ServiceProvider::$regitered_policies[$model])) {
+        printf("\n");
+
+        $list = ServiceProvider::$regitered_policies[$model];
+
+        $list = is_array($list) ? $list : array($list);
+
+        Artisan::lineTitle("Policies");
+
+        foreach ($list as $policy) {
+            $classname = str_replace('.php', '', str_replace('.PHP', '', $_class_list[$policy]));
+            Artisan::attributeInfo('Policy', '', $classname, null);
+        }
+    }
+
+    printf("\n");
+}
+
+else 
+{
+    if(!array_key_exists($action, $default_commands))
+    {
+        $kernel = ConsoleKernel::getKernel();
+        $kernel->loadCommands();
+    
+        foreach ($kernel->getCommands() as $command)
+        {
+            $class = new $command;
+
+            if ($class->signature()==$action) {
+
+                $class->setParameters($argv);
+
+                foreach ($class->arguments() as $key => $val) {
+                    if (is_null($val)) {
+                        $value = $class->ask("What should the $key be named?");
+                        $class->setArgument($key, $value);
+                    }
+                }
+
+                $reflectionMethod = new ReflectionMethod($class, 'handle');
+                $method_params = $reflectionMethod->getParameters();
+
+                try {
+                    $params = SubstituteBindings::buildClassParameters(
+                        $class, $method_params, $class->arguments()
+                    );
+                }
+                catch (Exception $e) {
+                    Artisan::exception(get_class($e), $e->getMessage());
+                    die();
+                }
+
+                call_user_func_array(array($class, 'handle'), $params);
+                break;
+            }
+        }
+    }
+
+}
+
+
+
+/* elseif ($action == 'serve')
+{
+    $host = 'localhost';
+    $port = 80;
+
+    chdir(__DIR__.'/public');
+
+    printf("Baradur development server started on http://{$host}:{$port}/");
+
+    passthru('sudo ' . PHP_BINARY . " -S {$host}:{$port} /vendor/baradur/Console/artisan_server.php  2>&1");
+
+} */

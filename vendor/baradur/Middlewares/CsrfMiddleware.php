@@ -8,22 +8,29 @@ class CsrfMiddleware
     {
         foreach ($this->except as $except)
         {
-            if ($except == $request->_uri)
+            if ($except == $request->_uri) {
                 return $request;
+            }
             
             if (strpos($except, '*')!==false)
             {
                 $special_chars = "\.+^$[]()|{}/'#";
                 $special_chars = str_split($special_chars);
                 $escape = array();
-                foreach ($special_chars as $char) $escape[$char] = "\\$char";
+
+                foreach ($special_chars as $char) {
+                    $escape[$char] = "\\$char";
+                }
+
                 $pattern = strtr($except, $escape);
                 $pattern = strtr($pattern, array(
                     '*' => '.*?',
                     '?' => '.',
                 ));
-                if (preg_match("/$pattern/", $request->_uri))
+
+                if (preg_match("/$pattern/", $request->_uri)) {
                     return $request;
+                }
             }
         }
 
@@ -44,14 +51,15 @@ class CsrfMiddleware
                 abort(403);
             }
 
-            $lifetime = env('HTTP_TOKENS')? env('HTTP_TOKENS') : 30;
+            $lifetime = config('app.http_tokens');
+            $session_timestamp = $_SESSION['tokens'][$_POST['csrf']]['timestamp'];
 
-            $date1 = Carbon::parse($_SESSION['tokens'][$_POST['csrf']]['timestamp'])
+            $date1 = Carbon::parse($session_timestamp)
                 ->addMinutes($lifetime)->getTimestamp();
             
             $date2 = Carbon::now()->getTimestamp();
 
-            //$date1 = strtotime(env('HTTP_TOKENS'), strtotime($_SESSION['tokens'][$_POST['csrf']]['timestamp']));
+            //$date1 = strtotime(config('app.http_tokens'), strtotime($_SESSION['tokens'][$_POST['csrf']]['timestamp']));
             //$date2 = strtotime(date('Y-m-d H:i:s'));
             
             if ($date1 < $date2)
@@ -63,7 +71,7 @@ class CsrfMiddleware
             {
                 # Access granted
                 $counter = $_SESSION['tokens'][$_POST['csrf']]['counter'];
-                if ($counter < env('HTTP_TOKENS_MAX_USE'))
+                if ($counter < 1)
                 {
                     $_SESSION['tokens'][$_POST['csrf']]['counter'] = $counter+1;
                 }
@@ -83,12 +91,12 @@ class CsrfMiddleware
         {
             foreach ($_SESSION['tokens'] as $key => $token)
             {
-                $date1 = strtotime(env('HTTP_TOKENS'), strtotime($token['timestamp']));
+                $date1 = strtotime(config('app.http_tokens'), strtotime($token['timestamp']));
                 $date2 = strtotime(date('Y-m-d H:i:s'));
                 if ($date1 < $date2)
                     unset($_SESSION['tokens'][$key]);
                 
-                if ($token['counter'] >= env('HTTP_TOKENS_MAX_USE'))
+                if ($token['counter'] >= 1)
                     unset($_SESSION['tokens'][$key]);
             }
         }

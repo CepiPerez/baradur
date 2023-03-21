@@ -1,14 +1,15 @@
 <?php
 
-Class PdoConnector
+Class PdoConnector extends Connector
 {
     protected $connection;
     public $status;
-
     protected $inTransaction = false;
 
     public function __construct($host, $user, $password, $database, $port=3306)
     {
+        $this->database = $database;
+
         try
         {
             $this->connection = new PDO("mysql:host=$host; dbname=$database", $user, $password,
@@ -40,63 +41,49 @@ Class PdoConnector
         $this->inTransaction = false;
     }
 
-
-    /** @return int|bool */
-    public function query($sql, $bindings=array())
-    {
-        return $this->execSQL($sql, $bindings, false);
-    }
-
     public function getLastId()
     {
         return $this->connection->lastInsertId();
     }
 
-    public function execSQL($sql, $parent, $fill=false)
+    public function _execUnpreparedSQL($sql)
     {
-        //var_dump($wherevals);
-        if ($fill && $parent->_collection==null)
-            $parent->_collection = new Collection();
-        
-        try
+        if (config('app.debug_info'))
         {
-            return $this->_execSQL($sql, $parent, $fill);
+            global $debuginfo;
+            
+            $debuginfo['queryes'][] = $sql; // preg_replace('/\s\s+/', ' ', str_replace("'", "\"", $sql));
         }
-        catch (Exception $e) 
-        {
-            if (env('APP_DEBUG')==1) throw new Exception($e->getMessage(), 100);
 
-            return false;
-        }
+        $query = $this->connection->query($sql);
+
+        $this->status = $query->rowCount();
+
+        return true;
     }
     
     public function _execSQL($sql, $parent, $fill=false)
     {
-
         $query = $this->connection->prepare($sql);
     
         $bindings = $parent instanceof Builder? $parent->_bindings : $parent;
 
         $bindings = Builder::__joinBindings($bindings);
+        
+        //dump($query); dump($bindings);
 
-        //dump($sql); dump($bindings);
-
-        if (env('DEBUG_INFO')==1)
+        if (config('app.debug_info'))
         {
             global $debuginfo;
 
             $result = Builder::__getPlainSqlQuery($sql, $bindings);
-
+            
             $debuginfo['queryes'][] = $result; // preg_replace('/\s\s+/', ' ', str_replace("'", "\"", $sql));
         }
 
         $query->execute($bindings);
 
-        
-        /* $error = $query->errorInfo();
-        if (!$query) {
-            throw new Exception($this->error[2]);
-        } */
+        $this->status = $query->rowCount();
         
         if ($fill)
         {
@@ -112,85 +99,7 @@ Class PdoConnector
             return $parent->_collection;
         }
 
-        return $query;
-
-            
+        return true;
     }
 
-    public function refValues($arr)
-    {
-        if (count($arr)==0) return array();
-
-        if (strnatcmp(phpversion(),'5.3') >= 0) //Reference is required for PHP 5.3+
-        {
-            $refs = array();
-            foreach($arr as $key => $value)
-                $refs[$key] = &$arr[$key];
-            return $refs;
-        }
-        return $arr;
-    }
-
-    private function objetToModel($data, $builder)
-    {
-        $class = $builder->_parent;
-        $item = new $class;
-
-        /* foreach ($data as $key => $val)
-        {
-            $item->$key = $val;
-
-            foreach ($builder->_appends as $append)
-            {
-                $item->setAppendAttribute($append, $item->$append);
-            }
-        } */
-
-        //$this->__new = false;
-        $item->_setOriginalRelations($builder->_eagerLoad);
-
-        unset($item->_global_scopes);
-        unset($item->timestamps);
-
-        $item->setAttributes(CastHelper::processCasts(
-            (array)$data,
-            $builder->_model,
-            false
-        ));
-
-
-        /* foreach ($builder->_model->getAppends() as $append)
-        {
-            $item->setAppendAttribute($append, $item->$append);
-        } */
-
-        foreach ($item->getAttributes() as $key => $val)
-        {
-            //dump($key.":::".$val);
-            if ($builder->_softDelete)
-            {
-                $item->unsetAttribute('deleted_at');
-            }
-
-
-            $camel = Helpers::snakeCaseToCamelCase($key);
-
-            if (method_exists($builder->_parent, 'get'.ucfirst($camel).'Attribute'))
-            {
-                $fn = 'get'.ucfirst($camel).'Attribute';
-                $item->$key = $item->$fn($val);
-            }
-            if (method_exists($builder->_parent, $camel.'Attribute'))
-            {
-                $fn = $camel.'Attribute';
-                $nval = $item->$fn($val, (array)$item);
-                if (isset($nval['get'])) $item->$key = $nval['get'];
-            }
-        }
-
-        $item->syncOriginal();
-
-        return $item;
-
-    }
 }

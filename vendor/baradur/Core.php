@@ -7,32 +7,20 @@ header('Access-Control-Allow-Methods: GET');
 # Global variables
 $routes = array();
 $observers = array();
+$listeners = array();
 $version = '';
 $debuginfo = array();
 
-$preventLazyLoading = false;
-$preventSilentlyDiscardingAttributes = false;
-$preventAccessingMissingAttributes = false;
 
-
+define ('BARADUR_VERSION', '1.4');
 #ini_set('memory_limit', '256M');
-
-ini_set('display_errors', true);
-error_reporting(E_ALL + E_NOTICE);
-#ini_set('display_errors', false);
-#error_reporting(0);
-
-/* if (version_compare(phpversion(), '8.0.0', '>='))
-{
-    ini_set('display_errors', false);
-    error_reporting(0);
-} */
 
 define ('_DIR_', str_replace('vendor/baradur', '', dirname(__FILE__)));
 
 $_class_list = array();
 $_model_list = array();
 $_resource_list = array();
+$_feature_list = array();
 $_enum_list = array();
 $_builder_methods = array();
 $_invokable_list = array();
@@ -42,7 +30,7 @@ global $artisan;
 # Load all classes
 if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'))
 {
-    global $debuginfo;
+    global $debuginfo, $artisan;
     $debuginfo['startup'] = 'Cache is empty. Creating all classes';
 
     $it = new RecursiveDirectoryIterator(_DIR_.'app');
@@ -59,6 +47,10 @@ if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'cl
             
             if (strpos(realpath($file), '/app/resources/')>0)
                 $_resource_list[] = $key;
+
+            if (strpos(realpath($file), '/app/features/')>0)
+                $_feature_list[] = $key;
+
         }
     }
     $it = new RecursiveDirectoryIterator(_DIR_.'database');
@@ -78,9 +70,11 @@ if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'cl
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
         {
             $key = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
-
-            $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
-        }
+            
+            if (!isset($_class_list[$key])) {
+                $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
+            }
+        } 
     }
 
     $it = new RecursiveDirectoryIterator(_DIR_.'vendor/faker');
@@ -90,25 +84,18 @@ if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'cl
         {
             $key = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
 
-            $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
+            if (!isset($_class_list[$key])) {
+                $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
+            }
         }
     }
 
-    if (file_exists(_DIR_.'vendor/autoload.php'))
-    {
-        //$real = _DIR_;
-        //$real = rtrim($real, 'baradur');
-        $extra = include_once(_DIR_.'vendor/autoload.php');
-        if (count($extra)>0)
-        {
-            foreach ($extra as $key => $val)
-                $_class_list[$key] = /* $real. */$val;
-        }
-    }
+    $it = null;
 
     @file_put_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php', serialize($_class_list));
-    @file_put_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'models.php', serialize($_model_list));
-    @file_put_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'resources.php', serialize($_resource_list));
+    @file_put_contents(_DIR_.'storage/framework/config/models.php', serialize($_model_list));
+    @file_put_contents(_DIR_.'storage/framework/config/resources.php', serialize($_resource_list));
+    @file_put_contents(_DIR_.'storage/framework/config/features.php', serialize($_feature_list));
 }
 else
 {
@@ -116,22 +103,23 @@ else
     $debuginfo['startup'] = 'All classes loaded from cache';
 
     $_class_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'));
-    $_model_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'models.php'));
-    $_resource_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'resources.php'));
+    $_model_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/models.php'));
+    $_resource_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/resources.php'));
+    $_feature_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/features.php'));
+
+}
+if (file_exists(_DIR_.'storage/framework/config/enums.php')) {
+    $_enum_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/enums.php'));
 }
 
 
 # Autoload function registration
-spl_autoload_register('custom_autoloader');
+spl_autoload_register('baradur_class_loader');
 
+# Application Configuration
+$config = array();
 
-# Environment variables
-if (file_exists(_DIR_.'storage/framework/config/env.php'))
-{
-    require_once(_DIR_.'storage/framework/config/env.php');
-}
-else
-{
+if (!file_exists(_DIR_.'bootstrap/cache/config.php')) {
     require_once('DotEnv.php');
     DotEnv::load(_DIR_, '.env');
 }
@@ -139,46 +127,59 @@ else
 # Globals
 require_once('Globals.php');
 
-if (env('DEBUG_INFO')==1)
-{
+# Global functions / Router functions
+require_once('Global_functions.php');
+require_once('PHPConverter.php');
+require_once('CoreLoader.php');
+
+# The PHP Parser
+$phpConverter = new PHPConverter();
+
+# Default HOME constant
+# (in case it's not defined in route provider)
+define('HOME', '/');
+
+if (!file_exists(_DIR_.'bootstrap/cache/config.php')) {
+    CoreLoader::loadConfigFile(_DIR_.'config/app.php');
+} else {
+    $content = file_get_contents(_DIR_.'bootstrap/cache/config.php');
+    $config = json_decode($content, true);
+}
+
+if (config('app.debug_info')) {
     global $debuginfo;
     $debuginfo['start'] = microtime(true);
 }
 
-# Global functions / Router functions
-require_once('Global_functions.php');
-require_once('Routing/Route_functions.php');
-require_once('CoreLoader.php');
+# Display errors only in debug mode
+if (config('app.debug')) {
+    ini_set('display_errors', Str::startsWith(PHP_VERSION, '5'));
+} else {
+    ini_set('display_errors', false);
+}
 
 
-# Generating Application KEY (for Tokens usage)
+# Application Key Generator (for Tokens)
 require_once(_DIR_.'vendor/random_compat/lib/random.php');
-if (!isset($_SESSION['key']))
-    $_SESSION['key'] = bin2hex(random_bytes(32));
 
-
-# MySQL Conector
+# Database global Connector
 $database = null;
 
 # Instantiating App
 $app = new App();
 
-# Instantiating Request
+# Instantiating singletons
 $app->singleton('request', 'Request');
-
-# Including config file
-$config = CoreLoader::loadConfigFile(_DIR_.'config/app.php');
-
-# Initializing locale
-$locale = $config['locale'];
-$fallback_locale = $config['fallback_locale'];
+$app->singleton('_exceptionHandler', 'ExceptionHandler');
 
 # Initializing timezone
-setlocale(LC_ALL, $config['locale']);
-date_default_timezone_set($config['timezone']);
+setlocale(LC_ALL, config('app.locale'));
+date_default_timezone_set(config('app.timezone'));
 
 # Initializing App cache
-$cache = new FileStore(new Filesystem(), _DIR_.'storage/framework/classes', 0777);
+$app_cache = new FileStore(new Filesystem(), _DIR_.'storage/framework/cache', 0777);
+$appCached = $app_cache->get('Baradur_cache');
+if (!$appCached) $appCached = array();
 
 # Initializing Storage
 Storage::$path = _DIR_.'storage/app/public/';
@@ -186,55 +187,61 @@ Storage::$path = _DIR_.'storage/app/public/';
 # Caching all classes
 loadClassesInCache($_class_list);
 
+# Initializing Autoload classes
+if (file_exists(_DIR_.'vendor/autoload.php') && !$artisan) {
+
+    $extra = include_once(_DIR_.'vendor/autoload.php');
+    
+    if (count($extra)>0) {
+        foreach ($extra as $key => $val) {
+            if (Str::startsWith($val, 'vendor/')) {
+                require_once(_DIR_.$val);
+            } else {
+                require_once(_DIR_.'storage/framework/classes/'.basename($val));
+            }
+        }
+    }
+}
 
 # Loading Providers
 $_service_providers = array();
-foreach($config['providers'] as $provider)
-{
+foreach(config('app.providers') as $provider) {
     CoreLoader::loadClass(_DIR_.'app/providers/'.$provider.'.php');
 }
-foreach ($_service_providers as $provider)
-{
+
+foreach (array_keys($_service_providers) as $provider) {
     $class = new $provider;
     $class->register();
-    unset($class);
+    $_service_providers[$provider] = $class;
 }
-foreach ($_service_providers as $provider)
-{
-    $class = new $provider;
-    $class->boot();
 
-    if ($class instanceof RouteServiceProvider) {
-        $class->configureRateLimiting();
-    }
-
-    unset($class);
+foreach ($_service_providers as $key => $provider) {
+    $provider->boot();
 }
 
 
 # Autoload function
-function custom_autoloader($class, $require=true) 
+function baradur_class_loader($class, $require=true) 
 {
     if (strpos($class, 'PHPExcel_')!==false) return;
 
     //if ($require) echo "Loading Baradur class: ".$class."<br>";
  
-    $newclass = '';
+    $newclass = null;
 
-    global $_class_list, $_invokable_list;
+    global $_class_list, $_invokable_list, $phpConverter;
 
-    if (isset($_class_list[$class]))
+    if (isset($_class_list[$class])) {
         $newclass = _DIR_ . $_class_list[$class];
-    else
-        return false;
-
-    if (file_exists(_DIR_.'storage/framework/classes/'.$class.'.php'))
+    }
+    
+    if (file_exists(_DIR_.'storage/framework/classes/'.$class.'.php') && $newclass)
     {
         $date = filemtime($newclass);
         $cachedate = filemtime(_DIR_.'storage/framework/classes/'.$class.'.php');
         //echo($class.":::".$date ."::".$cachedate."<br>");
 
-        if ($date < $cachedate) // && env('APP_DEBUG')==0)
+        if ($date < $cachedate)
         {
             if (!$require)
                 return;
@@ -243,17 +250,14 @@ function custom_autoloader($class, $require=true)
             require_once(_DIR_.'storage/framework/classes/'.$class.'.php');
 
             if (file_exists(_DIR_.'storage/framework/classes/baradurClosures_'.$class.'.php')) {
-                //echo "Requiring class: baradurClosures_$class <br>";
                 require_once(_DIR_.'storage/framework/classes/baradurClosures_'.$class.'.php');
             }
 
             if (file_exists(_DIR_.'storage/framework/classes/baradurBuilderMacros_'.$class.'.php')) {
-                //echo "Requiring class: baradurBuilderMacros_$class <br>";
                 require_once(_DIR_.'storage/framework/classes/baradurBuilderMacros_'.$class.'.php');
             }
 
             if (file_exists(_DIR_.'storage/framework/classes/baradurCollectionMacros_'.$class.'.php')) {
-                //echo "Requiring class: baradurCollectionMacros_$class <br>";
                 require_once(_DIR_.'storage/framework/classes/baradurCollectionMacros_'.$class.'.php');
             }
 
@@ -265,9 +269,9 @@ function custom_autoloader($class, $require=true)
         }
     }
     
-    if ($newclass!='') // && $version=='OLD')
+    if ($newclass) // && $version=='OLD')
     {
-        if (strpos($newclass, '/vendor/')===false)
+        if (strpos($newclass, '/vendor')===false)
         {
             //echo "Caching class $newclass<br>";
             $temp = file_get_contents($newclass);
@@ -279,11 +283,11 @@ function custom_autoloader($class, $require=true)
 
             if (strpos($newclass, 'baradurClosures_')===false)
             {
-                $temp = replaceNewPHPFunctions($temp, $class, _DIR_);
+                $temp = $phpConverter->replaceNewPHPFunctions($temp, $class, _DIR_);
             }
             else
             {
-                $temp = preg_replace_callback('/(\w*)::(\w*)/x', 'callbackReplaceStatics', $temp);
+                $temp = $phpConverter->replaceStatics($temp);
             }
 
             //echo "Saving class $class<br>";
@@ -291,41 +295,111 @@ function custom_autoloader($class, $require=true)
             Cache::store('file')->plainPut(_DIR_.'storage/framework/classes/'.$class.'.php', $temp);
             $temp = null;
             
-            if ($require)
+            if ($require) {
                 require_once(_DIR_.'storage/framework/classes/'.$class.'.php');
+
+                if (file_exists(_DIR_.'storage/framework/classes/baradurClosures_'.$class.'.php')) {
+                    require_once(_DIR_.'storage/framework/classes/baradurClosures_'.$class.'.php');
+                }
+    
+                if (file_exists(_DIR_.'storage/framework/classes/baradurBuilderMacros_'.$class.'.php')) {
+                    require_once(_DIR_.'storage/framework/classes/baradurBuilderMacros_'.$class.'.php');
+                }
+    
+                if (file_exists(_DIR_.'storage/framework/classes/baradurCollectionMacros_'.$class.'.php')) {
+                    require_once(_DIR_.'storage/framework/classes/baradurCollectionMacros_'.$class.'.php');
+                }
+                
+                return;
+            }
         }
         elseif ($require)
         {
             require_once($newclass);
+            return;
         }
     }
     
-    
+    if (!$require) {
+        return;
+    }
+
+    throw new MissingClassException("Class [$class] not found");
+}
+
+function fataErrorHandler()
+{
+    if (env('EXIT_OK')) {
+        exit();
+    }
+
+    $error = strip_tags(ob_get_clean());
+
+    if (!config('app.debug')){
+        echo View::showErrorTemplate(500, __('Server Error'));
+        exit();
+    }
+
+    $etype = 'Fatal'; //Str::before($error, ' error:');
+    $error = Str::after($error, ' error:');
+    $error = explode(' in /', $error);
+    $message = array_shift($error);
+
+    if (strlen($message)==0 && !config('app.debug')) {
+        abort(500);
+    }
+
+    $error = explode(' on line ', $error[0]);
+
+    $file = '/'. $error[0];
+    $line = $error[1];
+
+    $blade = new BladeOne(_DIR_.'vendor/baradur/Exceptions/views', _DIR_.'storage/framework/views');
+
+    $result = $blade->runInternal(
+        'fatal', array(
+            'etype' => $etype,
+            'message' => $message,
+            'file' => $file,
+            'line' => $line,
+            'content' => Helpers::loadFile($file, intval($line)-10, intval($line)+10)
+        ),
+        true
+    );
+
+    echo CoreLoader::processResponse(response($result, 500));
+
+    exit();
+
 }
 
 
 # Error handling
+error_reporting(E_ERROR + E_PARSE + E_CORE_ERROR + E_RECOVERABLE_ERROR 
+    + E_USER_ERROR + E_COMPILE_ERROR /* + ~E_WARNING */);
+
 if (!$artisan) {
-    set_exception_handler(array('ExceptionHandler', 'handleException'));
+    set_exception_handler(array('Handler', 'getInstance'));
+    register_shutdown_function("fataErrorHandler");
 }
 
+if (config('app.debug')) {
+    Route::get('framework/artisan/{command}', array('Artisan', 'runCommand'));
+}
 
 function loadClassesInCache($list)
 {
-    if (file_exists(_DIR_.'storage/framework/classes/loaded'))
-    {
+    if (file_exists(_DIR_.'storage/framework/classes/loaded')) {
         return;
     }
 
-    foreach ($list as $class => $location)
-    {
+    foreach ($list as $class => $location) {
         # Skip migration files and vendor classes
         if (strpos($location, 'database/migrations')===false && strpos($location, 'vendor/')===false)
         {
-            custom_autoloader($class, false);
+            baradur_class_loader($class, false);
         }
     }
 
     Cache::store('file')->plainPut(_DIR_.'storage/framework/classes/loaded', '');
-
 }

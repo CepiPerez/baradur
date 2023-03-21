@@ -83,7 +83,7 @@ class BladeOne
 
     public function run($view,$variables=array())
     {
-        $mode = 0; //env('APP_ENV')=='production'? 0 : 1; // mode=0 automatic: not forced and not run fast.
+        $mode = 0; // mode=0 automatic: not forced and not run fast.
         $forced = $mode & 1; // mode=1 forced:it recompiles no matter if the compiled file exists or not.
         $runFast = $mode & 2; // mode=2 runfast: the code is not compiled neither checked and it runs directly the compiled
 
@@ -124,6 +124,8 @@ class BladeOne
 
     public function compile($fileName = null,$forced=false)
     {
+        global $phpConverter;
+
         if ($fileName) {
             $this->fileName = $fileName;
         }
@@ -139,7 +141,7 @@ class BladeOne
             /* $contents = preg_replace('/<!--([\s\S]*?)-->/x', '', $contents); */
 
             # Replace models functions
-            $contents = preg_replace_callback('/(\w*)::(\w*)/x', 'callbackReplaceStatics', $contents);
+            $contents = $phpConverter->replaceStatics($contents);
 
             # compile the original file
             $contents = $this->compileString($contents);
@@ -370,16 +372,13 @@ class BladeOne
 
     protected function createComponent($component, $attributes, $content=null)
     {
-        //dump($component);
-        //dd($attributes);
-
-        //dd($this->component_slots);
+        global $_class_list;
 
         $c =  Blade::__findComponent($component); //ucfirst($component).'Component';
         $instance = null;
         $reflect = null;
 
-        if (class_exists($c))
+        if (isset($_class_list[$c]))
         {
             $ReflectionMethod = new \ReflectionMethod($c, '__construct');
             $params = $ReflectionMethod->getParameters();
@@ -410,7 +409,7 @@ class BladeOne
         global $app, $temp_params;
 
         $temp_params = array();
-        if (class_exists($c))
+        if (isset($_class_list[$c]))
         {
             $instance->attributes = $attributes;
 
@@ -444,7 +443,7 @@ class BladeOne
         if (is_object($result)) 
         {
             View::$autoremove = true;
-            $result = (string)$result;
+            $result = $result->__toString();
         }
         $app->action = $back_action;
 
@@ -1034,7 +1033,7 @@ class BladeOne
     protected function compileEnv($expression)
     {
         $expression = $this->stripParentheses($expression);
-        return $this->phpTag."if ( env('APP_ENV')==$expression ): ?>";
+        return $this->phpTag."if ( config('app.env')==$expression ): ?>";
     }
 
     protected function compileEndEnv()
@@ -1044,7 +1043,7 @@ class BladeOne
 
     protected function compileProduction()
     {
-        return $this->phpTag."if ( env('APP_ENV')=='production' ): ?>";
+        return $this->phpTag."if ( config('app.env')=='production' ): ?>";
     }
 
     protected function compileEndproduction()
@@ -1573,7 +1572,9 @@ class BladeOne
     }
 
     public function getCompiledFile() {
-        return $this->compiledPath.'/'.sha1($this->fileName);
+        $file = str_replace(_DIR_, '', $this->getTemplateFile());
+        $file = base64url_encode($file);
+        return $this->compiledPath . '/' . $file;
     }
 
     public function getTemplateFile($templateName=null) {
@@ -1581,12 +1582,14 @@ class BladeOne
         $arr = explode('.' , $templateName);
         $c = count($arr);
         if ($c==1) {
-            return $this->templatePath . '/' . $templateName . '.blade.php';
+            $path = $this->templatePath . '/' . $templateName . '.blade.php';
+            return str_replace('//', '/', $path);
         } else {
-            $file=$arr[$c-1];
+            $file = $arr[$c-1];
             array_splice($arr,$c-1,$c-1); // delete the last element
-            $path=implode('/',$arr);
-            return $this->templatePath . '/' .$path.'/'. $file . '.blade.php';
+            $path = implode('/',$arr);
+            $path = $this->templatePath . '/' .$path.'/'. $file . '.blade.php';
+            return str_replace('//', '/', $path);
         }
     }
 
@@ -1815,6 +1818,10 @@ class BladeOne
     public function renderEach($view, $data, $iterator, $empty = 'raw|')
     {
         $result = '';
+
+        if ($data instanceof Collection || $data instanceof Paginator) {
+            $data = $data->all();
+        }
 
         // If is actually data in the array, we will loop through the data and append
         // an instance of the partial view to the final result HTML passing in the

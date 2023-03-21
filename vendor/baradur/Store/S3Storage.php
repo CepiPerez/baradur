@@ -61,12 +61,12 @@ class S3Storage
 
     public function makeDirectory($path, $mode = 0755, $recursive = false, $force = false)
     {
-        throw new Exception('Function makeDirectory() not supported');
+        throw new BadMethodCallException('Function makeDirectory() not supported');
     }
 
     public function chmod($path, $mode = null)
     {
-        throw new Exception('Function chmod() not supported');
+        throw new BadMethodCallException('Function chmod() not supported');
     }
 
     public function put($path, $contents)
@@ -181,7 +181,7 @@ class S3Storage
 
     public function directories($path)
     {
-        throw new Exception('Function directories() not supported');        
+        throw new BadMethodCallException('Function directories() not supported');        
     }
 
     public function get($path)

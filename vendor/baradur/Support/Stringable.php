@@ -50,9 +50,39 @@ class Stringable
         return $this;
     }
 
+    public function before($search)
+    {
+        $this->value = Str::before($this->value, $search);
+        return $this;
+    }
+
+    public function beforeLast($search)
+    {
+        $this->value = Str::beforeLast($this->value, $search);
+        return $this;
+    }
+    
+    public function between($from, $to)
+    {
+        $this->value = Str::between($this->value, $from, $to);
+        return $this;
+    }
+
+    public function betweenFirst($from, $to)
+    {
+        $this->value = Str::betweenFirst($this->value, $from, $to);
+        return $this;
+    }
+
     public function after($search)
     {
         $this->value = Str::after($this->value, $search);
+        return $this;
+    }
+
+    public function afterLast($search)
+    {
+        $this->value = Str::afterLast($this->value, $search);
         return $this;
     }
 

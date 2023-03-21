@@ -139,6 +139,12 @@ return [
     'uploaded' => 'El campo :attribute no ha podido ser cargado.',
     'url' => 'El formato de :attribute no es válido.',
     'uuid' => 'El :attribute debe ser un UUID valido.',
-    
+    'password' => [
+        'mixed' => 'El :attribute debe contener al menos una letra mayúscula y una minúscula.',
+        'letters' => 'El :attribute debe contener al menos una letra.',
+        'symbols' => 'El :attribute debe contener al menos un símbolo.',
+        'numbers' => 'El :attribute debe contener al menos un número.',
+        'uncompromised' => 'El campo :attribute ha aparecido en un leak. Por favor cámbielo.',
+    ]
 
 ];

@@ -1,14 +1,15 @@
 <?php
 
-Class OracleConnector
+Class OracleConnector extends Connector
 {
     protected $connection;
     public $status;
-
     protected $inTransaction = false;
 
     public function __construct($host, $user, $password, $database, $port=3306)
     {
+        $this->database = $database;
+
         $this->connection = oci_pconnect($user, $password, 
             '(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = '.$host.')
             (PORT = '.$port.')) (CONNECT_DATA = (SID = '.$database.')) )');
@@ -38,39 +39,34 @@ Class OracleConnector
         $this->inTransaction = false;
     }
 
-    /** @return int|bool */
-    public function query($sql, $bindings=array())
-    {
-        return $this->execSQL($sql, $bindings, false);
-    }
-
     public function getLastId()
     {
         return 0; // $this->connection->lastInsertId();
     }
 
-    public function execSQL($sql, $parent, $fill=false)
+    public function _execUnpreparedSQL($sql)
     {
-        //var_dump($wherevals);
-        if ($fill && $parent->_collection==null)
-            $parent->_collection = new Collection();
-        
-        try
+        if (config('app.debug_info'))
         {
-            return $this->_execSQL($sql, $parent, $fill);
+            global $debuginfo;
+            
+            $debuginfo['queryes'][] = $sql; // preg_replace('/\s\s+/', ' ', str_replace("'", "\"", $sql));
         }
-        catch (Exception $e) 
-        {
-            if (env('APP_DEBUG')==1) throw new Exception($e->getMessage());
 
-            return false;
-        }
+        $stmnt = oci_parse($this->connection, $sql);
+
+        oci_execute($stmnt);
+
+        $this->status = oci_num_rows($stmnt);
+
+        oci_free_statement($stmnt);
+
+        return true;
     }
-    
+
     public function _execSQL($sql, $parent, $fill=false)
     {
         $sql = str_replace("`", "", $sql);
-        //echo "SQL:".$sql."<br>";
         
         if (strpos($sql, ' LIMIT ')!==false)
         {
@@ -86,7 +82,6 @@ Class OracleConnector
                 $sql . ')T)T WHERE baradur_rowIndex > ' . $offset . ' AND baradur_rowIndex <= ' . ($limit+$offset);
         }
 
-
         //echo "SQL:".$sql."<br>";
 
         $bindings = $parent instanceof Builder? $parent->_bindings : $parent;
@@ -94,11 +89,13 @@ Class OracleConnector
         $bindings = Builder::__joinBindings($bindings);
 
 
-        if (env('DEBUG_INFO')==1)
+        if (config('app.debug_info'))
         {
             global $debuginfo;
 
             $result = Builder::__getPlainSqlQuery($sql, $bindings);
+
+            //dump($result); __exit();
 
             $debuginfo['queryes'][] = $result; // preg_replace('/\s\s+/', ' ', str_replace("'", "\"", $sql));
         }
@@ -114,9 +111,6 @@ Class OracleConnector
 
         $stmnt = oci_parse($this->connection, $sql);
 
-        //dump($sql);
-        //dd($new_bindings);
-
         foreach ($new_bindings as $key => $val)
         {
             oci_bind_by_name($stmnt, $key, $new_bindings[$key]);
@@ -126,8 +120,8 @@ Class OracleConnector
         {
             if ( !oci_execute($stmnt, OCI_DEFAULT) )
             {
-                oci_rollback($this->connection);
-                throw new Exception(oci_error());
+                $error = oci_error($stmnt);
+                throw new Exception($error['message']);
             }
         }
         else
@@ -135,13 +129,12 @@ Class OracleConnector
             $query = oci_execute($stmnt);
         }
 
-        //dump($query);
-
-        //$this->error = oci_error();
-
         if (!$query) {
-            throw new Exception(oci_error());
+            $error = oci_error($stmnt);
+            throw new Exception($error['message']);
         }
+
+        $this->status = oci_num_rows($stmnt);
         
         if ($fill)
         {
@@ -162,21 +155,8 @@ Class OracleConnector
         }
 
         oci_free_statement($stmnt);
-        return $query;
-    }
 
-    public function refValues($arr)
-    {
-        if (count($arr)==0) return array();
-
-        if (strnatcmp(phpversion(),'5.3') >= 0) //Reference is required for PHP 5.3+
-        {
-            $refs = array();
-            foreach($arr as $key => $value)
-                $refs[$key] = &$arr[$key];
-            return $refs;
-        }
-        return $arr;
+        return true;
     }
 
     private function arrayToObject($data)
@@ -188,66 +168,5 @@ Class OracleConnector
 
         return $obj;
     }
-
-    private function objetToModel($data, $builder)
-    {
-        $class = $builder->_parent;
-        $item = new $class;
-
-        /* foreach ($data as $key => $val)
-        {
-            $item->$key = $val;
-
-            foreach ($builder->_appends as $append)
-            {
-                $item->setAppendAttribute($append, $item->$append);
-            }
-        } */
-
-        //$this->__new = false;
-        $item->_setOriginalRelations($builder->_eagerLoad);
-
-        unset($item->_global_scopes);
-        unset($item->timestamps);
-
-        $item->setAttributes(CastHelper::processCasts(
-            (array)$data,
-            $builder->_model,
-            false
-        ));
-
-        /* foreach ($builder->_model->getAppends() as $append)
-        {
-            $item->setAppendAttribute($append, $item->$append);
-        } */
-
-        foreach ($item->getAttributes() as $key => $val)
-        {
-            if ($builder->_softDelete)
-            {
-                $item->unsetAttribute('deleted_at');
-            }
-
-            $item->unsetAttribute('BARADUR_ROWINDEX');
-
-            $camel = Helpers::snakeCaseToCamelCase($key);
-
-            if (method_exists($builder->_parent, 'get'.ucfirst($camel).'Attribute'))
-            {
-                $fn = 'get'.ucfirst($camel).'Attribute';
-                $item->$key = $item->$fn($val);
-            }
-            if (method_exists($builder->_parent, $camel.'Attribute'))
-            {
-                $fn = $camel.'Attribute';
-                $nval = $item->$fn($val, (array)$item);
-                if (isset($nval['get'])) $item->$key = $nval['get'];
-            }
-        }
-
-        $item->syncOriginal();
-
-        return $item;
-
-    }
+    
 }

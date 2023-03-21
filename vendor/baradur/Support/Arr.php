@@ -294,10 +294,6 @@ class Arr
     /**
      * Get an item from an array using "dot" notation.
      *
-     * @param  \ArrayAccess|array  $array
-     * @param  string|int|null  $key
-     * @param  mixed  $default
-     * @return mixed
      */
     public static function get($array, $key, $default = null)
     {
@@ -460,7 +456,7 @@ class Arr
      */
     public static function keyBy($array, $keyBy)
     {
-        return collect($array)->keyBy($keyBy)->all();
+        return Collection::make($array)->keyBy($keyBy)->all();
     }
 
     /**
@@ -582,7 +578,7 @@ class Arr
         if (func_num_args() == 2) {
             array_unshift($array, $value);
         } else {
-            $array = [$key => $value] + $array;
+            $array = array($key => $value) + $array;
         }
 
         return $array;
@@ -633,7 +629,7 @@ class Arr
         $count = count($array);
 
         if ($requested > $count) {
-            throw new Exception(
+            throw new RuntimeException(
                 "You requested {$requested} items, but there are only {$count} items available."
             );
         }
@@ -727,12 +723,24 @@ class Arr
      * Sort the array using the given callback or "dot" notation.
      *
      * @param  array  $array
-     * @param  string  $callback
+     * @param  callable  $callback
      * @return array
      */
     public static function sort($array, $key = null)
     {
-        return collect($array)->sortBy($key)->all();
+        return Collection::make($array)->sortBy($key)->all();
+    }
+
+    /**
+     * Sort the array in descending order using the given callback or "dot" notation.
+     *
+     * @param  array  $array
+     * @param  callable  $callback
+     * @return array
+     */
+    public static function sortDesc($array, $callback = null)
+    {
+        return Collection::make($array)->sortByDesc($callback)->all();
     }
 
     /**
@@ -799,6 +807,13 @@ class Arr
         return array_filter($array, $callback, ARRAY_FILTER_USE_BOTH);
     }
 
+    private static function callbackWhereNotNull($value)
+    {
+        return ! is_null($value);
+    }
+
+
+
     /**
      * Filter items where the value is not null.
      *
@@ -807,9 +822,7 @@ class Arr
      */
     public static function whereNotNull($array)
     {
-        return self::where($array, function ($value) {
-            return ! is_null($value);
-        });
+        return array_filter($array, 'self::callbackWhereNotNull', ARRAY_FILTER_USE_BOTH);
     }
 
     /**

@@ -1,0 +1,12 @@
+<?php
+
+class {{ class }}
+{
+    use Dispatchable;
+
+    public function __construct()
+    {
+        //
+    }
+
+}

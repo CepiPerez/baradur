@@ -5,7 +5,7 @@ Class PDF
 
     private static function generate($filename, $view, $landscape=false, $zoom="1")
     {
-        $folder = _DIR_ . env('PDF_PATH') . '/';
+        $folder = _DIR_ . config('pdf.path') . '/';
 
         $folder = str_replace('//', '/', $folder);
         
@@ -13,7 +13,7 @@ Class PDF
         file_put_contents($folder.$filename.'.html', $view);
         chmod($folder.$filename.'.html', 0777);
 
-        $command = env('PDF_BIN').' ';
+        $command = config('pdf.bin').' ';
 
         if ($landscape) 
             $command .= '-O Landscape ';

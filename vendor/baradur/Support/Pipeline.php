@@ -89,6 +89,8 @@ class Pipeline
             $controller = new $class;
             $params = array_merge(array($result, null), $params);
 
+            //dump("Middleware: $class");
+
             $reflectionMethod = new ReflectionMethod($class, $this->method);       
 
             $result = $reflectionMethod->invokeArgs($controller, $params);
@@ -103,8 +105,8 @@ class Pipeline
         }
 
         list($class, $method, $params) = getCallbackFromString($destination);
-        array_shift($params);
-        return call_user_func_array(array($class, $method), array_merge(array($result), $params));
+        $params[0] = $result;
+        return call_user_func_array(array($class, $method), $params);
 
     }
 

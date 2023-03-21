@@ -1,5 +1,4 @@
 <?php
-use PHPUnit\TheSeer\Tokenizer\Exception;
 
 Class HttpKernel
 {
@@ -10,14 +9,16 @@ Class HttpKernel
 
     private static function bootKernel()
     {
+        global $phpConverter;
+
         if (!file_exists(_DIR_.'app/http/Kernel.php'))
         {
-            throw new Exception("Error trying to book Http kernel");
+            throw new RuntimeException("Error trying to book Http kernel");
         }
 
         $temp = file_get_contents(_DIR_.'app/http/Kernel.php');
 
-        $temp = replaceNewPHPFunctions($temp, 'App_Http_Kernel', _DIR_);
+        $temp = $phpConverter->replaceNewPHPFunctions($temp, 'App_Http_Kernel', _DIR_);
 
         Cache::store('file')->plainPut(_DIR_.'storage/framework/classes/App_Http_Kernel.php', $temp);
         require_once(_DIR_.'storage/framework/classes/App_Http_Kernel.php');
@@ -42,14 +43,14 @@ Class HttpKernel
         $list = $kernel->getMiddlewareFromValue($middleware);
 
         if (count($list)!=1) {
-            throw new Exception("Error trying to load [$middleware] middleware.");
+            throw new RuntimeException("Error trying to load [$middleware] middleware.");
         }
 
         return reset($list);
 
     }
 
-    public static function getMiddlewareList($values)
+    public static function getMiddlewareList($values=array())
     {
         $kernel = self::getKernel();
         

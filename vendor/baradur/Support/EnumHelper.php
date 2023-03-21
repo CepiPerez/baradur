@@ -1,6 +1,6 @@
 <?php
 
-class EnumItem
+/* class EnumItem
 {
     protected $name;
     protected $value;
@@ -16,29 +16,78 @@ class EnumItem
         return $this->$name;
     }
 
-}
+} */
 
 class EnumHelper
 {
+    public $name = null;
+    public $value = null;
+
+    /** @return EnumHelper */
     public static function instance($parent)
     {
         return new $parent;
     }
 
-    public function __get($name)
+    public function set($name)
     {
-        return new EnumItem($name, $this->$name);
+        //$cases = $this->cases();
+        //dump("SET", $name, $this);
+
+        foreach ($this as $key => $val) {
+            if ($key!='name' && $key!='value') {
+                if ($key==$name || $val==$name) {
+                    $this->name = $key;
+                    $this->value = $val;
+                }
+            }
+        }
+
+        return $this;
     }
 
-    public function cases()
+    public function __get($name)
+    {
+        if ($name=='name' && isset($this->name)) {
+            return $this->name;
+        }
+        
+        if ($name=='value' && isset($this->value)) {
+            return $this->value;
+        }
+
+        foreach ($this as $key => $val) {
+            if ($key!='name' && $key!='value') {
+                if ($key==$name || $val==$name) {
+                    //dump("KEY", $key, $val);
+                    $this->name = $key;
+                    $this->value = $val;
+                }
+            }
+        }
+        
+        return $this;
+    }
+
+    public function value()
+    {
+        return $this->value;
+    }
+
+
+    /* public function cases()
     {
         $arr = array();
 
-        foreach ($this as $k => $v){
-            $arr[] = get_class($this)."::".$k;
+        $instance = new self;
+
+        foreach ($instance as $k => $v){
+            if ($k!='name' && $k!='value') {
+                $arr[$v] = $k;
+            }
         }
 
         return $arr;
-    }
+    } */
    
 }

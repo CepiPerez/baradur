@@ -1,0 +1,16 @@
+<?php
+
+class {{ class }} extends FormRequest
+{
+    public function authorize()
+    {
+        return false;
+    }
+
+    public function rules()
+    {
+        return [
+            //
+        ];
+    }
+}

@@ -35,7 +35,7 @@ class Word
         @readfile($folder.$filename.'.html');
 
         @unlink($folder.$filename.'.html');
-        exit();
+        __exit();
 
     }
 
