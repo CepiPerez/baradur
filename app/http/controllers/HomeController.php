@@ -3,18 +3,14 @@
 class HomeController extends Controller
 {
 
-    public function showHome()
+    public function index()
     {
 
-        global $routes, $base;
-        
-        $componentName = 'toast-success';
-        
         $breadcrumb = array(
             __('login.home') => '#'
         );
         
-        return view('index', compact('breadcrumb', 'componentName'));
+        return view('index', compact('breadcrumb'));
 
     }
 
