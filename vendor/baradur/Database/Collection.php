@@ -8,7 +8,7 @@ Class Collection implements ArrayAccess, Iterator
 
     protected $items = array();
 
-    protected $_position = 0;
+    private $position = 0;
 
     protected static $proxies = array(
         'average',
@@ -58,8 +58,6 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function __construct($data=null)
     {
-        $this->_position = 0;
-        
         if ($data) $this->collect($data);
     }
 
@@ -67,21 +65,26 @@ Class Collection implements ArrayAccess, Iterator
     {
         global $_class_list;
 
-        if (isset(self::$_macros[$method]))
-        {
+        if (isset(self::$_macros[$method])) {
+
             $class = self::$_macros[$method];
             $params = array();
 
-            if (is_closure($class))
-            {
+            if (is_closure($class)) {
                 list($c, $m, $params) = getCallbackFromString($class);
                 $class = new $c();
-            }
-            elseif (isset($_class_list[$class]))
-            {
+            } elseif (isset($_class_list[$class])) {
                 $class = new $class;
                 $m = '__invoke';
             }
+
+            for ($i=0; $i<count($params); $i++) {
+                if (count($parameters)>=$i) {
+                    $params[$i] = $parameters[$i];
+                }
+            }
+
+            $params[0] = $this->items;
 
             $class->collect($this->items);
             return executeCallback($class, $m, array_merge($parameters, $params), $class, false);
@@ -123,24 +126,29 @@ Class Collection implements ArrayAccess, Iterator
         unset($this->items[$offset]);
     }
 
-    public function current () {
-        return $this->items[$this->_position];
+    public function current()
+    {
+        return $this->items[$this->position];
     }
     
-    public function key () {
-        return $this->_position;
+    public function key()
+    {
+        return $this->position;
     }
 
-    public function next () {
-        $this->_position++;
+    public function next()
+    {
+        $this->position++;
     }
 
-    public function rewind () {
-        $this->_position = 0;
+    public function rewind()
+    {
+        $this->position = 0;
     }
 
-    public function valid () {
-        return null !== $this->items[$this->_position];
+    public function valid()
+    {
+        return null !== $this->items[$this->position];
     }
 
     public function __closure($value)
@@ -229,153 +237,29 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function toArray($data=null)
     {
-        if (!isset($data)) $data = $this->items;
-        
+        if (!isset($data)) {
+            $data = $this->items;
+        }
+
         return Helpers::toArray($data);
     }
 
     public function toArrayObject()
     {
         $arr = array();
-        foreach ($this->items as $obj)
-        {
+        
+        foreach ($this->items as $obj) {
             $arr[] = $obj;
         }
+
         return $arr;
     }
 
-    /* public function getPagination()
-    {
-        return $this->pagination;
-    } */
-
-    /* public function setPagination($pagination)
-    {
-        $this->pagination = $pagination;
-    } */
 
     public function hasPagination()
     {
         return $this instanceof Paginator;
     }
-
-    /**
-     * Builds pagination links in View
-     * 
-     * @return string
-     */
-    /* public function links()
-    {
-        if ($this->pagination->meta['last_page']==1) return null;
-
-        Paginator::setPagination($this->pagination);
-
-        if (Paginator::style()!='tailwind') 
-            return View::loadTemplate('layouts/pagination-bootstrap4', array('paginator' => Paginator::pagination()));
-
-        return View::loadTemplate('layouts/pagination-tailwind', array('paginator' => Paginator::pagination()));
-    } */
-
-    /* public function getPaginator()
-    {
-        $this->appends(request()->query());
-
-        foreach ($this->pagination as $key => $val)
-        {
-            if (isset($val) && $key!='meta') 
-                $this->pagination->$key = $this->pagination->meta['path'] . '?' . $val;
-        }
-    
-        return $this->pagination;
-    } */
-
-    /* public function setPaginator($pagination)
-    {
-        $this->pagination = $pagination;
-    } */
-
-    /* public function currentPage()
-    {
-        if (!$this->pagination) return null;
-
-        return $this->pagination->currentPage();
-    }
-
-    public function previousPageUrl()
-    {
-        if (!$this->pagination) return null;
-
-        return $this->pagination->previousPageUrl();
-    }
-
-    public function nextPageUrl()
-    {
-        if (!$this->pagination) return null;
-
-        return $this->pagination->nextPageUrl();
-    }
-
-    public function firstItem()
-    {
-        if (!$this->pagination) return null;
-
-        return $this->pagination->firstItem();
-    }
-
-    public function lastItem()
-    {
-        if (!$this->pagination) return null;
-
-        return $this->pagination->lastItem();
-    }
-
-    public function hasMorePages()
-    {
-        if (!$this->pagination) return null;
-
-        return $this->pagination->hasMorePages();
-    }
-
-    public function url()
-    {
-        if (!$this->pagination) return null;
-
-        return $this->pagination->url();
-    } */
-
-    /**
-     * Adds parameters to pagination links
-     * 
-     * @return Collection
-     */
-    /* public function appends($params=array())
-    {
-        if (!isset($this->pagination)) return $this;
-
-        unset($params['ruta']);
-        unset($params['p']);
-
-        if (count($params)>0)
-        {
-            $str = http_build_query($params);
-
-            $this->pagination->query = $str;
-            
-            if (isset($this->pagination->first))
-                $this->pagination->first = $str . '&' . $this->pagination->first;
-
-            if (isset($this->pagination->previous))
-                $this->pagination->previous = $str . '&' . $this->pagination->previous;
-
-            if (isset($this->pagination->next))
-                $this->pagination->next = $str . '&' . $this->pagination->next;
-
-            if (isset($this->pagination->last))
-                $this->pagination->last = $str . '&' . $this->pagination->last;
-        }
-
-        return $this;
-    } */
 
     /**
      * Count the number of items in the collection.
@@ -394,7 +278,9 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function shift()
     {
-        if ($this->count()==0) return null;
+        if ($this->count()==0) {
+            return null;
+        }
 
         return array_shift($this->items);
     }
@@ -406,7 +292,9 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function pop()
     {
-        if ($this->count()==0) return null;
+        if ($this->count()==0) {
+            return null;
+        }
 
         return array_pop($this->items);
     }
@@ -424,7 +312,7 @@ Class Collection implements ArrayAccess, Iterator
             list($class, $method) = getCallbackFromString($callback);
 
             foreach ($this->items as $key => $item) {
-                if(executeCallback($class, $method, array($item, $key) )) {
+                if (executeCallback($class, $method, array($item, $key) )) {
                     return $item;
                 }
             }
@@ -432,7 +320,7 @@ Class Collection implements ArrayAccess, Iterator
             return $default;
         }
 
-        return $this->count()>0 ? $this->current() : $default;
+        return $this->count()>0 ? $this->items[0] : $default;
     }
 
     /**
@@ -446,9 +334,8 @@ Class Collection implements ArrayAccess, Iterator
 
         if (is_null($key) && $this->count() > 0) {
             $res[] = $this->first();
-        }
-        elseif (!is_closure($key))
-        {
+        } 
+        elseif (!is_closure($key)) {
             if (func_num_args() === 1) {
                 $value = true;
                 $operator = '=';
@@ -461,8 +348,7 @@ Class Collection implements ArrayAccess, Iterator
             
             $res = $this->where($key, $operator, $value);
         }
-        else 
-        {
+        else {
             list($class, $method) = getCallbackFromString($key);
      
             foreach ($this->items as $key => $item) {    
@@ -491,97 +377,6 @@ Class Collection implements ArrayAccess, Iterator
         return $this->count()>0 ? end($this->items) : null;
     }
 
-
-    /* private function getObjectItemsForClone($item)
-    {
-        $obj = new StdClass;
-
-        foreach ($item as $key => $val)
-        {
-            if ($item instanceof Model)
-            {
-                $obj->$key = $val;
-                $obj->$key->__name = get_class($val);
-            }
-            elseif (is_object($val))
-            {
-                $obj->$key = $this->getObjectItemsForClone($val);
-                $obj->$key->__name = get_class($val);
-            }
-            else
-            {
-                $obj->$key = $val;
-            }
-
-        }
-
-        return $obj;
-    } */
-
-    /**
-     * Returns a collection's duplicate
-     * 
-     * @return Collection
-     */
-    /* public function duplicate($collection=null, $parent=null)
-    {
-        if (!isset($collection)) $collection = $this;
-        if (!isset($parent)) $parent = $this->_parent;
-
-        $col = new Collection(); //collectWithParent(null, $parent);
-        
-        foreach ($collection->items as $k => $item)
-        {
-            if ($item instanceof Model)
-            {
-                $col->items[$k] = $item;
-                $col->items[$k]->__name = get_class($item);
-            }
-            elseif (is_object($item))
-            {
-                $col->items[$k] = $this->getObjectItemsForClone($item);
-                $col->items[$k]->__name = get_class($item);
-                
-            }
-            else
-            {
-                $col->items[$k] = $item;
-            }
-        }
-
-        return $col;
-    } */
-
-
-    /* private function getObjectItemsForCollect($item)
-    {
-        $type = get_class($item);
-
-        $obj = new $type; //StdClass;
-    
-        if (isset($item->__name))
-            $obj = new $item->__name;
-
-        foreach ($item as $key => $val)
-        {
-            if ($val instanceof Model)
-            {
-                $obj->$key = $val;
-            }
-            elseif (is_object($val))
-            {
-                $obj->$key = $this->getObjectItemsForCollect($val);
-            }
-            elseif ($key!='__name')
-            {
-                $obj->$key = $val;
-            }
-
-        }
-        return $obj;
-    } */
-
-
     /**
      * Fills the collection
      * 
@@ -590,22 +385,6 @@ Class Collection implements ArrayAccess, Iterator
     public function collect($data)
     {
         $data = is_array($data) ? $data : array($data);
-
-        /* foreach ($data as $k => $item)
-        {
-            if ($item instanceof Model)
-            {
-                $this->items[$k] = $item;
-            }
-            elseif (is_object($item))
-            {
-                $this->items[$k] = $this->getObjectItemsForCollect($item);
-            }
-            elseif ($k!=='__name')
-            {
-                $this->items[$k] = $item;
-            }
-        } */
 
         $this->items = $data;
 
@@ -735,7 +514,7 @@ Class Collection implements ArrayAccess, Iterator
             throw new InvalidArgumentException('Invalid callback');
         }
 
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        $res = new Collection(); 
         
         list($class, $method, $params, $names) = getCallbackFromString($callback);
 
@@ -750,8 +529,7 @@ Class Collection implements ArrayAccess, Iterator
                 $params[0] = $item;
             }
 
-            if (executeCallback($class, $method, $params, $this))
-            {
+            if (executeCallback($class, $method, $params, $this)) {
                 $res->items[] = $item;
             }
         }
@@ -785,8 +563,7 @@ Class Collection implements ArrayAccess, Iterator
             return in_array($key, $this->items);
         }
 
-        if (!is_closure($key))
-        {
+        if (!is_closure($key)) {
             if (!$value) {
                 $value = $operator? $operator : $key;
                 $operator = '==';
@@ -800,7 +577,6 @@ Class Collection implements ArrayAccess, Iterator
         list($class, $method, $params, $names) = getCallbackFromString($key);
 
         foreach ($this->items as $key => $value) {
-
 
             for ($i=0; $i < count($params); $i++) {
                 if ($names[$i]=='key') $params[$i] = $key;
@@ -836,6 +612,26 @@ Class Collection implements ArrayAccess, Iterator
         return in_array($key, $this->items, !is_object($key));
     }
 
+    /**
+     * Flatten a multi-dimensional associative array with dots.
+     *
+     * @return static
+     */
+    public function dot()
+    {
+        return new Collection(Arr::dot($this->all()));
+    }
+
+    /**
+     * Convert a flatten "dot" notation array into an expanded array.
+     *
+     * @return static
+     */
+    public function undot()
+    {
+        return new Collection(Arr::undot($this->all()));
+    }
+
 
     /**
      * Check if collection contains callback
@@ -864,19 +660,15 @@ Class Collection implements ArrayAccess, Iterator
             throw new InvalidArgumentException('Invalid callback');
         }
 
-        $res1 = new Collection(); //collectWithParent(null, $this->_parent);
-        $res2 = new Collection(); //collectWithParent(null, $this->_parent);
+        $res1 = new Collection(); 
+        $res2 = new Collection(); 
         
         list($class, $method) = getCallbackFromString($callback);
 
-        foreach ($this as $record)
-        {
-            if(executeCallback($class, $method, array($record), $this))
-            {
+        foreach ($this as $record) {
+            if(executeCallback($class, $method, array($record), $this)) {
                 $res1->items[] = $record;
-            }
-            else
-            {
+            } else {
                 $res2->items[] = $record;
             }
         }
@@ -932,7 +724,6 @@ Class Collection implements ArrayAccess, Iterator
                 $params[0] = $value;
             }
 
-
             $result = executeCallback($class, $method, $params, $this, false);
 
             if ($result === false) {
@@ -953,60 +744,22 @@ Class Collection implements ArrayAccess, Iterator
     public function chunk($value)
     {
         $result = array();
-        $col = new Collection; //collectWithParent(null, $this->_parent);
+        $col = new Collection; 
         
-        foreach ($this->items as $record)
-        {
-            if ($col->count()==$value)
-            {
+        foreach ($this->items as $record) {
+            if ($col->count()==$value) {
                 $result[] = $col;
                 $col = new Collection;
             }
             $col->items[] = $record;
         }
-        if ($col->count()>0)
-        {
+
+        if ($col->count()>0) {
             $result[] = $col;
         }
 
         return $result;
     }
-
-    /**
-     * Chunk the collection into chunks with a callback.
-     *
-     * @return array
-     */
-    /* public function chunkWhile($callback)
-    {
-        if (!is_closure($callback)) {
-            throw new InvalidArgumentException('Invalid callback');
-        }
-
-        $result = array();
-        $col = new Collection;
-        
-        list($class, $method, $params, $names) = getCallbackFromString($callback);
-
-        foreach ($this->items as $key => $value) {
-
-            $params[0] = $value;
-            if (count($names)>1) $params[1] = $key;
-
-            $result = executeCallback($class, $method, $params, $this, false);
-
-            $result[] = $col;
-                $col = new Collection;
-            }
-            $col->items[] = $record;
-        }
-        if ($col->count()>0)
-        {
-            $result[] = $col;
-        }
-
-        return $result;
-    } */
 
 
     /**
@@ -1032,7 +785,6 @@ Class Collection implements ArrayAccess, Iterator
                 if (!in_array('value', $names)) {
                     $params[0] = $item;
                 }
-    
 
                 $res = executeCallback($class, $method, $params);
 
@@ -1062,7 +814,7 @@ Class Collection implements ArrayAccess, Iterator
             throw new InvalidArgumentException('Invalid callback');
         }
 
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        $res = new Collection(); 
 
         list($class, $method, $params, $names) = getCallbackFromString($callback);
 
@@ -1098,29 +850,15 @@ Class Collection implements ArrayAccess, Iterator
     }
 
     /**
-     * Appends all of the current request's query string values to the pagination links
-     * 
-     * @return Collection
-     */
-    /* public function withQueryString()
-    {
-        if (!$this->pagination) return $this;
-
-        $this->appends(request()->query());
-        return $this;
-    } */
-
-    /**
      * Returns a new collection with the keys reset to consecutive integers
      * 
      * @return Collection
      */
     public function values()
     {
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        $res = new Collection();
         
-        foreach ($this->items as $record)
-        {
+        foreach ($this->items as $record) {
             $res->items[] = $record;
         }
         
@@ -1193,28 +931,25 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function where($key, $operator='==', $value=true)
     {
-        if (func_num_args() === 1)
-        {
+        if (func_num_args() === 1) {
             $value = true;
             $operator = '=';
         }
 
-        if (func_num_args() === 2)
-        {
+        if (func_num_args() === 2) {
             $value = $operator;
             $operator = '=';
         }
 
         $value = Helpers::ensureValueIsNotObject($value);
 
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        $res = new Collection();
 
         foreach ($this->items as $record)
         {
             $retrieved = $this->getItemValue($record, $key);
 
-            if (is_string($value) && is_string($retrieved))
-            {
+            if (is_string($value) && is_string($retrieved)) {
                 $retrieved = trim($retrieved);
                 $value = trim($value);
             }
@@ -1256,13 +991,14 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function whereNot($key, $value)
     {
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        $res = new Collection(); 
 
-        foreach ($this->items as $record)
-        {
-            if (isset($record->$key) && $record->$key!=$value)
+        foreach ($this->items as $record) {
+            if (isset($record->$key) && $record->$key!=$value) {
                 $res->items[] = $record;
+            }
         }
+
         return $res;
     }
 
@@ -1273,13 +1009,14 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function whereNull($key)
     {
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
-        foreach ($this->items as $record)
-        {
-            //dump($record->$key);
-            if (!isset($record->$key))
+        $res = new Collection(); 
+        
+        foreach ($this->items as $record) {
+            if (!isset($record->$key)) {
                 $res->items[] = $record;
+            }
         }
+
         return $res;
     }
 
@@ -1290,13 +1027,14 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function whereNotNull($key)
     {
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        $res = new Collection(); 
         foreach ($this->items as $record)
         {
-            //dump($record->$key);
-            if (isset($record->$key))
+            if (isset($record->$key)) {
                 $res->items[] = $record;
+            }
         }
+
         return $res;
     }
 
@@ -1307,13 +1045,14 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function whereIn($key, $values, $strict=false)
     {
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        $res = new Collection(); 
 
-        foreach ($this->items as $record)
-        {
-            if (in_array($record->$key, $values, $strict))
+        foreach ($this->items as $record) {
+            if (in_array($record->$key, $values, $strict)) {
                 $res->items[] = $record;
+            }
         }
+
         return $res;
     }
 
@@ -1334,12 +1073,14 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function whereNotIn($key, $values, $strict=false)
     {
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
-        foreach ($this->items as $record)
-        {
-            if (!in_array($record->$key, $values, $strict))
+        $res = new Collection(); 
+        
+        foreach ($this->items as $record) {
+            if (!in_array($record->$key, $values, $strict)) {
                 $res->items[] = $record;
+            }
         }
+
         return $res;
     }
 
@@ -1354,7 +1095,7 @@ Class Collection implements ArrayAccess, Iterator
         
         shuffle($array);
 
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        $res = new Collection(); 
 
         foreach ($array as $a) {
             $res->items[] = $this[$a];
@@ -1381,12 +1122,12 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function whereContains($key, $value)
     {
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        $res = new Collection(); 
         
-        foreach ($this->items as $record)
-        {
-            if (isset($record->$key) && $record->$key==$value)
+        foreach ($this->items as $record) {
+            if (isset($record->$key) && $record->$key==$value) {
                 $res->items[] = $record;
+            }
         }
         
         return $res;
@@ -1400,12 +1141,12 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function whereNotContains($key, $value)
     {
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        $res = new Collection(); 
         
-        foreach ($this->items as $record)
-        {
-            if (strpos($record->$key, $value)==false && substr($record->$key, 0, strlen($value))!=$value)
+        foreach ($this->items as $record) {
+            if (strpos($record->$key, $value)==false && substr($record->$key, 0, strlen($value))!=$value) {
                 $res->items[] = $record;
+            }
         }
         
         return $res;
@@ -1418,12 +1159,12 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function whereInstanceOf($type)
     {
-        $res = new Collection(); //collectWithParent(null, $this->_parent);
+        $res = new Collection(); 
         
-        foreach ($this->items as $record)
-        {
-            if ($record instanceof $type)
+        foreach ($this->items as $record) {
+            if ($record instanceof $type) {
                 $res->items[] = $record;
+            }
         }
 
         return $res;
@@ -1445,39 +1186,39 @@ Class Collection implements ArrayAccess, Iterator
     public function pluck($value, $key=null)
     {
         $extra = null;
-        if (strpos($value, '.')!==false)
-        {
+        if (strpos($value, '.')!==false) {
             list($value, $extra) = explode('.', $value);
         }
 
         $array = array();
-        foreach ($this->items as $record)
-        {
-            if (is_object($record))
-            {
-                if ($key) $array[$record->$key] = $record->$value;
-                else 
-                {
+        
+        foreach ($this->items as $record) {
+            
+            if (is_object($record)) {
+                if ($key) {
+                    $array[$record->$key] = $record->$value;
+                } else {
                     $val = $record->$value;
-                    if (!in_array($val, $array) && $val)
+                    if (!in_array($val, $array) && $val!==null) {
                         $array[] = $extra? $val->$extra : $val;
+                    }
                 }
-            }
-            else
-            {
-                if ($key) $res[$record[$key]] = $record[$value];
-                else 
-                {
-                    if (!in_array($record[$value], $array))
+            } else {
+                if ($key) {
+                    $res[$record[$key]] = $record[$value];
+                } else {
+                    if (!in_array($record[$value], $array)) {
                         $array[] = $extra? $record[$value][$extra] : $record[$value];
+                    }
                 }
             }
         }
 
-        $result = new Collection(); //collectWithParent(null, $this->_parent);
+        $result = new Collection(); 
 
-        foreach ($array as $key => $val)
+        foreach ($array as $key => $val) {
             $result->items[$key] = $val;
+        }
 
         return $result;
     }
@@ -1489,35 +1230,29 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function keys($keys)
     {        
-        $result = new Collection(); //collectWithParent(null, $this->_parent);
+        $result = new Collection(); 
         
-        foreach ($this->items as $record)
-        {
-            if ($record instanceof stdClass)
-            {
+        foreach ($this->items as $record) {
+
+            if ($record instanceof stdClass) {
                 $new = $record;
-                foreach ($new as $key => $val)
-                {
-                    if (!in_array($key, $keys))
-                    {
+                foreach ($new as $key => $val) {
+                    if (!in_array($key, $keys)) {
                         unset($new->$key);
                     }
                 }
                 $result->items[] = $new;
-            }
-            else
-            {
+            } else {
                 $new = $record;
-                foreach ($new->getAttributes() as $key => $val)
-                {
-                    if (!in_array($key, $keys))
-                    {
+                foreach ($new->getAttributes() as $key => $val) {
+                    if (!in_array($key, $keys)) {
                         $new->unsetAttribute($key);
                     }
                 }
                 $result->items[] = $new;
             }
         }
+
         return $result;
     }
 
@@ -1534,16 +1269,6 @@ Class Collection implements ArrayAccess, Iterator
             $key = is_array($item) ? $item[$keyBy] : $item->$keyBy;
             $results[$key] = $item;
         }
-
-        /* if ($this instanceof Paginator) {
-            $result = new Paginator;
-            $result->collect($results);
-            $result->setPagination($this->pagination());
-        } else {
-            $result = collect($results);
-        }
-
-        return $result; */
         
         return collect($results);
     }
@@ -1582,42 +1307,35 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function pull($index, $value=null)
     {
-        if (!is_integer($index))
-        {
+        if (!is_integer($index)) {
             $ind = -1;
             $count = 0;
 
-            foreach ($this->items as $record)
-            {
-                if (isset($record->$index) && $record->$index==$value)
-                {
+            foreach ($this->items as $record) {
+                if (isset($record->$index) && $record->$index==$value) {
                     $ind = $count;
                     break;
                 }
                 ++$count;
             }
 
-            if ($ind==-1) 
+            if ($ind==-1) {
                 return null;
+            }
 
             $index = $ind;
         }
         
-        if ($index > $this->count()-1)
+        if ($index > $this->count()-1) {
             return null;
+        }
         
         $res = $this->items[$index];
-        //$this->offsetUnset2($index);
 
         array_splice($this->items, $index, 1);
         
         return $res;
     }
-
-    /* private function offsetUnset2($offset){
-        $this->offsetUnset($offset);
-        $this->exchangeArray(array_values($this->getArrayCopy()));
-    } */
 
     /**
      * Determines if a given key exists in the collection
@@ -1636,13 +1354,13 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function find($key, $value)
     {
-        foreach ($this->items as $record)
-        {
-            if ($record->getAttribute($key) && $record->getAttribute($key)==$value)
-            {
+        foreach ($this->items as $record) {
+            if ($record->getAttribute($key) && $record->getAttribute($key)==$value) {
                 return $record;
             }
         }
+
+        return null;
     }
 
     /**
@@ -1664,7 +1382,9 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function slice($offset, $length = null)
     {
-        $res = array_slice($this->items, $offset, $length, true);
+        $res = $length
+            ? array_slice($this->items, $offset, $length, false)
+            : array_slice($this->items, $offset);
 
         return collect($res);
     }
@@ -1816,16 +1536,14 @@ Class Collection implements ArrayAccess, Iterator
     {
         $res = new Collection();
 
-        if (!is_closure($key))
-        {
-            if (func_num_args() === 1)
-            {
+        if (!is_closure($key)) {
+
+            if (func_num_args() === 1) {
                 $value = true;
                 $operator = '=';
             }
 
-            if (func_num_args() === 2)
-            {
+            if (func_num_args() === 2) {
                 $value = $operator;
                 $operator = '=';
             }
@@ -1872,8 +1590,8 @@ Class Collection implements ArrayAccess, Iterator
 
         $dictionary = array();
 
-        foreach ($items as $item)
-        {
+        foreach ($items as $item) {
+
             $key = $item instanceof Model ? $item->getKey() : (
                 $item instanceof RouteItem ? $item->url : (
                     is_array($item)
@@ -2290,6 +2008,7 @@ Class Collection implements ArrayAccess, Iterator
         if (is_null($keys)) {
             return new Collection($this->items);
         }
+
         $keys = is_array($keys)? $keys : func_get_args();
 
         if (is_assoc($this->items)) {
@@ -2327,8 +2046,7 @@ Class Collection implements ArrayAccess, Iterator
 
         $relations = is_string($relations) ? array($relations) : $relations;
 
-        foreach ($relations as $relation)
-        {
+        foreach ($relations as $relation) {
             $class->_collection = $this;
             $class->loadAggregate($relation, $column, $function);
         }

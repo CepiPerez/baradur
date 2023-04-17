@@ -1,0 +1,9 @@
+<?php
+
+class {{ class }} extends Controller
+{
+    public function __invoke()
+    {
+        //
+    }
+}

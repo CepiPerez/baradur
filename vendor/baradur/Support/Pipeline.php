@@ -2,6 +2,16 @@
 
 class Pipeline
 {
+    public static function send($passable)
+    {
+        $res = new PipelineHandler();
+
+        return $res->send($passable);
+    }
+}
+
+class PipelineHandler
+{
     protected $container;
     protected $passable;
     protected $pipes = array();
@@ -82,25 +92,29 @@ class Pipeline
     {
         $result = $this->passable;
 
-        foreach ($this->pipes() as $pipe)
-        {
+        foreach ($this->pipes() as $pipe) {
+
             list($class, $params) = $this->parsePipeString($pipe);
             
             $controller = new $class;
             $params = array_merge(array($result, null), $params);
 
-            //dump("Middleware: $class");
+            $reflectionMethod = null;
 
-            $reflectionMethod = new ReflectionMethod($class, $this->method);       
+            if (method_exists($class, $this->method)) {
+                $reflectionMethod = new ReflectionMethod($class, $this->method);
+            } else {
+                $reflectionMethod = new ReflectionMethod($class, '__invoke');
+            }
 
             $result = $reflectionMethod->invokeArgs($controller, $params);
 
-            if (!($result instanceof $this->passable))
+            if (!($result instanceof $this->passable)) {
                 return $result;
+            }
         }
 
-        if (!$destination)
-        {
+        if (!$destination) {
             return $result;
         }
 
@@ -121,66 +135,6 @@ class Pipeline
     }
 
     /**
-     * Get the final piece of the Closure onion.
-     *
-     * @param mixed $destination
-     * @return mixed
-     */
-    /* protected function prepareDestination(Closure $destination)
-    {
-        return function ($passable) use ($destination) {
-            try {
-                return $destination($passable);
-            } catch (Throwable $e) {
-                return $this->handleException($passable, $e);
-            }
-        };
-    } */
-
-    /**
-     * Get a Closure that represents a slice of the application onion.
-     *
-     * @return \Closure
-     */
-    /* protected function carry()
-    {
-        return function ($stack, $pipe) {
-            return function ($passable) use ($stack, $pipe) {
-                try {
-                    if (is_callable($pipe)) {
-                        // If the pipe is a callable, then we will call it directly, but otherwise we
-                        // will resolve the pipes out of the dependency container and call it with
-                        // the appropriate method and arguments, returning the results back out.
-                        return $pipe($passable, $stack);
-                    } elseif (! is_object($pipe)) {
-                        [$name, $parameters] = $this->parsePipeString($pipe);
-
-                        // If the pipe is a string we will parse the string and resolve the class out
-                        // of the dependency injection container. We can then build a callable and
-                        // execute the pipe function giving in the parameters that are required.
-                        $pipe = $this->getContainer()->make($name);
-
-                        $parameters = array_merge([$passable, $stack], $parameters);
-                    } else {
-                        // If the pipe is already an object we'll just make a callable and pass it to
-                        // the pipe as-is. There is no need to do any extra parsing and formatting
-                        // since the object we're given was already a fully instantiated object.
-                        $parameters = [$passable, $stack];
-                    }
-
-                    $carry = method_exists($pipe, $this->method)
-                                    ? $pipe->{$this->method}(...$parameters)
-                                    : $pipe(...$parameters);
-
-                    return $this->handleCarry($carry);
-                } catch (Throwable $e) {
-                    return $this->handleException($passable, $e);
-                }
-            };
-        };
-    } */
-
-    /**
      * Parse full pipe string to get name and parameters.
      *
      * @param  string  $pipe
@@ -190,12 +144,9 @@ class Pipeline
     {
         list($name, $parameters) = explode(':', $pipe);
 
-        if (is_string($parameters))
-        {
+        if (is_string($parameters)) {
             $parameters = explode(',', $parameters);
-        }
-        else
-        {
+        } else {
             $parameters = array();
         }
 
@@ -250,17 +201,4 @@ class Pipeline
         return $carry;
     }
 
-    /**
-     * Handle the given exception.
-     *
-     * @param  mixed  $passable
-     * @param  \Throwable  $e
-     * @return mixed
-     *
-     * @throws \Throwable
-     */
-    /* protected function handleException($passable, Throwable $e)
-    {
-        throw $e;
-    } */
 }

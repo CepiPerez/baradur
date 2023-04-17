@@ -39,9 +39,9 @@ class Str
         return UUid::isValid($uuid);
     }
 
-    public static function ulid()
+    public static function ulid($time = null)
     {
-        return self::getInstance(Ulid::generate());
+        return self::getInstance(Ulid::generate($time));
     }
 
     public static function isUlid($uuid)
@@ -150,12 +150,8 @@ class Str
         return strtolower($value);
     }
 
-    public static function length($value, $encoding = null)
+    public static function length($value = null)
     {
-        if ($encoding) {
-            return strlen($value, $encoding);
-        }
-
         return strlen($value);
     }
 
@@ -212,9 +208,11 @@ class Str
         return str_repeat($string, $times);
     }
 
-    public static function replace($search, $replace, $subject)
+    public static function replace($search, $replace, $subject, $caseSensitive = true)
     {
-        return str_replace($search, $replace, $subject);
+        return $caseSensitive
+            ? str_replace($search, $replace, $subject)
+            : str_ireplace($search, $replace, $subject);
     }
 
     public static function replaceFirst($search, $replace, $subject)
@@ -458,6 +456,81 @@ class Str
         }
 
         return implode('', $result);
+    }
+
+    public static function mask($string, $character, $index, $length = null)
+    {
+        if ($character === '') {
+            return $string;
+        }
+
+        if (is_string($index)) {
+            $index = strpos($string, $index)!==false ? strpos($string, $index) + 1 : 0;
+        } 
+
+        if ($length && is_string($length)) {
+            $length = strpos($string, $length)!==false ? strpos($string, $length) - $index : null;
+        }
+
+        $segment = $length? substr($string, $index, $length) : substr($string, $index);
+
+        if ($segment === '') {
+            return $string;
+        }
+
+        $strlen = mb_strlen($string);
+        $startIndex = $index;
+
+        if ($index < 0) {
+            $startIndex = $index < -$strlen ? 0 : $strlen + $index;
+        }
+
+        $start = substr($string, 0, $startIndex);
+        $segmentLen = mb_strlen($segment);
+        $end = substr($string, $startIndex + $segmentLen);
+
+        return $start.str_repeat(substr($character, 0, 1), $segmentLen).$end;
+    }
+
+    public static function match($pattern, $subject)
+    {
+        preg_match($pattern, $subject, $matches);
+
+        if (! $matches) {
+            return '';
+        }
+
+        return $matches[1] ? $matches[1] : $matches[0];
+    }
+
+    public static function isMatch($pattern, $value)
+    {
+        $value = (string) $value;
+
+        if (! is_array($pattern)) {
+            $pattern = array($pattern);
+        }
+
+        foreach ($pattern as $pattern) {
+            $pattern = (string) $pattern;
+
+            if (preg_match($pattern, $value) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function matchAll($pattern, $subject)
+    {
+        preg_match_all($pattern, $subject, $matches);
+
+        if (empty($matches[0])) {
+            return collect();
+        }
+
+        return collect($matches[1] ? $matches[1] : $matches[0]);
     }
 
 }

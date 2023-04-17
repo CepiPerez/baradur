@@ -2,54 +2,87 @@
 
 class Auth extends Controller
 {
-    protected $primaryKey = 'username';
-    protected static $useAuth = false;
-    protected static $_currentUser = null;
+    protected $guard = null;
+    protected $model = null;
+
+    //protected $primaryKey = 'username';
+    //protected static $useAuth = false;
+    //protected static $_currentUser = null;
+
+    public static $guards = array();
+
+    /** @return SessionGuard */
+    private static function getGuard($guard=null)
+    {
+        if (isset($_SESSION['guard'])) {
+
+            $stored = $_SESSION['guard'];
+            self::$guards[$stored->name] = $stored;
+
+            if ($stored->name==$guard || !$guard) {
+                return $stored;
+            }
+        }
+
+        if (!$guard) {
+            $guard = config('auth.defaults.guard');
+        }
+
+        if (isset(self::$guards[$guard])) {
+            return self::$guards[$guard];
+        }
+
+        $config = config('auth.guards.'.$guard);
+
+        if ($config===null) {
+            throw new RuntimeException("Guard [$guard] not defined.");
+        }
+
+        $provider = config('auth.providers.'.$config['provider']);
+
+        if ($provider===null || !is_array($provider) || !isset($provider['model'])) {
+            throw new RuntimeException("Provider [" . $config['provider'] . "] not defined correctly.");
+        }
+
+        $model = $provider['model'];
+
+        $provider = ucfirst($provider['driver']) . $model . 'Provider';
+
+        global $_class_list;
+        if (!isset($_class_list[$provider])) {
+            $provider = 'EloquentUserProvider';
+        }
+
+        self::$guards[$guard] = new SessionGuard($guard, new $provider($model), new RequestSession());
+
+        return self::$guards[$guard];
+    }
+
+    /** @return SessionGuard */
+    public static function guard($guard=null)
+    {
+        return self::getGuard($guard);
+    }
 
     public static function user()
     {
-        if (!isset(self::$_currentUser) && isset($_SESSION['user']))
-            self::$_currentUser = $_SESSION['user'];
-
-        return self::$_currentUser;
+        return self::getGuard()->user();
     }
-
 
     public static function check()
     {
-        return self::user() ? true : false;
+        return self::getGuard()->check();
     }
 
-    public function id()
+    public static function id()
     {
-        return Auth::user()->getKey();
-    }
-
-
-    public static function login($user, $remember = true)
-    {
-        $token = md5($user->username.'_'.$user->password.'_'.Carbon::now()->getTimestamp());
-        $user->token = $token;
-        $user->token_timestamp = Carbon::now()->getTimestamp();
-        $user->save();
-
-        if ($remember)
-        {
-            $domain = $_SERVER["HTTP_HOST"];
-            setcookie(config('app.name').'_token', $token, time()+86400, '/', $domain, false, true);
-        }
-
-        $user->unsetAttribute('password');
-
-        $_SESSION['user'] = $user; 
-        self::$_currentUser = $user;
+        return self::getGuard()->id();
     }
 
     public static function loginUsingId($id, $remember = true)
     {
-        $user = Model::instance('User')->findOrFail($id);
-
-        self::login($user, $remember);
+        self::getGuard()->logout();
+        return self::getGuard()->loginUsingId($id, $remember);
     }
 
 
@@ -81,6 +114,7 @@ class Auth extends Controller
 
     }
 
+
     public function start_login($referer = null)
     {
         if (isset($_SESSION['url_history'][1]) && isset($_SESSION['_requestedRoute']) && $_SESSION['url_history'][1] != $_SESSION['_requestedRoute']) {
@@ -99,7 +133,20 @@ class Auth extends Controller
 
     public function confirm_login(Request $request)
     {
-        $user = Model::instance('User')->where('email', $request->username)
+        $guard = self::getGuard(config('auth.defaults.guard'));
+        
+        $result = $guard->attempt(
+            array('username' => $request->username, 'password' => $request->password),
+            $request->remember
+        );
+
+        if (!$result) {
+            return back()->with("error", __("login.invalid"));
+        }
+
+        //dd($result, self::$guards, self::getGuard());
+
+        /* $user = Model::instance($this->model)->where('email', $request->username)
                     ->orWhere('username', $request->username)->first();
 
         if (strcmp($user->password, md5($request->password)) || !$user) {
@@ -110,15 +157,14 @@ class Auth extends Controller
             return back()->with("error", __("login.validation_required"));
         }
 
-        self::login($user, $request->remember);
+        self::login($user, $request->remember); */
 
         //return redirect(config('app.url'));
-        if (isset($_SESSION['_requestedRoute']))
-        {
+
+        if (isset($_SESSION['_requestedRoute'])) {
             $res = $_SESSION['_requestedRoute'];
             unset($_SESSION['_requestedRoute']);
             //$res = str_replace(config('app.url'), '', $res);
-            //dd($res);
             return redirect($res);
         }
 
@@ -127,7 +173,10 @@ class Auth extends Controller
 
     public function logout()
     {
-        $user = Model::instance('User')->find(auth()->id());
+        $guard = self::getGuard();
+
+        $guard->logout();
+        /* $user = Model::instance($this->model)->find(auth()->id());
         $user->token = null;
         $user->save();
 
@@ -136,16 +185,16 @@ class Auth extends Controller
 
         unset($_SESSION['user']);
         unset($_SESSION['tokens']);
-        self::$_currentUser = null;
+        self::$_currentUser = null; */
 
-        return back();
+        return redirect(config('app.url'));
     }
 
     public function register()
     {
-        unset($_SESSION['user']);
+        //unset($_SESSION['user']);
         unset($_SESSION['tokens']);
-        self::$_currentUser = null;
+        //self::$_currentUser = null;
 
         $title = __('login.registration');
 
@@ -159,6 +208,8 @@ class Auth extends Controller
 
     public function send_register(Request $request)
     {
+        $guard = self::getGuard(config('auth.defaults.guard'));
+
         $request->validate(array(
             'username' => 'required|unique,users',
             'email' => 'required|unique,email',
@@ -179,14 +230,14 @@ class Auth extends Controller
 			->subject(__('login.register_confirmation'))
 			->plain($message);
 
-        $user = new User;
+        $model = $guard->getProvider()->getModel();
+        $user = new $model;
         $user->username = $request->username;
         $user->password = md5($request->password);
         $user->name = $request->name;
         $user->email = $request->email;
         $user->validation = $random;
-
-        $res = $user->save();
+        $user->save();
 
         $breadcrumb = array(
             __('login.home') => '/',
@@ -202,6 +253,8 @@ class Auth extends Controller
 
     public function confirm($email, $token)
     {
+        $guard = self::getGuard(config('auth.defaults.guard'));
+
         $title = __('login.registration');
 
         $breadcrumb = array(
@@ -209,8 +262,12 @@ class Auth extends Controller
             __('login.registration') => '#'
         );
 
-        $user = Model::instance('User')->where('email', $email)
-                    ->where('validation', $token)->first();
+        $guard = self::getGuard(config('auth.defaults.guard'));
+
+        $user = Model::instance($guard->getProvider()->getModel())
+            ->where('email', $email)
+            ->where('validation', $token)
+            ->first();
 
         if (!$user) {
             abort(403);
@@ -252,6 +309,8 @@ class Auth extends Controller
 
     public function restore(Request $request)
     {
+        $guard = self::getGuard(config('auth.defaults.guard'));
+
         $request->validate(array(
             'username' => 'required'
         ));
@@ -263,8 +322,10 @@ class Auth extends Controller
             __('login.registration') => '#'
         );
 
-        $user = Model::instance('User')->where('username', $request->username)
-                ->orWhere('email', $request->username)->first();
+        $user = Model::instance($guard->getProvider()->getModel())
+            ->where('username', $request->username)
+            ->orWhere('email', $request->username)
+            ->first();
 
         if (!$user)
         {
@@ -295,6 +356,8 @@ class Auth extends Controller
 
     public function restore_confirm($email, $token)
     {
+        $guard = self::getGuard(config('auth.defaults.guard'));
+
         $title = __('login.restore');
 
         $breadcrumb = array(
@@ -302,11 +365,12 @@ class Auth extends Controller
             __('login.registration') => '#'
         );
 
-        $user = Model::instance('User')->where('email', $email)
-                    ->where('validation', $token)->first();
+        $user = Model::instance($guard->getProvider()->getModel())
+            ->where('email', $email)
+            ->where('validation', $token)
+            ->first();
 
-        if (!$user)
-        {
+        if (!$user) {
             abort(403);
         }
 
@@ -317,6 +381,8 @@ class Auth extends Controller
 
     public function restore_confirmed(Request $request)
     {
+        $guard = self::getGuard(config('auth.defaults.guard'));
+
         $title = __('login.registration');
 
         $breadcrumb = array(
@@ -324,8 +390,10 @@ class Auth extends Controller
             __('login.registration') => '#'
         );
 
-        $user = Model::instance('User')->where('username', $request->username)
-                    ->where('validation', $request->reset_token)->first();
+        $user = Model::instance($guard->getProvider()->getModel())
+            ->where('username', $request->username)
+            ->where('validation', $request->reset_token)
+            ->first();
 
         if (!$user) {
             abort(403);
@@ -344,17 +412,14 @@ class Auth extends Controller
 
     public static function autoLogin($token)
     {
-        //dd("AUTOLOGIN: $token");
-        $user = Model::instance('User')->where('token', $token)->first();
+        $guard = self::getGuard();
 
-        if ($user)
-        {
-            $domain = $_SERVER["HTTP_HOST"];
-            setcookie(config('app.name').'_token', $user->token, time()+86400, '/', $domain, false, true);
-            $user->unsetAttribute('password');
-            //unset($user->validation);
-            self::$_currentUser = $user;
-            $_SESSION['user'] = $user;
+        $user = Model::instance($guard->getProvider()->getModel())
+            ->where('token', $token)
+            ->first();
+
+        if ($user) {
+            $guard->login($user);
         }
     }
 
@@ -366,27 +431,27 @@ class Auth extends Controller
         $register = isset($routes['register'])? $routes['register'] : true;
         $reset = isset($routes['reset'])? $routes['reset'] : true;
 
-        Route::get('login', 'Auth@start_login')->name('login')->withoutMiddleware('auth')->middleware('auth:guest');
-        Route::post('login', 'Auth@confirm_login')->name('confirm_login')->withoutMiddleware('auth')->middleware('auth:guest');
+        Route::get('login', 'Auth@start_login')->name('login')->withoutMiddleware('auth')->middleware('guest');
+        Route::post('login', 'Auth@confirm_login')->name('confirm_login')->withoutMiddleware('auth')->middleware('guest');
 
         if ($register)
         {
-            Route::get('register', 'Auth@register')->name('registration')->withoutMiddleware('auth')->middleware('auth:guest');
-            Route::post('register', 'Auth@send_register')->name('confirm_registration')->withoutMiddleware('auth')->middleware('auth:guest');
+            Route::get('register', 'Auth@register')->name('registration')->withoutMiddleware('auth')->middleware('guest');
+            Route::post('register', 'Auth@send_register')->name('confirm_registration')->withoutMiddleware('auth')->middleware('guest');
         }
 
         if ($reset)
         {
-            Route::get('reset', 'Auth@reset')->name('reset_password')->withoutMiddleware('auth')->middleware('auth:guest');
-            Route::post('reset', 'Auth@restore')->name('send_reset_password')->withoutMiddleware('auth')->middleware('auth:guest');
-            Route::get('restore/{email}/{token}', 'Auth@restore_confirm')->name('restore_password')->withoutMiddleware('auth')->middleware('auth:guest');
-            Route::post('restore', 'Auth@restore_confirmed')->name('confirm_restore_password')->withoutMiddleware('auth')->middleware('auth:guest');
+            Route::get('reset', 'Auth@reset')->name('reset_password')->withoutMiddleware('auth')->middleware('guest');
+            Route::post('reset', 'Auth@restore')->name('send_reset_password')->withoutMiddleware('auth')->middleware('guest');
+            Route::get('restore/{email}/{token}', 'Auth@restore_confirm')->name('restore_password')->withoutMiddleware('auth')->middleware('guest');
+            Route::post('restore', 'Auth@restore_confirmed')->name('confirm_restore_password')->withoutMiddleware('auth')->middleware('guest');
         }
 
         if ($register || $reset)
         {
-            Route::get('email_confirm/{email}/{token}', 'Auth@confirm')->name('email_confirm')->withoutMiddleware('auth')->middleware('auth:guest');
-            Route::get('email_verify', 'Auth@verify')->name('email_verify')->withoutMiddleware('auth')->middleware('auth:guest');
+            Route::get('email_confirm/{email}/{token}', 'Auth@confirm')->name('email_confirm')->withoutMiddleware('auth')->middleware('guest');
+            Route::get('email_verify', 'Auth@verify')->name('email_verify')->withoutMiddleware('auth')->middleware('guest');
         }
 
         Route::get('logout', 'Auth@logout')->name('logout');

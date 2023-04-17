@@ -115,11 +115,26 @@ class Filesystem
         return is_dir($path);
     }
 
+    public function type($path)
+    {
+        return filetype($path);
+    }
+
+    public function hash($path, $algorithm = 'md5')
+    {
+        return hash_file($algorithm, $path);
+    }
+
     public function size($path)
     {
         $path = $this->getPath() . $path;
 
         return $this->isFile($path) ? filesize($path) : null;
+    }
+
+    public function json($path, $flags = 0, $lock = false)
+    {
+        return json_decode($this->get($path, $lock), true);
     }
 
     public function deleteDirectory($path, $preserve = false)
@@ -234,6 +249,11 @@ class Filesystem
         header('Content-disposition: download; filename="'.$name.'"');
         header('content-Transfer-Encoding:binary');
         header('Accept-Ranges:bytes');
+
+        foreach($headers as $header) {
+            header($header);
+        }
+
         @readfile($file);
         __exit();
     }

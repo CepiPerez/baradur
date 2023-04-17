@@ -11,7 +11,7 @@ class Schema
     {
         $res = DB::select("SHOW TABLES LIKE 'migrations'");
 
-        if ($res->count() == 0) {
+        if (count($res) == 0) {
             Artisan::info("Preparing database.");
 
             $startTime = microtime(true);

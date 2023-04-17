@@ -6,10 +6,8 @@ Class MessageBag
 
     public function __construct($errors = null)
     {
-        if (isset($errors))
-        {
-            foreach ($errors as $key => $val)
-            {
+        if (isset($errors)) {
+            foreach ($errors as $key => $val) {
                 $this->errorBag[$key] = $val;
             }
         }
@@ -27,9 +25,7 @@ Class MessageBag
 
     public function __get($name)
     {
-        return isset($this->errorBag[$name]) ?
-            $this->errorBag[$name] : 
-            null;
+        return isset($this->errorBag[$name]) ? $this->errorBag[$name] : null;
     }
 
 

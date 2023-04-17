@@ -26,8 +26,7 @@ class Handler extends ExceptionHandler
     protected $dontFlash = [
         'current_password',
         'password',
-        'password_confirmation',
-        'descripcion'
+        'password_confirmation'
     ];
 
     /**
@@ -38,10 +37,11 @@ class Handler extends ExceptionHandler
     public function register()
     {
         $this->renderable(function (ModelNotFoundException $e, $request) {
-
             if ($request->wantsJson()) {
                 return response()->json(['message' => 'Object not found'], 404);
             }
         });
+     
+
     }
 }

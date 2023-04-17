@@ -3,7 +3,7 @@
 Class HttpKernel
 {
     protected $middleware = array();
-    protected $routeMiddleware = array();
+    protected $middlewareAliases = array();
     protected $middlewareGroups = array();
     protected static $kernel = null;
 
@@ -11,8 +11,7 @@ Class HttpKernel
     {
         global $phpConverter;
 
-        if (!file_exists(_DIR_.'app/http/Kernel.php'))
-        {
+        if (!file_exists(_DIR_.'app/http/Kernel.php')) {
             throw new RuntimeException("Error trying to book Http kernel");
         }
 
@@ -58,10 +57,8 @@ Class HttpKernel
 
         $final_list = array();
 
-        foreach ($values as $value)
-        {
+        foreach ($values as $value) {
             $items = $kernel->getMiddlewareFromValue($value);
-
             $final_list = array_merge($final_list, $items);
         }
 
@@ -75,8 +72,7 @@ Class HttpKernel
 
         list($midd, $params) = explode(':', $value);
 
-        if (isset($_class_list[$midd]))
-        {
+        if (isset($_class_list[$midd])) {
             return array( $midd . ($params? ':'.$params : '') );
         }
 
@@ -93,21 +89,17 @@ Class HttpKernel
     {        
         $list = array();
 
-        if (isset($this->middlewareGroups[$middleware]))
-        {
+        if (isset($this->middlewareGroups[$middleware])) {
             $items = $this->middlewareGroups[$middleware];
             
-            foreach ($items as $item)
-            {
+            foreach ($items as $item) {
                 $result = $this->getMiddlewareListFromRouteGroup($item);
 
                 if ($result) {
                     $list[] = $result;
                 }
             }
-        }
-        else
-        {
+        } else {
             $list[] = $this->getMiddlewareListFromRouteGroup($middleware);
         }
         
@@ -124,9 +116,8 @@ Class HttpKernel
             return $item . ($params? ':'.$params : '');
         }
 
-        if (isset($this->routeMiddleware[$item]))
-        {   
-            return $this->routeMiddleware[$item] . ($params? ':'.$params : '');
+        if (isset($this->middlewareAliases[$item])) {   
+            return $this->middlewareAliases[$item] . ($params? ':'.$params : '');
         }
 
         return null;

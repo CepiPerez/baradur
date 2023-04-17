@@ -2,13 +2,7 @@
 
 class DB
 {
-    # DB Class should be used with table() at first!
 
-    # Since it's a global table class, find() command
-    # will fail if primary key is not 'id'
-    # However, wen can assign the primary key in table()
-    # using table('products:code')
-    
     /**
      * Assigns the table to DB Class\
      * Optionally you can assing primary key 
@@ -18,9 +12,9 @@ class DB
      * @param string $table
      * @return Builder
      */
-    public static function table($table)
+    public static function table($table, $as = null)
     {
-        $res = Model::instance('Model', $table);
+        $res = Model::instance('Model', $table, $as);
         return $res; //->getQuery();
     }
 
@@ -69,8 +63,8 @@ class DB
 
     public static function select($query, $bindings=array())
     {
-        if ($query instanceof Raw) {
-            $query = $query->query;
+        if ($query instanceof Expression) {
+            $query = $query->__toString();
         }
 
         $res = Model::instance('DB', 'dummy');
@@ -79,9 +73,9 @@ class DB
         return $res->_collection->all();
     }
 
-    public static function raw($query, $bindings=array())
+    public static function raw($value)
     {
-        return new Raw($query, $bindings);
+        return new Expression($value);
     }
 
     public static function query()
@@ -108,8 +102,7 @@ class DB
     {
         list($class, $method, $params) = getCallbackFromString($closure);
         
-        try
-        {
+        try {
             self::beginTransaction();
 
             #call_user_func_array(array($class, $method), $params);
@@ -119,13 +112,30 @@ class DB
 
             return true;
         }
-        catch(Exception $e)
-        {
+        catch(Exception $e) {
             self::rollBack();
 
             return false;
         }
     }
+
+    public static function selectResultSets($query, $bindings = array())
+    {
+        $res = Model::instance('DB', 'dummy');
+
+        try {
+            return $res->toBase()->connector()->getRowSet($query, $bindings);
+        }
+        catch (Exception $e) {
+
+            if (config('app.debug')) {
+                throw new QueryException($e->getMessage());
+            }
+
+            return false;
+        }
+    }
+
 
     public function getConnectionName() { return null; }
     public function getKeyName() { return 'dummy'; }

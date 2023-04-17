@@ -10,16 +10,18 @@ trait SoftDeletes
 
     public function _setTrashed($val)
     {
-        if (!$this->_useSoftDeletes)
+        if (!$this->_useSoftDeletes) {
             throw new BadMethodCallException('Trying to use softDelete method on a non-softDelete Model');
+        }
 
         $this->_trashed = $val;
     }
 
     public function trashed()
     {
-        if (!$this->_useSoftDeletes)
+        if (!$this->_useSoftDeletes) {
             throw new BadMethodCallException('Trying to use softDelete method on a non-softDelete Model');
+        }
 
         return isset($this->_trashed);
     }
@@ -33,12 +35,15 @@ trait SoftDeletes
     {
         $this->checkObserver('deleting', $this);
 
-        if (count($this->original)==0)
+        if (count($this->original)==0) {
             throw new LogicException('Error! Trying to delete new Model');
+        }
 
         $res = $this->getQuery()->softDeletes($this->original);
 
-        if ($res) $this->checkObserver('deleted', $this);
+        if ($res) {
+            $this->checkObserver('deleted', $this);
+        }
 
         return $res;
     }
@@ -52,15 +57,19 @@ trait SoftDeletes
     {
         $this->checkObserver('restoring', $this);
 
-        if (!$this->_useSoftDeletes)
+        if (!$this->_useSoftDeletes) {
             throw new BadMethodCallException('Trying to use softDelete method on a non-softDelete Model');
+        }
 
-        if (count($this->original)==0)
+        if (count($this->original)==0) {
             throw new LogicException('Error! Trying to delete new Model');
+        }
 
         $res = $this->getQuery()->restore($this->original);
 
-        if ($res) $this->checkObserver('restored', $this);
+        if ($res) {
+            $this->checkObserver('restored', $this);
+        }
 
         return $res;
     }
@@ -74,16 +83,20 @@ trait SoftDeletes
     {
         $this->checkObserver('forceDeleting', $this);
 
-        if (!$this->_useSoftDeletes)
+        if (!$this->_useSoftDeletes) {
             throw new BadMethodCallException('Trying to use softDelete method on a non-softDelete Model');
+        }
 
-        if (count($this->original)==0)
+        if (count($this->original)==0) {
             throw new LogicException('Error! Trying to delete new Model');
+        }
 
         $res = $this->getQuery()->forceDelete($this->original);
 
-        if ($res) $this->checkObserver('forceDeleted', $this);
-
+        if ($res) {
+            $this->checkObserver('forceDeleted', $this);
+        }
+        
         return $res;
     }
 

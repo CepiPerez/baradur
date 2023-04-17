@@ -11,7 +11,7 @@ abstract Class Factory
         $this->faker = new Faker;
     }
 
-    private function __seed($array, $persist = true)
+    private function __seed($values = array(), $persist = true)
     {
         Faker::resetUnique();
         Faker::setCounter($this->count);
@@ -24,9 +24,16 @@ abstract Class Factory
 
         $model->fillableOff();
 
-        while ($i++ < $count)
-        {
-            $array[] = $this->definition();
+        while ($i++ < $count) {
+            $item = $this->definition();
+
+            if (count($values) > 0) {
+                foreach ($values as $key => $val) {
+                    $item[$key] = $val;
+                }
+            }
+
+            $array[] = $item;
         }
 
         return $model->seed($array, $persist);
@@ -48,11 +55,11 @@ abstract Class Factory
      * Seeds the Collection and persist\
      * the data in database 
      * 
-     * @return Factory
+     * @return Collection
      */
-    public function create()
+    public function create($values=array())
     {
-        return $this->_seed(true);
+        return $this->__seed($values, true);
     }
 
     /**

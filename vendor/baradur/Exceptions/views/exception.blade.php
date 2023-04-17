@@ -32,7 +32,7 @@
                             <div class="py-1 mr-1">
                                 <img class="grayscale brightness-75 dark:grayscale dark:brightness-100" style="padding-top:1px" height="14" width="14" src="{{asset('assets/logo.png')}}">
                             </div>
-                            <div class="align-middle py-1">{{BARADUR_VERSION}}</div>
+                            <div class="align-middle py-1">{{Application::VERSION}}</div>
                         </div>
                     </div>
                 </div>
@@ -353,7 +353,7 @@
                             <div class="flex space-y-2">
                                 <span class="w-1/6 pl-4 py-1 mt-2 mr-3 text-sm text-slate-700 truncate">Baradur Version</span>
                                 <span class="w-5/6 pl-2 py-1 mr-4 pr-3 text-sm bg-gray-100 text-slate-700 truncate overflow-hidden">
-                                    {{ BARADUR_VERSION }}
+                                    {{ Application::VERSION }}
                                 </span>
                             </div>
 

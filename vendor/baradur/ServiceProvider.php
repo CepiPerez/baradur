@@ -15,8 +15,7 @@ abstract Class ServiceProvider
         $this->app = $app; 
 
         global $observers;
-        foreach ($this->observers as $model => $class)
-        {
+        foreach ($this->observers as $model => $class) {
             if (!isset($observers[$model])) {
                 $observers[$model] = $class;
             }
@@ -32,7 +31,6 @@ abstract Class ServiceProvider
     
     public function boot() { }
 
-
     private function checkCachedRoutes()
     {
         if (file_exists(_DIR_.'bootstrap/cache/routes.php')) {
@@ -47,7 +45,6 @@ abstract Class ServiceProvider
         return false;
     }
 
-    
     protected function routes($param)
     {
         if ($this->checkCachedRoutes()) {
@@ -56,7 +53,6 @@ abstract Class ServiceProvider
 
         list($c, $m, $p) = getCallbackFromString($param);
         executeCallback($c, $m, $p, $this);
-        //call_user_func_array(array($c, $m), $p);
     }
 
     public function registerPolicies()

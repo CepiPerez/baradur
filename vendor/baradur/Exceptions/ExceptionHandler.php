@@ -48,10 +48,18 @@ Class ExceptionHandler
     {
         ob_end_clean();
 
+        unset($this->exception->xdebug_message);
+
+        if (method_exists($this->exception, 'render')) {
+            $response = $this->exception->render(request());
+
+            echo CoreLoader::processResponse($response);
+            
+            __exit();
+        }
+
         if (!config('app.debug')) {
-
             foreach ($this->renderable as $callback) {
-
                 list($class, $method) = getCallbackFromString($callback);
 
                 $class = new $class($this->exception);
@@ -65,16 +73,19 @@ Class ExceptionHandler
 
             if (!request()->expectsJson()) {
                 echo $this->generateView();
+
                 __exit();
             }
         }
         
         if (request()->expectsJson()) {
             echo $this->generateJson();
+
             __exit();
         }
 
         echo $this->generateException();
+        
         __exit();
     }
 
@@ -96,7 +107,7 @@ Class ExceptionHandler
             $message = HttpResponse::$reason_phrases[$code];
         }
 
-        return View::showErrorTemplate($code, $this->exception);
+        return View::showErrorTemplate($code, $this->exception->getMessage());
     }
 
     public function generateJson()
@@ -113,9 +124,9 @@ Class ExceptionHandler
 
         $result["message"] = $this->exception->getMessage();
 
-        if (!in_array($code, array(401, 402, 403, 404, 419, 429, 500, 503))) {
-            $result["message"] = __('Server Error');
+        if (!in_array($code, array(400, 401, 402, 403, 404, 419, 429, 500, 503))) {
             $result["code"] = 500;
+            $result["message"] = __('Server Error');
         }
 
         if (config('app.debug')) {
@@ -152,8 +163,10 @@ Class ExceptionHandler
         $class = str_replace('.blade.php', '', $class);
 
         $class = pathinfo($class);
+        $class = $class['basename'];
+        $class = str_ireplace('.php', '', $class);
 
-        return $class['filename'];
+        return $class;
     }
 
     public static function showException($exception)
@@ -174,8 +187,6 @@ Class ExceptionHandler
 
         $line = $exception->getLine();
         $class = $exception->getFile();
-        //$basename = pathinfo($class);
-        //$basename = $basename['filename'];
         $basename = self::getClassBasename($class);
 
         $currentTab = 0;
@@ -219,7 +230,9 @@ Class ExceptionHandler
                 }
             }
         }
-        
+
+        //dd($exception, $message, self::canBeSolved($exception), ExceptionSolutionHelper::getSolution($exception));
+
         $result = $blade->runInternal(
             'exception', array(
                 'exception' => $exception,
@@ -235,6 +248,7 @@ Class ExceptionHandler
             ),
             true
         );
+
 
         return CoreLoader::processResponse(response($result, 404));
     }

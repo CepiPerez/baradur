@@ -30,4 +30,5 @@ class ModelNotFoundException extends RecordsNotFoundException
     {
         return $this->ids;
     }
+
 }

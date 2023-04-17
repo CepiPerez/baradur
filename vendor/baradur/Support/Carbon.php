@@ -124,25 +124,34 @@ class Carbon
 
     public function __construct($time = null, $tz = null)
     {
-        if ($time instanceof Carbon)
-            $time = $time->toDateTimeString();
+        $parse = $time;
 
-        if (!$time){
-            $time = time();
+        if ($parse instanceof Carbon)
+            $parse = $parse->toDateTimeString();
+
+        if (!$parse){
+            $parse = 'now';
         }
 
-        if (is_string($time) && !is_numeric($time)) {
-            $time = strtotime($time);
+        if (is_string($parse) && !is_numeric($parse)) {
+            $parse = strtotime($parse);
         }
 
-        //dump($time);
+        if (!$parse) {
+            throw new Exception('Invalid argument ['.$time.'] for Carbon');
+        }
 
-        $this->date = intval($time); //? strtotime($time) : time();
+        $this->date = intval($parse); //? strtotime($time) : time();
     }
     
     private static function instance($time = null)
     {
         return new Carbon($time);
+    }
+
+    public function copy()
+    {
+        return new Carbon($this->timestamp);
     }
 
     public function resolveCarbon($time)
@@ -152,8 +161,10 @@ class Carbon
 
     public function __toString()
     {
-        return date($this->localToStringFormat? $this->localToStringFormat : self::DEFAULT_TO_STRING_FORMAT,
-            $this->date);
+        return date(
+            $this->localToStringFormat? $this->localToStringFormat : self::DEFAULT_TO_STRING_FORMAT,
+            $this->date
+        );
     }
 
     public function settings($settings)
@@ -166,7 +177,10 @@ class Carbon
 
     private function getShort($key)
     {
-        if ($key=='minute') return 'min';
+        if ($key=='minute') {
+            return 'min';
+        }
+
         return substr($key, 0, 1);
     }
 
@@ -296,22 +310,41 @@ class Carbon
 
     public function __get($name)
     {
-        if ($name=='year') return date('Y', $this->date);
-        if ($name=='month') return date('n', $this->date);
-        if ($name=='day') return date('j', $this->date);
-        if ($name=='hour') return date('H', $this->date);
-        if ($name=='minute') return (int)date('i', $this->date);
-        if ($name=='second') return (int)date('s', $this->date);
-        if ($name=='daysInMonth') return date('t', $this->date);
-        if ($name=='dayOfWeek') return date('w', $this->date);
-        if ($name=='firstWeekDay') return 0;
-        if ($name=='lastWeekDay') return 6;
-        if ($name=='timestamp') return $this->date;
-        if ($name=='quarter') return (int) ceil($this->month / self::MONTHS_PER_QUARTER);
-        if ($name=='decade') return (int) ceil($this->year / static::YEARS_PER_DECADE);
-        if ($name=='age') return $this->diffInYears();
+        switch ($name)
+        {
+            case 'year': 
+                return date('Y', $this->date);
+            case 'month': 
+                return date('n', $this->date);
+            case 'day': 
+                return date('j', $this->date);
+            case 'hour': 
+                return date('H', $this->date);
+            case 'minute': 
+                return (int)date('i', $this->date);
+            case 'second': 
+                return (int)date('s', $this->date);
+            case 'daysInMonth': 
+                return date('t', $this->date);
+            case 'dayOfWeek': 
+                return date('w', $this->date);
+            case 'firstWeekDay': 
+                return 0;
+            case 'lastWeekDay': 
+                return 6;
+            case 'timestamp': 
+                return $this->date;
+            case 'quarter': 
+                return (int) ceil($this->month / self::MONTHS_PER_QUARTER);
+            case 'decade': 
+                return (int) ceil($this->year / self::YEARS_PER_DECADE);
+            case 'age': 
+                return $this->diffInYears();
+    
+            default:
+                return null;
+        }
 
-        return null;
     }
 
     private function getIsoUnit($value)

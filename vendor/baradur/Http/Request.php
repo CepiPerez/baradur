@@ -18,7 +18,7 @@ Class Request
     private $headers = array();
     private $server = array();
 
-    private $validated = array();
+    protected $validated = array();
 
     public function generate($route)
     {
@@ -34,17 +34,15 @@ Class Request
         $this->headers = getallheaders();
         $this->server = $_SERVER;
 
-        //unset($this->input['csrf']);
+        //unset($this->input['_token']);
         //unset($this->input['_method']);
         //unset($this->input['Baradur_token']);
         //unset($this->input['PHPSESSID']);
 
         # Adding GET values into Request
-        if (isset($_GET))
-        {
-            foreach ($_GET as $key => $val)
-            {
-                if ($key!='_method' && $key!='csrf' && $key!='ruta') {
+        if (isset($_GET)) {
+            foreach ($_GET as $key => $val) {
+                if ($key!='_method' && $key!='_token' && $key!='ruta') {
                     $this->query[$key] = $val;
                     $this->input[$key] = $val;
                 }
@@ -52,37 +50,32 @@ Class Request
         }
 
         # Adding POST values into Request
-        if (isset($_POST))
-        {
-            foreach ($_POST as $key => $val)
-            {
-                if ($key!='_method' && $key!='csrf' && $key!='ruta') {
+        if (isset($_POST)) {
+            foreach ($_POST as $key => $val) {
+                if ($key!='_method' && $key!='_token' && $key!='ruta') {
                     $this->input[$key] = $val;
                 }
             }
         }
 
         # Adding PUT values into Request
-        if ($_SERVER['REQUEST_METHOD']=='PUT' || $_SERVER['REQUEST_METHOD']=='PATCH')
-        {
+        if ($_SERVER['REQUEST_METHOD']=='PUT' || $_SERVER['REQUEST_METHOD']=='PATCH') {
             parse_str(file_get_contents("php://input"), $data);
-            foreach ($data as $key => $val)
-            {
-                if ($key!='_method' && $key!='csrf' && $key!='ruta') {
+
+            foreach ($data as $key => $val) {
+                if ($key!='_method' && $key!='_token' && $key!='ruta') {
                     $this->input[$key] = $val;
                 }
             }
         }
 
         # Adding files into Request
-        if (isset($_FILES))
-        {
-            foreach ($_FILES as $key => $val)
-            {
-                if (is_array($val['name']))
-                {
-                    for ($i=0; $i<count($val['name']); ++$i)
-                    {
+        if (isset($_FILES)) {
+
+            foreach ($_FILES as $key => $val) {
+
+                if (is_array($val['name'])) {
+                    for ($i=0; $i<count($val['name']); ++$i) {
                         $fileinfo = array();
                         $fileinfo['name'] = $val['name'][$i];
                         $fileinfo['type'] = $val['type'][$i];
@@ -90,12 +83,11 @@ Class Request
                         $fileinfo['error'] = $val['error'][$i];
                         $fileinfo['size'] = $val['size'][$i];
 
-                        if ($fileinfo['name'] && $fileinfo['type'] && $fileinfo['error']==0)
+                        if ($fileinfo['name'] && $fileinfo['type'] && $fileinfo['error']==0) {
                             $this->files[$fileinfo['name']] = new UploadedFile($fileinfo);
+                        }
                     }
-                }
-                else
-                {
+                } else {
                     //$this->files[$key] = new UploadedFile($val);
                     $fileinfo = array();
                     $fileinfo['name'] = $val['name'];
@@ -104,8 +96,9 @@ Class Request
                     $fileinfo['error'] = $val['error'];
                     $fileinfo['size'] = $val['size'];
 
-                    if ($fileinfo['name'] && $fileinfo['type'] && $fileinfo['error']==0)
+                    if ($fileinfo['name'] && $fileinfo['type'] && $fileinfo['error']==0) {
                         $this->files[$key] = new UploadedFile($fileinfo);
+                    }
                 }
             }
         }
@@ -246,12 +239,34 @@ Class Request
         $this->input = array();
         $this->files = array();
         $this->validated = array();
-        $this->session = new RequestSession;
+        $this->session = app('session');;
     }
 
     public function session($value = null, $default = null)
     {
-        return $this->session->get($value, $default);
+        if (is_array($value)) {
+            foreach ($value as $key => $val) {
+                $this->session->put($key, $val);
+            }
+
+            return;
+        }
+
+        if ($value) {
+            return $this->session->get($value, $default);
+        }
+
+        return $this->session;
+    }
+    
+    public function attributes()
+    {
+        return array();
+    }
+
+    public function messages()
+    {
+        return array();
     }
 
     /** @return array */
@@ -262,14 +277,13 @@ Class Request
 
     public function validate($arguments)
     {
-        $validator = new Validator($this->all(), $arguments);
+        $validator = new Validator($this->all(), $arguments, $this->messages(), $this->attributes());
 
         $result = $validator->validate();
 
         $this->validated = $result->validated();
 
-        if (!$result->passes())
-        {
+        if (!$result->passes()) {
             $res = back()->withErrors($result->errors());
             CoreLoader::processResponse($res);
         }
@@ -372,11 +386,13 @@ Class Request
     {
         $array = array();
 
-        foreach ($this->input as $key => $val)
+        foreach ($this->input as $key => $val) {
             $array[$key] = $val;
+        }
 
-        foreach ($this->files as $key => $val)
+        foreach ($this->files as $key => $val) {
             $array[$key] = $val;
+        }
 
         return $array;
     }
@@ -387,10 +403,10 @@ Class Request
 
         $array = array();
 
-        foreach ($this->all() as $key => $val)
-        {
-            if (in_array($key, $keys))
+        foreach ($this->all() as $key => $val) {
+            if (in_array($key, $keys)) {
                 $array[$key] = $val;
+            }
         }
         
         return $array;
@@ -402,10 +418,10 @@ Class Request
 
         $array = array();
 
-        foreach ($this->all() as $key => $val)
-        {
-            if (!in_array($key, $keys))
+        foreach ($this->all() as $key => $val) {
+            if (!in_array($key, $keys)) {
                 $array[$key] = $val;
+            }
         }
         
         return $array;
@@ -421,6 +437,7 @@ Class Request
 
         $res = $this->query;
         unset($res['ruta']);
+
         return $res;
     }
 
@@ -571,6 +588,11 @@ Class Request
         return serialize((array)$this->all());
     }
 
+    public function replace($parameters = array())
+    {
+        $this->validated = $parameters;
+    }
+
     public function __set($name, $value)
     {
         if (array_key_exists($name, $this->input)) {
@@ -584,14 +606,17 @@ Class Request
 
     public function __get($key)
     {
-        if (array_key_exists($key, $this->input))
+        if (array_key_exists($key, $this->input)) {
             return $this->input[$key];
+        }
 
-        if (array_key_exists($key, $this->query))
+        if (array_key_exists($key, $this->query)) {
             return $this->query[$key];
+        }
 
-        if (array_key_exists($key, $this->files))
+        if (array_key_exists($key, $this->files)) {
             return $this->files[$key];
+        }
 
         return null;
     }
@@ -626,6 +651,7 @@ Class Request
     public function date($name)
     {
         $value = $this->input($name);
+        
         return $value? Carbon::parse($value) : null;
     }
 

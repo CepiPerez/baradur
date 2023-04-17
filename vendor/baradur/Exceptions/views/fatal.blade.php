@@ -32,7 +32,7 @@
                             <div class="py-1 mr-1">
                                 <img class="grayscale brightness-75 dark:grayscale dark:brightness-100" style="padding-top:1px" height="14" width="14" src="{{asset('assets/logo.png')}}">
                             </div>
-                            <div class="align-middle py-1">{{BARADUR_VERSION}}</div>
+                            <div class="align-middle py-1">{{Application::VERSION}}</div>
                         </div>
                     </div>
                 </div>

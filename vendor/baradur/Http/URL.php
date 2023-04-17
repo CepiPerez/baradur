@@ -14,8 +14,7 @@ class URL
             $parameters = Arr::wrap($parameters)
         ); */
 
-        if ($expiration)
-        {
+        if ($expiration) {
             if ($expiration instanceof Carbon) {
                 $expiration = $expiration->timestamp; 
             }
@@ -34,8 +33,7 @@ class URL
 
     public static function route($name, $parameters = array(), $absolute = true)
     {
-        if (! is_null($route = route($name)))
-        {            
+        if (! is_null($route = route($name))) {            
             return $route . (count($parameters)>0 ? '?'.http_build_query($parameters) : '');
         }
 

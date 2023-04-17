@@ -21,8 +21,9 @@ class Kernel extends HttpKernel
     ];
 
     # The application's route middleware.
-    protected $routeMiddleware = [
+    protected $middlewareAliases = [
         'auth' => Authenticate::class,
+        'guest' => RedirectIfAuthenticated::class,
         'throttle' => ThrottleRequests::class,
         'signed' => ValidateSignature::class,
         'can' => Authorize::class,

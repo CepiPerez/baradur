@@ -119,11 +119,17 @@ class Ulid
         return $res->__toString();
     }
 
-    public static function generate($lowercase = true)
+    public static function generate($time = null)
     {
-        $now = (int) (microtime(true) * 1000);
+        $now = null;
+
+        if ($time) {
+            $now = (int) (microtime(true) * 1000);
+        } else {
+            $now = (int) (Carbon::parse($time)->timestamp * 1000);
+        }
         
-        return self::fromTimestamp($now, $lowercase);
+        return self::fromTimestamp($now, true);
     }
 
     public function getTime()

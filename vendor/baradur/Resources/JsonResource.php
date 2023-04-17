@@ -33,8 +33,7 @@ class JsonResource
 
     public function collection($collection)
     {
-        if ($collection=='_value_not_loaded')
-        {
+        if ($collection=='_value_not_loaded') {
             return '_value_not_loaded';
         }
 
@@ -75,66 +74,39 @@ class JsonResource
         {
             $this->resource = $resource;
             
-            /* $data = array();
-            foreach ($this->toArray(request()) as $key => $val)
-            {
-                if($val!='_value_not_loaded')
-                {
-                    if (is_array($val) && isset($val['_merged']))
-                    {
-                        foreach($val['_merged'] as $k => $v)
-                        {
-                            $data[$k] = $v;
-                        }
-                    }
-                    else
-                    {
-                        $data[$key] = $this->_toArray($val);
-                    }
-                }
-            } */
             $data = $this->toArray(request());
             
-            
-            foreach ($data as $key => $val)
-            {
-                if($val!='_value_not_loaded')
-                {
-                    if (is_array($val) && isset($val['_merged']))
-                    {
-                        foreach($val['_merged'] as $k => $v)
-                        {
+            foreach ($data as $key => $val) {
+
+                if($val!='_value_not_loaded') {
+
+                    if (is_array($val) && isset($val['_merged'])) {
+                        foreach($val['_merged'] as $k => $v) {
                             $data[$k] = $v;
                         }
-                    }
-                    else
-                    {
+                    } else {
                         $data[$key] = $this->_toArray($val);
                     }
-                }
-                else {
+                } else {
                     unset($data[$key]);
                 }
-
             }
 
-            if (!$this::$wrap)
+            if (!$this::$wrap) {
                 $res = $data;
-            else
+            } else {
                 $res = array($this::$wrap => $data);
+            }
 
             foreach ($this as $key => $val) {
                 unset($this->$key);
             }
 
-            foreach ($res as $key => $val)
-            {
+            foreach ($res as $key => $val) {
                 $this->$key = $val;
             }
 
-        }
-        else
-        {
+        } else {
             unset($this->parent);
             unset($this->resource);
         }
@@ -154,26 +126,17 @@ class JsonResource
 
         if ($item instanceof Collection || $item instanceof Paginator) {
             return $item->toArray();
-            /* $res = array();
-            foreach ($item as $value) {
-                if ($this::$wrap) {
-                    unset($value->preserveKeys);
-                    $res[] = $value; //->{$this::$wrap};
-                } else {
-                    $res = $value;
-                }
-            }
-            return $res; */
         }
 
-        if (is_array($item) )//|| $item instanceof Collection)
-        {
+        if (is_array($item) ) {
             $res = array();
-            foreach ($item as $key => $val)
-            {
-                if ($key != 'preserveKeys')
+
+            foreach ($item as $key => $val) {
+                if ($key != 'preserveKeys') {
                     $res[$key] = $this->_toArray($val);
+                }
             }
+
             return $res;
         }
 
@@ -182,7 +145,6 @@ class JsonResource
 
     public function toArray($request)
     {
-        //ddd($this);
         return $this->_toArray($this->resource);
     }
 
@@ -206,14 +168,15 @@ class JsonResource
         }
 
         return func_num_args() === 1
-                ? $this->resource->{$attribute}
-                : value($value, $this->resource->{$attribute});
+            ? $this->resource->{$attribute}
+            : value($value, $this->resource->{$attribute});
     }
 
     public function whenLoaded($relation)
     {
-        if ($this->resource->getRelation($relation))
+        if ($this->resource->getRelation($relation)) {
             return $this->resource->$relation;
+        }
 
         return '_value_not_loaded';
     }
@@ -222,8 +185,9 @@ class JsonResource
     {
         $relation = str_replace('_count', '', $relation) . '_count';
         
-        if ($this->resource->getAttribute($relation))
+        if ($this->resource->getAttribute($relation)) {
             return $this->resource->$relation;
+        }
 
         return '_value_not_loaded';
     }
@@ -236,26 +200,6 @@ class JsonResource
 
         return func_num_args()===3 ? value($default, $this) : '_value_not_loaded';
 
-        /* if (is_bool($condition) && !$condition)
-            return '_value_not_loaded';
-
-        if (!$condition)
-            return '_value_not_loaded';
-
-        if (is_object($value))
-        {
-            return $value;
-        }
-
-        if (is_string($value) && !is_closure($value))
-        {
-            return $value;
-        }
-
-        list($class, $method, $params) = getCallbackFromString($value);
-        $res = call_user_func_array(array($class, $method), array_merge(array($this), $params));
-
-        return $res; */
     }
 
     public function unless($condition, $value, $default=null)
@@ -269,7 +213,9 @@ class JsonResource
 
     public function whenNotNull($value)
     {
-        if ($value) return $value;
+        if ($value) {
+            return $value;
+        }
 
         return '_value_not_loaded';
     }
@@ -278,25 +224,6 @@ class JsonResource
     {
         return $condition ? array('_merged' => value($value, $this)) : '_value_not_loaded';
 
-
-        /* if (is_bool($condition) && !$condition)
-            return '_value_not_loaded';
-
-        if (!$condition)
-            return '_value_not_loaded';
-
-        if (is_array($value))
-        {
-            return array('_merged' => $value);
-        }
-
-        list($class, $method, $params) = getCallbackFromString($value);
-        $res = call_user_func_array(array($class, $method), array_merge(array($this), $params));
-
-        foreach ($res as $key => $val)
-        {
-            $this->$key = $val;
-        } */
     }
 
 }

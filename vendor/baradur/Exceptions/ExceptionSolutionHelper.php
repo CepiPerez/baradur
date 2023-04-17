@@ -21,7 +21,7 @@ Class ExceptionSolutionHelper
 
         self::$exception = $exception;
 
-        $method = ucfirst(get_class($exception));
+        $method = lcfirst(get_class($exception));
 
         return self::$method();
     }
@@ -29,13 +29,17 @@ Class ExceptionSolutionHelper
     public static function getSuggestedRoute()
     {
         $routes = Route::getRoutes()->where('method', $_SERVER['REQUEST_METHOD'])->pluck('url');
+        $current = $_SERVER['REQUEST_URI'];
+        if ($current!=='/') {
+            $current = ltrim($current, '/');
+        }
 
-        $suggested = find_similar($_GET['ruta'], $routes);
+        $suggested = find_similar($current, $routes);
 
         # Deep search, exploding route folders
         if (!$suggested)
         {
-            $folders = explode ('/', $_GET['ruta']);
+            $folders = explode ('/', $current);
 
             $results = array();
 
@@ -71,7 +75,7 @@ Class ExceptionSolutionHelper
             if (count($results)==1) {
                 $suggested = $results[0];
             } elseif (count($results)>1) {
-                $suggested = find_similar($_GET['ruta'], $results);
+                $suggested = find_similar($current, $results);
             }
         }
         
@@ -115,14 +119,13 @@ Class ExceptionSolutionHelper
         
         $arr = explode(' ', $method);
         $method = $arr[1];
-
+        
         $class = self::$exception->getFile();
         $class = pathinfo($class);
-        $class = $class['filename'];
-
+        $class = $class['basename'];
+        $class = str_ireplace('.php', '', $class);
+        
         $methods = get_class_methods($class);
-
-        //ddd(self::$exception);
 
         $suggested = find_similar($method, $methods);
 
@@ -130,7 +133,6 @@ Class ExceptionSolutionHelper
             ? 'Did you mean ' . $class . ':' . $suggested . '() ?' 
             : 'Check if you misspelled the method';
     }
-    
     
     public static function missingAppKeyException()
     {

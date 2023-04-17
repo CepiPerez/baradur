@@ -2,6 +2,12 @@
 
 class Artisan
 {
+    public static function command($command, $callback)
+    {
+        return ConsoleKernel::__addCommand($command, $callback);
+    }
+
+
     public static function info($message)
     {
         self::showLog(44, 'INFO', $message);
@@ -26,11 +32,15 @@ class Artisan
     {
         printf("\n\033[32;1m  %s\n\033[m", $message);
 
-        if ($secret) system('stty -echo');
+        if ($secret) {
+            system('stty -echo');
+        }
 
         $result = readline("  > ");
 
-        if ($secret) system('stty echo');
+        if ($secret) {
+            system('stty echo');
+        }
 
         if (blank($result)) {
             self::error("The answer is required.");
@@ -128,6 +138,7 @@ class Artisan
         } else {
             printf("\033[33;1m%s\033[m", strtoupper($status));
         }
+
         printf("\n");
     }
 
@@ -177,6 +188,7 @@ class Artisan
         $spaces = $space - strlen($status) -15;
 
         printf("\033[38;5;240m".str_repeat('.', $spaces)."\033[m");
+
         if ($warn==1) {
             printf("\033[38;5;172;1m %s\033[m", $status);
         } elseif ($warn==2) {
@@ -184,6 +196,7 @@ class Artisan
         } else {
             printf(" $status");
         }
+
         printf("\n");
     }
 
@@ -202,7 +215,6 @@ class Artisan
         printf("\033[38;5;240m".str_repeat('.', $spaces)."\033[m");
         printf("type\033[38;5;240m /\033[m");
         printf("\033[38;5;172;1m cast\033[m");
-
 
         printf("\n");
     }
@@ -235,9 +247,14 @@ class Artisan
 
         printf("\033[38;5;240m".str_repeat('.', $spaces)."\033[m");
         printf(" $type"); 
-        if ($type && $cast) printf("\033[38;5;240m /\033[m");
-        if ($cast) printf("\033[38;5;172;1m %s\033[m", $cast);
 
+        if ($type && $cast) {
+            printf("\033[38;5;240m /\033[m");
+        }
+
+        if ($cast) {
+            printf("\033[38;5;172;1m %s\033[m", $cast);
+        }
 
         printf("\n");
     }
@@ -297,7 +314,7 @@ class Artisan
         foreach(new RecursiveIteratorIterator($it) as $file) {
 
             if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP') {
-                $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+                $name = str_ireplace('.php', '', basename($file));
                 if (is_file($file)) {
                     $files[] = basename($file);
                 }
@@ -308,7 +325,7 @@ class Artisan
         
         foreach($files as $file) {
 
-            $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+            $name = str_ireplace('.php', '', basename($file));
             $short =  substr($name, 18);
             //$converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
             $converted = Str::camel($short);
@@ -350,14 +367,21 @@ class Artisan
         return $count>0;
     } */
 
+    private static function getStub($class)
+    {
+        return file_get_contents(_DIR_.'/vendor/baradur/Artisan/Stubs/'.$class.'.stub');
+    }
+
+
     public static function makeEvent($event, $info=true)
     {
         global $artisan;
 
-        if (!file_exists(_DIR_.'app/events'))
+        if (!file_exists(_DIR_.'app/events')) {
             mkdir(_DIR_.'app/events');
+        }
 
-        $class = getStub('event');
+        $class = self::getStub('event');
 
         $class = str_replace('{{ class }}', $event, $class);
         
@@ -372,10 +396,11 @@ class Artisan
     {
         global $artisan;
 
-        if (!file_exists(_DIR_.'app/listeners'))
+        if (!file_exists(_DIR_.'app/listeners')) {
             mkdir(_DIR_.'app/listeners');
+        }
 
-        $class = getStub('listener');
+        $class = self::getStub('listener');
 
         $class = str_replace('{{ class }}', $listener, $class);
         $class = str_replace('{{ event }}', $event, $class);

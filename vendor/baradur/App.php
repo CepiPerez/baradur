@@ -13,13 +13,17 @@ Class App {
     public static $localization = null;
     public $binds = array();
 
-    public static function start() { 
+    protected $basePath;
+    protected $databasePath;
+    protected $storagePath;
+    protected $environmentPath;
+    protected $environmentFile = '.env';
 
+    public static function start()
+    { 
         # Autologin
-        if (!isset($_SESSION['user']))
-        {
-            if (isset($_COOKIE[config('app.name').'_token']) && !Auth::user() && Route::has('login'))
-            {
+        if (!isset($_SESSION['guard'])) {
+            if (isset($_COOKIE[config('app.name').'_token']) && !Auth::user() && Route::has('login')) {
                 Auth::autoLogin($_COOKIE[config('app.name').'_token']);
             }
         }
@@ -36,14 +40,29 @@ Class App {
         __exit();
     }
 
+    public static function version()
+    {
+        return Application::VERSION;
+    }
+
+    public function isLocal()
+    {
+        return config('app.env') == 'local';
+    }
+
     public function inProduction()
     {
-        return config('app.env')=='production';
+        return config('app.env') == 'production';
+    }
+
+    public function isDownForMaintenance()
+    {
+        return file_exists(_DIR_.'/storage/framework/down');
     }
 
     public function maintenanceMode()
     {
-        return file_exists(_DIR_.'storage/.maintenance_on');
+        return file_exists(_DIR_.'storage/framework/down');
     }
 
     public static function getError($error)
@@ -52,19 +71,17 @@ Class App {
         return $errors->$error;
     }
 
-    public static function generateToken()
+    public static function getRequestToken()
     {
         if ( config('app.key') === null ) {
             throw new MissingAppKeyException('No application encryption key has been specified.');
         }
-        
-        $timestamp = date('Y-m-d H:i:s');
-        $csrf = hash_hmac('sha256', Route::current()->url, config('app.key'));
-        
-        $_SESSION['tokens'][$csrf]['timestamp'] = $timestamp;
-        $_SESSION['tokens'][$csrf]['counter'] = 1;
-        
-        return $csrf;
+
+        if (!isset($_SESSION['_token'])) {
+            session()->regenerateToken();
+        }
+
+        return session()->token();
     }
 
     public static function getLocale()
@@ -89,21 +106,18 @@ Class App {
     {
         global $app;
 
-        if (!isset($name))
-        {
+        if (!isset($name)) {
             return $app;
         }
 
-        if (isset($app->binds[$name]))
-        {
-            if (!$app->binds[$name]['shared'])
-            {
+        if (isset($app->binds[$name])) {
+
+            if (!$app->binds[$name]['shared']) {
                 $class = $app->binds[$name]['concrete'];
                 return new $class;
             }
 
-            if (!isset($app->binds[$name]['instance']))
-            {
+            if (!isset($app->binds[$name]['instance'])) {
                 $class = $app->binds[$name]['concrete'];
                 $app->binds[$name]['instance'] = new $class;
             }
@@ -111,12 +125,10 @@ Class App {
             return $app->binds[$name]['instance'];
         }
 
-        foreach ($app->binds as $key => $val)
-        {
-            if ($app->binds[$key]['concrete'] == $name)
-            {
-                if (!isset($app->binds[$key]['instance']))
-                {
+        foreach (array_keys($app->binds) as $key) {
+            if ($app->binds[$key]['concrete'] == $name) {
+
+                if (!isset($app->binds[$key]['instance'])) {
                     $class = $app->binds[$key]['concrete'];
                     $app->binds[$key]['instance'] = new $class;
                 }

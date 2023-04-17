@@ -4,6 +4,7 @@
  * @method static Collection all()
  * @method static Model first()
  * @method static Paginator paginate(int $value)
+ * @method static Collection pluck(string $column, string $key)
  * @method static Model|Collection find(string|array $value, string|array $columns='*')
  * @method static Model findOrFail(string $value)
  * @method static Model firstOrNew(array $attributes, array $values)
@@ -12,6 +13,7 @@
  * @method static Model upsert(array $records, array $keys, array $values)
  * @method static mixed insertOrIgnore(array $records)
  * @method static Builder select(string|array $column)
+ * @method static Builder from(string $table, string $as=null)
  * @method static Builder addSelect(string|array $column)
  * @method static Builder selectRaw(string $select, array $bindings=array())
  * @method static Builder where(string|array|closure $column, string $param1, string $param2=null, string $boolean='AND')
@@ -19,10 +21,13 @@
  * @method static Builder whereIn(string $colum, array $values)
  * @method static Builder whereNotIn(string $colum, array $values)
  * @method static Builder whereColumn(string $first, string $operator, string $second=null, string $chain=null)
- * @method static Builder whereBetween(string $column, array $values)
+ * @method static Builder whereBetween(string $column, array $values, string $boolan='AND', bool $not=false)
+ * @method static Builder whereNotBetween(string $column, array $values, string $boolan='AND', bool $not=false)
+ * @method static Builder whereBetweenColumns(string $column, array $values, string $boolan='AND', bool $not=false)
+ * @method static Builder whereNotBetweenColumns(string $column, array $values, string $boolan='AND', bool $not=false)
  * @method static Builder whereRelation(string $relation, string $column, string $comparator, string $value)
  * @method static Builder whereBelongsTo(string $related, string $relationshipName=null, $boolean='AND')
- * @method static Builder when(bool $condition, Closure $callback, Closure $defut=null)
+ * @method static Builder when($value, Closure $callback, Closure $defut=null)
  * @method static Builder having(string|array $reference, string $operator=null, $value=null)
  * @method static Builder havingNull(string $reference)
  * @method static Builder havingNotNull(string $reference)
@@ -80,6 +85,7 @@ class Model
     protected $original = array();
     protected $attributes = array();
     protected $relations = array();
+    protected $touches = array();
     protected $table = null;
     protected $appends = array();
     protected $wasRecentlyCreated = false;
@@ -173,24 +179,22 @@ class Model
 
     public function __construct($attributes=array())
     {
-        if (!isset($this->table))
-        {
+        if (!isset($this->table)) {
             $this->table = Helpers::camelCaseToSnakeCase(get_class($this));
         }
-        //$this->_timestamps = $this->timestamps;
 
-        foreach ($attributes as $key => $value)
-        {
+        foreach ($attributes as $key => $value) {
             $this->attributes[$key] = $value;
         }
     }
 
     protected function addGlobalScope($scope, $callback=null)
     {
-        if (is_object($scope))
+        if (is_object($scope)) {
             $this->_global_scopes[get_class($scope)] = $scope;
-        else
+        } else {
             $this->_global_scopes[$scope] = $callback;
+        }
     }
 
     public function getKey()
@@ -358,21 +362,19 @@ class Model
 
 
     /** @return Builder */
-    public static function instance($parent, $table=null)
+    public static function instance($parent, $table=null, $as=null)
     {
-        return new Builder($parent, $table);
+        return new Builder($parent, $table, $as);
     }
 
     /** @return Builder */
     public function getQuery($query=null)
     {            
-        if (!isset($this->_query))
-        {
+        if (!isset($this->_query)) {
             $this->_query = $query? $query : new Builder(get_class($this));       
         }
 
-        if ($this->_query->_collection->count()==0 && count($this->original)>0)
-        {
+        if ($this->_query->_collection->count()==0 && count($this->original)>0) {
             $this->_query->_collection->put($this);
         }
 
@@ -382,6 +384,11 @@ class Model
     public function setQuery($query)
     {
         $this->_query = $query;
+    }
+
+    public function newQuery()
+    {
+        return $this->newInstance()->getQuery();
     }
 
     public function newEloquentBuilder($query)
@@ -523,14 +530,12 @@ class Model
 
     public function __call($method, $arguments)
     {
-        if (method_exists('Builder', $method))
-        {
+        if (method_exists('Builder', $method)) {
             $calls = $this->newEloquentBuilder($this->getQuery());
             return call_user_func_array(array($calls, $method), $arguments);
         }
         
-        if (Str::startsWith($method, 'through'))
-        {
+        if (Str::startsWith($method, 'through')) {
             $relationMethod = Str::of($method)->after('through')->lcfirst()->toString();
             if (method_exists($this, $relationMethod)) {
                 return $this->through($relationMethod);
@@ -709,7 +714,7 @@ class Model
     {
         return ! str_contains($class, ':')
             ? $class
-            : explode(':', $class, 2)[0];
+            : reset(explode(':', $class, 2));
     }
 
     public function getAttributeValue($key)
@@ -1009,7 +1014,7 @@ class Model
 
     protected function isDateCastable($key)
     {
-        return $this->hasCast($key, ['date', 'datetime', 'immutable_date', 'immutable_datetime']);
+        return $this->hasCast($key, array('date', 'datetime', 'immutable_date', 'immutable_datetime'));
     }
 
     public function getDates()
@@ -1092,12 +1097,8 @@ class Model
             return new $castType;
         }
 
-
         return new $castType($arguments);
     }
-
-
-
 
 
     public function __getWith()
@@ -1182,7 +1183,6 @@ class Model
 
     protected function getArrayableItems($values)
     {
-
         if (count($this->getVisible()) > 0) {
             $values = array_intersect_key($values, array_flip($this->getVisible()));
         }
@@ -1292,7 +1292,7 @@ class Model
             // If the relationships snake-casing is enabled, we will snake case this
             // key so that the relation attribute is snake cased in this returned
             // array to the developers, making this consistent with attributes.
-            if (static::$snakeAttributes) {
+            if (self::$snakeAttributes) {
                 $key = Str::snake($key);
             }
 
@@ -1318,7 +1318,7 @@ class Model
                     $key, $attributes[$key]
                 );
 
-                if (isset($attributes[$key]) && in_array($value, ['date', 'datetime', 'immutable_date', 'immutable_datetime'])) {
+                if (isset($attributes[$key]) && in_array($value, array('date', 'datetime', 'immutable_date', 'immutable_datetime'))) {
                     $attributes[$key] = $this->serializeDate($attributes[$key]);
                 }
     
@@ -1459,7 +1459,7 @@ class Model
 
 
 
-    private function checkObserver($function, $model)
+    public function checkObserver($function, $model)
     {
         global $observers;
         $class = get_class($this);
@@ -1506,16 +1506,17 @@ class Model
      */
     public function isDirty($value=null)
     {
-        if ($value)
+        if ($value) {
             return $this->original[$value] != $this->attributes[$value];
-
-        foreach ($this->original as $key => $val)
-        {
-            if ($this->attributes[$key] != $val)
-                return true;
         }
-        return false;
 
+        foreach ($this->original as $key => $val) {
+            if ($this->attributes[$key] != $val) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1526,20 +1527,20 @@ class Model
      */
     public function isClean($value=null)
     {
-        if ($value)
+        if ($value) {
             return $this->original[$value] == $this->attribute[$value];
+        }
 
         $res = true;
-        foreach ($this->original as $key => $val)
-        {
-            if ($this->attribute[$key] != $val)
-            {
+
+        foreach ($this->original as $key => $val) {
+            if ($this->attribute[$key] != $val) {
                 $res = false;
                 break;
             }
         }
-        return $res;
 
+        return $res;
     }
 
     public function __addEagerLoad($value)
@@ -1554,8 +1555,9 @@ class Model
      */
     public function fresh()
     {
-        if (count($this->original)==0)
+        if (count($this->original)==0) {
             throw new LogicException('Trying to re-retrieve from a new Model'); 
+        }
 
         return $this->getQuery()->_fresh($this->original, $this->_eagerLoad);
     }
@@ -1629,10 +1631,8 @@ class Model
     {
         $this->appends = array();
 
-        if (is_array($appends))
-        {
-            foreach ($appends as $append)
-            {
+        if (is_array($appends)) {
+            foreach ($appends as $append) {
                 $this->appends($append);
             }
         }
@@ -1659,10 +1659,10 @@ class Model
      */
     public function fill($attributes)
     {
-        foreach($attributes as $key => $val)
-        {
+        foreach($attributes as $key => $val) {
             $this->setAttribute($key, $val);
         }
+
         return $this;
     }
 
@@ -1684,24 +1684,36 @@ class Model
      */
     public function save()
     {
-
         $this->checkObserver('saving', $this);
 
-        if (count($this->original)>0)
-        {
+        if (count($this->original)>0) {
             $result = $this->update();
-        }
-        else
-        {
+        } else {
             $query = $this->getQuery();
             $query->_fillableOff = true;         
             $result = $query->create($this->attributes);
             $query->_fillableOff = false;
         }
 
-        if ($result) $this->checkObserver('saved', $this);
+        if ($result) {
+            $this->checkObserver('saved', $this);
+        }
+
+        $this->touchOwners();
 
         return $result ? true : false;
+    }
+
+    /**
+     * Update the column's update timestamp.
+     *
+     * @param  string|null  $column
+     * @return int|false
+     */
+    public function touch($column = null)
+    {
+        return $this->getQuery()->touch($column);
+
     }
 
     /**
@@ -1715,15 +1727,12 @@ class Model
             return false;
         }
 
-        foreach ($this->relations as $models)
-        {
-            $models = $models instanceof Collection
-                ? $models->all() : array($models);
+        foreach ($this->relations as $models) {
 
-            foreach (array_filter($models) as $model)
-            {
-                if (! $model->push())
-                {
+            $models = $models instanceof Collection ? $models->all() : array($models);
+
+            foreach (array_filter($models) as $model) {
+                if (! $model->push()) {
                     return false;
                 }
             }
@@ -1746,10 +1755,16 @@ class Model
             $key = $this->_UPDATED_AT;
             $this->$key = now()->toDateTimeString();
         }
+
+        $this->checkObserver('updating', $this);
         
         $result = $this->getQuery()->update($this->attributes);
         $this->_query = null;
-     
+
+        if ($result) {
+            $this->checkObserver('updated', $this);
+        }
+
         return $result;
     }
 
@@ -1766,7 +1781,9 @@ class Model
         $primary = $this->getKeyName();
         $res = $res->where($primary, $this->$primary)->delete();
 
-        if ($res) $this->checkObserver('deleted', $this);
+        if ($res) {
+            $this->checkObserver('deleted', $this);
+        }
 
         return $res;
     }
@@ -1943,8 +1960,7 @@ class Model
 
         $query = $this;
 
-        foreach ($relations as $relation)
-        {
+        foreach ($relations as $relation) {
             $query = $query->getQuery()->loadAggregate($relation, $column, $function)->_collection->first();
             $query->setQuery(null);
         }
@@ -2022,6 +2038,7 @@ class Model
     public function loadExists($relations)
     {
         $relations = is_string($relations) ? func_get_args() : $relations;
+  
         return $this->loadAggregate($relations, '*', 'exists');
     }
 
@@ -2089,4 +2106,58 @@ class Model
         return $this;
     }
 
+    /**
+     * Get the relationships that are touched on save.
+     *
+     * @return array
+     */
+    public function getTouchedRelations()
+    {
+        return $this->touches;
+    }
+
+    /**
+     * Set the relationships that are touched on save.
+     *
+     * @param  array  $touches
+     * @return $this
+     */
+    public function setTouchedRelations($touches)
+    {
+        $this->touches = $touches;
+
+        return $this;
+    }
+
+    /**
+     * Determine if the model touches a given relation.
+     *
+     * @param  string  $relation
+     * @return bool
+     */
+    public function touches($relation)
+    {
+        return in_array($relation, $this->getTouchedRelations());
+    }
+
+    /**
+     * Touch the owning relations of the model.
+     *
+     * @return void
+     */
+    public function touchOwners()
+    {
+        foreach ($this->getTouchedRelations() as $relation) {
+            $this->$relation()->touch();
+
+            /* if ($this->$relation instanceof self) {
+                $this->$relation->fireModelEvent('saved', false);
+
+                $this->$relation->touchOwners();
+            } elseif ($this->$relation instanceof Collection) {
+                $this->$relation->each->touchOwners();
+            } */
+        }
+    }
+    
 }

@@ -22,16 +22,14 @@ class ResourceCollection extends ArrayObject
             throw new LogicException("Invalid resource collection assigned.");
         }
         
-        if ($resource instanceof Paginator)
-        {
+        if ($resource instanceof Paginator) {
             $this->_links = $resource;
             $this->_meta = $resource->meta;
             unset($this->_links->meta);
             unset($this->_links->query);
         }
 
-        if (!isset($this->collects))
-        {
+        if (!isset($this->collects)) {
             $childName = str_replace('Collection', '', str_replace('Resource', '', get_class($this))) . 'Resource';
             $this->collects = $childName!='Resource' ? $childName : 'JsonResource';
         }
@@ -48,8 +46,7 @@ class ResourceCollection extends ArrayObject
 
         //dump($class."::".($preserveKeys?'preserve':'skip')."::".($base::$wrap?$base::$wrap:'null'));
 
-        foreach ($resource as $key => $item)
-        {
+        foreach ($resource as $key => $item) {
             $item = new $class($item);
 
             if ($preserveKeys) {
@@ -95,8 +92,7 @@ class ResourceCollection extends ArrayObject
         unset($this->collection);
         unset($this->collects);
         
-        if (isset($this->_links))
-        {
+        if (isset($this->_links)) {
             $this['links'] = $this->_links;
             $this['meta'] = $this->_meta;
         }
@@ -124,15 +120,14 @@ class ResourceCollection extends ArrayObject
 
     private function _toArray($item, $wrap)
     {
-        if ($item instanceof Model)
-        {
+        if ($item instanceof Model) {
             return $item->toArray();
         }
 
         $class = $this->collects;
         $base = new $class();
 
-        if (is_array($item) || $item instanceof Collection)
+        if (is_array($item) || $item instanceof Collection) 
         {
             if ($wrap && is_array($item)) {
                 if (isset($item[$wrap])) {
@@ -141,10 +136,11 @@ class ResourceCollection extends ArrayObject
             }
 
             $res = array();
-            foreach ($item as $key => $val)
-            {
+            
+            foreach ($item as $key => $val) {
                 $res[$key] = $this->_toArray($val, $base::$wrap);
             }
+
             return $res;
         }
 
@@ -153,16 +149,12 @@ class ResourceCollection extends ArrayObject
 
     public function toArray($request)
     {
-        /* if (isset($this->_links))
-            return array('data' => $this->collection);
-        else  */
-            return $this->collection->all();
+        return $this->collection->all();
     }
 
     public function getResult()
     {
-        if (!isset($this['meta']) ) //&& !isset($this[$this->_wrap]))
-        {
+        if (!isset($this['meta'])) {
             $res = array();
 
             foreach ($this as $key => $val) {

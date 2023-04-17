@@ -47,8 +47,7 @@ class RateLimiter
             return false;
         }
 
-        if (is_closure($callback))
-        {
+        if (is_closure($callback)) {
             list($class, $method, $params) = getCallbackFromString($callback);
             $res = executeCallback($class, $method, $params, $instance);
         }
@@ -154,8 +153,8 @@ class RateLimiter
         $delay = $this->parseDateInterval($delay);
 
         return $delay instanceof DateTimeInterface
-                            ? max(0, $delay->getTimestamp() - $this->currentTime())
-                            : (int) $delay;
+            ? max(0, $delay->getTimestamp() - $this->currentTime())
+            : (int) $delay;
     }
 
     protected function availableAt($delay = 0)

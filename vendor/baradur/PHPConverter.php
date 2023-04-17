@@ -572,10 +572,21 @@ Class PHPConverter
         return $text;
     }
 
+    public function callbackReplaceRequired($match)
+    {
+        $file = $match[2];
+
+        $file = str_replace('(', '', str_replace(')', '', $match[2]));
+
+        $file = str_replace('__DIR__', '', $file);
+        $file = ltrim($file, '.');
+
+        return 'CoreLoader::loadClass(!DIR!' . $file . ', false);';
+    }
     
     public function replaceNewPHPFunctions($text, $classname=null, $dir=null, $is_migration=false)
     {
-        global $artisan, $_model_list, $_class_list, $_enum_list;
+        global $_model_list, $_class_list, $_enum_list;
         
         if ($classname) $this->_current_classname[] = $classname;
     
@@ -599,12 +610,12 @@ Class PHPConverter
 
         # Replace commented code
         $text = preg_replace('/(?:(?:\B\/\*(?:[^*]|(?:\*+[^*\/]))*\*+\/)|(?:(?<!\:|\\\|\'|\")\/\/.*))/x', '', $text);
-        while (preg_match('/\n[\s]*\n[\s]*\n/x', $text))
+        while (preg_match('/\n[\s]*\n[\s]*\n/x', $text)) {
             $text = preg_replace('/\n[\s]*\n[\s]*\n/x', "\n\n", $text);
+        }
         
         # const CREATED_AT - UPDATED_AT - DELETED_AT
-        if (in_array($classname, $_model_list))
-        {
+        if (in_array($classname, $_model_list)) {
             //$text = preg_replace('/protected[\s]*\$attributes[\s]*=/x', 'public \$attributes =', $text);
             $text = preg_replace('/const[\s]*CREATED_AT/x', 'protected $_CREATED_AT', $text);
             $text = preg_replace('/const[\s]*UPDATED_AT/x', 'protected $_UPDATED_AT', $text);
@@ -615,8 +626,7 @@ Class PHPConverter
         $text = preg_replace_callback('/use\s[\s]*([a-zA-Z, ]*);/x', array($this, 'callbackReplaceTraits'), $text);
     
         # Remove DELETED_AT in softDelete if setted in model
-        if (in_array($classname, $_model_list))
-        {
+        if (in_array($classname, $_model_list)) {
             preg_match_all('/protected[\s]*\$_DELETED_AT.*/x', $text, $cant);
             if (count($cant[0]) > 0) {
                 $this->_trait_to_add = str_replace("protected ".'$_DELETED_AT'." = 'deleted_at';", '', $this->_trait_to_add);
@@ -624,8 +634,7 @@ Class PHPConverter
         }
     
         # Add trait inside class, removing existent functions;
-        if (count($this->_functions_to_add)>0)
-        {
+        if (count($this->_functions_to_add)>0) {
             $text = rtrim(trim($text), "}");
             foreach ($this->_functions_to_add as $key => $val)
             {
@@ -635,8 +644,7 @@ Class PHPConverter
             $text .= "\n}";
             $this->_functions_to_add = array();
         }
-        if ($this->_trait_to_add!='')
-        {
+        if ($this->_trait_to_add!='') {
             $text = rtrim(trim($text), "}");
             $text .= $this->_trait_to_add . "\n}";
         }
@@ -717,14 +725,12 @@ Class PHPConverter
         $text = preg_replace_callback('/Collection\:\:macro[\s]*\((.*)function.*({(?:[^{}]*|(?2))*})/x', array($this, 'callbackReplaceCollectionMacros'), $text);
     
         # query() annonymous functions
-        if ($classname)
-        {
+        if ($classname) {
             // this one doesn't work on PHP 5.1.6
             //$text = preg_replace_callback('/(?<sign>[=|>|,|\(])[\s]*function[\s]*[\S](?<param>.*?)\)[\s]*(?<main>[^\{\}]*){0}(?<query>\{\g<main>\}|\{(?:\g<main>\g<query>\g<main>)*\})/x', array($this, 'callbackReplaceClosures'), $text);
             $text = preg_replace_callback('/([=|>|,|\(][\s]*function).*({(?:[^{}]*|(?2))*})/x', array($this, 'callbackReplaceClosures'), $text);
         }
 
-    
         # enums to class extending EnumHelper
         $text = preg_replace_callback('/enum[\s]*(\S*)[\s]*(?:[\s]*\S*[\s]*)({(?:[^{}]*|(?2))*})/x', array($this, 'callbackReplaceEnums'), $text);
         
@@ -753,21 +759,22 @@ Class PHPConverter
         }
     
         # Generates new class for closures
-        if (count($this->_arrow_functions)>0 && $classname)
-        {
+        if (count($this->_arrow_functions)>0 && $classname) {
+
             $controller = "<?php\n\nclass baradurClosures_".$this->_current_classname[0];
             
-            if (array_key_exists($this->_current_classname[0], $_class_list) && !$is_migration)
-            {
+            if (array_key_exists($this->_current_classname[0], $_class_list) && !$is_migration) {
                 $controller .= " extends ".$this->_current_classname[0];
+            } elseif ($this->_current_classname[0]=='console') {
+                $controller .= " extends Command";
             }
             
             $controller .= " {\n\n";
                 
-            foreach ($this->_arrow_functions as $closure)
-            {
+            foreach ($this->_arrow_functions as $closure) {
                 $controller .= $closure."\n\n";
             }
+
             $controller .= "}";
     
             # Convert static model functions
@@ -786,13 +793,13 @@ Class PHPConverter
         }
     
         # Generates new class for Builder macros
-        if (count($this->_builder_macros)>0 && $classname)
-        {
+        if (count($this->_builder_macros)>0 && $classname) {
             $controller = "<?php\n\nclass baradurBuilderMacros_".$this->_current_classname[0]." extends Builder {\n\n";
-            foreach ($this->_builder_macros as $closure)
-            {
+
+            foreach ($this->_builder_macros as $closure) {
                 $controller .= $closure; //str_replace('public static', 'public ', $closure)."\n\n";
             }
+
             $controller .= "}";
             
             Cache::store('file')
@@ -803,11 +810,10 @@ Class PHPConverter
         }
     
         # Generates new class for Collection macros
-        if (count($this->_collection_macros)>0 && $classname)
-        {
+        if (count($this->_collection_macros)>0 && $classname) {
             $controller = "<?php\n\nclass baradurCollectionMacros_".$this->_current_classname[0]." extends Collection {\n\n";
-            foreach ($this->_collection_macros as $closure)
-            {
+
+            foreach ($this->_collection_macros as $closure) {
                 $controller .= $closure; //str_replace('public static', 'public ', $closure)."\n\n";
             }
             $controller .= "}";
@@ -833,6 +839,28 @@ Class PHPConverter
     {
         return preg_replace_callback('/(\w*)::(\w*)/x', array($this, 'callbackReplaceStatics'), $text);
     }
+
+    public function replaceForView($text)
+    {
+        $text = preg_replace_callback('/(\w*)::(\w*)/x', array($this, 'callbackReplaceStatics'), $text);
+        $text = preg_replace('/\s([^\s]*.?[^\b.*[^\?{2}])(\?{2})/x', " isset($1) ? $1 : ", $text);
+        $text = str_replace('__DIR__', 'dirname(__FILE__)', $text);
+
+        $text = preg_replace_callback('/[^\]|\S](\[(?>[^\[\]]|(?R))*])[\s]*=/x', array($this, 'callbackReplaceNewArraySet'), $text);
+        $text = preg_replace_callback('/([\s|\(|,|=|>]*)(\[(?>[^\[\]]|(?R))*])/x', array($this, 'callbackReplaceNewArray'), $text);
+        $text = preg_replace('/,([\s]*)\]/x', "$1]", $text);
+
+        return $text;
+    }
+
+    public function replaceRequired($text, $currentFolder)
+    {
+        $text = preg_replace_callback('/(require|require_once|include|include_once)[\s](.*);/x', array($this, 'callbackReplaceRequired'), $text);
+
+        return str_replace('!DIR!', "_DIR_.'/".$currentFolder."/'.", $text);
+
+    }
+
 
 }
 

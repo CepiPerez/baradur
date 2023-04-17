@@ -9,6 +9,6 @@ return [
     */
 
     'path' => env('PDF_PATH', 'storage/app/public'),
-    'bin' => env('PDF_BIN', 'xvfb-run wkhtmltopdf'),
+    'bin' => env('PDF_BIN', '/usr/bin/wkhtmltopdf'),
 
 ];

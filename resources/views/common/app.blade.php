@@ -16,9 +16,11 @@
     <link href="{{ asset('assets/css/pagination.css') }}" rel="stylesheet">
     <link href="{{ asset('assets/css/custom.css') }}" rel="stylesheet">
 
+    @stack('css')
+
     <script src="{{ asset('assets/js/jquery-3.5.1.min.js') }}"></script>
     <script src="{{ asset('assets/js/popper.min.js') }}"></script>
-    <script src="{{ asset('js/bootstrap.min.js') }}"></script>
+    {{-- <script src="{{ asset('js/bootstrap.min.js') }}"></script> --}}
 
   </head>
   
@@ -87,35 +89,9 @@
 
       @yield('content')
       
-
     </main>
     
-    <footer class="text-center text-lg-start bg-dark text-muted">
-      <section
-        class="d-flex justify-content-center justify-content-lg-between">
-        <div class="me-5 d-none d-lg-block">
-          <span>© 2022 Matias Perez - cepiperez@gmail.com</span>
-        </div>
-
-        <div>
-          <div style="word-spacing: .5rem">
-            <a href="" class="me-4 text-reset text-decoration-none">
-              <i class="fab fa-facebook-f"></i></a>
-            <a href="" class="me-4 text-reset text-decoration-none">
-              <i class="fab fa-twitter"></i></a>
-            <a href="" class="me-4 text-reset text-decoration-none">
-              <i class="fab fa-google"></i></a>
-            <a href="" class="me-4 text-reset text-decoration-none">
-              <i class="fab fa-instagram"></i></a>
-            <a href="" class="me-4 text-reset text-decoration-none">
-              <i class="fab fa-linkedin"></i></a>
-            <a href="" class="me-4 text-reset text-decoration-none">
-              <i class="fab fa-github"></i></a>
-          </div>
-        </div>
-      </section>
-    </footer>
-
+    @stack('js')
 
   </body>
 </html>

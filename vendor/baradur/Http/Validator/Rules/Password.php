@@ -48,7 +48,7 @@ class Password implements ValidationRule
      */
     public static function min($size)
     {
-        return new static($size);
+        return new Password($size);
     }
 
     /**
@@ -106,7 +106,7 @@ class Password implements ValidationRule
      * @param  mixed  $value
      * @return bool
      */
-    public function validate($attribute, $value, $fail=null)
+    public function validate($attribute, $value, $fail)
     {
         $this->data = $attribute;
 

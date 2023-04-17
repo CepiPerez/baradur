@@ -6,14 +6,16 @@ class CsrfMiddleware
 
     public function handle($request)
     {
-        foreach ($this->except as $except)
-        {
-            if ($except == $request->_uri) {
+        $uri = $request->path();
+
+        foreach ($this->except as $except) {
+
+            if ($except == $uri) {
                 return $request;
             }
             
-            if (strpos($except, '*')!==false)
-            {
+            if (strpos($except, '*')!==false) {
+
                 $special_chars = "\.+^$[]()|{}/'#";
                 $special_chars = str_split($special_chars);
                 $escape = array();
@@ -28,7 +30,7 @@ class CsrfMiddleware
                     '?' => '.',
                 ));
 
-                if (preg_match("/$pattern/", $request->_uri)) {
+                if (preg_match("/$pattern/", $uri)) {
                     return $request;
                 }
             }
@@ -36,68 +38,60 @@ class CsrfMiddleware
 
         //echo "Verifying token";
         $this->_checkToken(Route::current());
-        $this->_removeOldTokens();
+        $this->_removeOldTokens(Route::current());
         
         return $request;
     }
 
     private function _checkToken($ruta)
     {
-        if ($ruta->method=='POST' || $ruta->method=='PUT' || $ruta->method=='DELETE')
-        {
-            if (!isset($_SESSION['tokens'][$_POST['csrf']]))
-            {
-                # Token doesn't exist
+        
+        if ($ruta->method=='POST' || $ruta->method=='PUT' || $ruta->method=='DELETE') {
+            
+            if (!isset($_SESSION['_token']) ||  $_SESSION['_token']!==$_POST['_token']) {
+                # Token doesn't exist or is invalid
                 abort(403);
             }
 
-            $lifetime = config('app.http_tokens');
-            $session_timestamp = $_SESSION['tokens'][$_POST['csrf']]['timestamp'];
+            /* $lifetime = config('app.http_tokens');
+            $session_timestamp = $_SESSION['tokens'][$_POST['_token']]['timestamp'];
 
-            $date1 = Carbon::parse($session_timestamp)
-                ->addMinutes($lifetime)->getTimestamp();
+            $date1 = Carbon::parse($session_timestamp)->addMinutes($lifetime)->getTimestamp();
             
             $date2 = Carbon::now()->getTimestamp();
-
-            //$date1 = strtotime(config('app.http_tokens'), strtotime($_SESSION['tokens'][$_POST['csrf']]['timestamp']));
-            //$date2 = strtotime(date('Y-m-d H:i:s'));
             
-            if ($date1 < $date2)
-            {
+            if ($date1 < $date2) {
                 # Token expired
                 abort(403);
-            }
-            else
-            {
-                # Access granted
-                $counter = $_SESSION['tokens'][$_POST['csrf']]['counter'];
-                if ($counter < 1)
-                {
-                    $_SESSION['tokens'][$_POST['csrf']]['counter'] = $counter+1;
-                }
-                else
-                {
-                    unset($_SESSION['tokens'][$_POST['csrf']]);
-                }
-            }
+            } */
         }
 
     }
 
     # Remove old tokens based on .env settings
-    private function _removeOldTokens()
+    private function _removeOldTokens($ruta)
     {
-        if (isset($_SESSION['tokens']))
-        {
-            foreach ($_SESSION['tokens'] as $key => $token)
-            {
-                $date1 = strtotime(config('app.http_tokens'), strtotime($token['timestamp']));
-                $date2 = strtotime(date('Y-m-d H:i:s'));
-                if ($date1 < $date2)
-                    unset($_SESSION['tokens'][$key]);
-                
-                if ($token['counter'] >= 1)
-                    unset($_SESSION['tokens'][$key]);
+        if ($ruta->method=='POST' || $ruta->method=='PUT' || $ruta->method=='DELETE') {
+
+            if (isset($_SESSION['tokens'])) {
+
+                foreach ($_SESSION['tokens'] as $key => $token) {
+
+                    $lifetime = config('app.http_tokens');
+                    $session_timestamp = $_SESSION['tokens'][$_POST['_token']]['timestamp'];
+
+                    $date1 = Carbon::parse($session_timestamp)->addMinutes($lifetime)->getTimestamp();
+                    
+                    $date2 = Carbon::now()->getTimestamp();
+
+                    if ($date1 < $date2) {
+                        unset($_SESSION['tokens'][$key]);
+                    }
+                    
+                    if ($token['counter'] >= 1) {
+                        unset($_SESSION['tokens'][$key]);
+                    }
+                }
             }
         }
     }

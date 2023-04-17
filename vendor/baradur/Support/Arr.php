@@ -629,7 +629,7 @@ class Arr
         $count = count($array);
 
         if ($requested > $count) {
-            throw new RuntimeException(
+            throw new InvalidArgumentException(
                 "You requested {$requested} items, but there are only {$count} items available."
             );
         }

@@ -28,7 +28,14 @@ Class PDF
         //var_dump($command); die();
         
         shell_exec($command);
-        chmod($folder.$filename.'.html', 0777);
+
+        @unlink($folder.$filename.'.html');
+
+        if (!file_exists($folder.$filename.'.pdf')) {
+            throw new Exception("Error creating PDF file. Check binary configuration.");
+        }
+
+        chmod($folder.$filename.'.pdf', 0777);
 
         //unlink($folder.$filename.'.html');
 

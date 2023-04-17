@@ -1,6 +1,6 @@
 <?php
 
-Class Helpers
+class Helpers
 {
     public static function camelCaseToSnakeCase($name, $plural=true)
     {
@@ -34,26 +34,30 @@ Class Helpers
 
         $filepath = _DIR_.'lang/'.$locale.'/plurals.php';
         
-        if (!file_exists($filepath))
+        if (!file_exists($filepath)) {
             $filepath = _DIR_.'lang/'.$fallback_locale.'/plurals.php';
+        }
 
-        if (!file_exists($filepath))
+        if (!file_exists($filepath)) {
             throw new Exception("FILE $filepath NOT FOUND\n");
+        }
         
         $lang = CoreLoader::loadConfigFile($filepath, false);
         $result = '';
-        foreach ($lang as $key => $value)
-        {
+
+        foreach ($lang as $key => $value) {
             $res = $string;
             $len = strlen($key);
-            if (substr($res, -$len) == $key)
-            {
+
+            if (substr($res, -$len) == $key) {
                 $result = substr($res, 0, strlen($res)-$len) . $value;
                 break;
             }
         }
-        if ($result == '')
+
+        if ($result == '') {
             $result = $string . $lang['*'];
+        }
 
         return $result;
 
@@ -66,27 +70,30 @@ Class Helpers
 
         $filepath = _DIR_.'lang/'.$locale.'/plurals.php';
         
-        if (!file_exists($filepath))
+        if (!file_exists($filepath)) {
             $filepath = _DIR_.'lang/'.$fallback_locale.'/plurals.php';
+        }
 
-        if (!file_exists($filepath))
+        if (!file_exists($filepath)) {
             throw new Exception("FILE $filepath NOT FOUND\n");
+        }
 
         $lang = CoreLoader::loadConfigFile($filepath, false);
         $result = '';
-        //dd($lang);
-        foreach ($lang as $key => $value)
-        {
+
+        foreach ($lang as $key => $value) {
             $res = $string;
             $len = strlen($value);
-            if (substr($res, -$len) == $value)
-            {
+
+            if (substr($res, -$len) == $value) {
                 $result = substr($res, 0, strlen($res)-$len) . $key;
                 break;
             }
         }
-        if ($result == '')
+
+        if ($result == '') {
             $result = $string . $lang['*'];
+        }
 
         return $result;
 
@@ -96,20 +103,18 @@ Class Helpers
     {
         $obj = new stdClass;
 
-        if (count($array)==0)
+        if (count($array)==0) {
             return $obj;
+        }
 
-        foreach ($array as $key => $value)
-        {
-            if (is_array($value))
-            {
+        foreach ($array as $key => $value) {
+            if (is_array($value)) {
                 $obj->$key = self::arrayToObject($value);
-            } 
-            else
-            {
+            } else {
                 $obj->$key = $value; 
             }
         }
+
         return $obj;
     }
 
@@ -124,44 +129,62 @@ Class Helpers
 
         $filepath = _DIR_.'lang/'.$locale.'/'.$file.'.php';
         
-        if (!file_exists($filepath))
+        if (!file_exists($filepath)) {
             $filepath = _DIR_.'lang/'.$fallback_locale.'/'.$file.'.php';
-
-        if (file_exists($filepath))
-        {
-            $lang = CoreLoader::loadConfigFile($filepath);
         }
-        else
-        {
+
+        if (file_exists($filepath)) {
+            $lang = CoreLoader::loadConfigFile($filepath);
+        } else {
             $filepath = _DIR_.'lang/'.$locale.'.json';
             
-            if (!file_exists($filepath))
+            if (!file_exists($filepath)) {
                 $filepath = _DIR_.'lang/'.$fallback_locale.'.json';
-
-            if (file_exists($filepath))
-            {
+            }
+            
+            if (file_exists($filepath)) {
                 $lang = json_decode(file_get_contents($filepath, 'r'), true);
-                return $lang[$string] ? $lang[$string] : $string;
+                return isset($lang[$string]) ? $lang[$string] : $string;
             }
         }
-
+        
         $value = array_shift($array);
         $result = $lang[$value] ? $lang[$value] : $value;
 
-        while (count($array)>0)
-        {
+        while (count($array)>0) {
             $value = array_shift($array);
             $result = isset($result[$value]) ? $result[$value] : $value;
         }
 
-        if ($placeholder)
-        {
-            foreach ($placeholder as $key => $val)
-                $result = str_replace(':'.$key, $val, $result);
+        /* $file = array_shift($array);
+        $filepath = _DIR_.'lang/'.$locale.'/'.$file.'.php';
+        
+        if (!file_exists($filepath)) {
+            $filepath = _DIR_.'lang/'.$fallback_locale.'/'.$file.'.php';
+        }
+        if (!file_exists($filepath)) {
+            $filepath = _DIR_.'lang/'.$locale.'.json';
+        }
+        if (!file_exists($filepath)) {
+            $filepath = _DIR_.'lang/'.$fallback_locale.'.json';
+        }
+        if (!file_exists($filepath)) {
+            return $string;
         }
 
+        $lang = json_decode(file_get_contents($filepath, 'r'), true);
+
+        $result = Arr::get($lang, $string); */
+
+        if ($placeholder) {
+            foreach ($placeholder as $key => $val) {
+                $result = str_replace(':'.$key, $val, $result);
+            }
+        }
+
+        //dd($result);
+
         return $result;
-        
     }
 
     public static function trans_choice($string, $value, $placeholder=null)
@@ -170,21 +193,22 @@ Class Helpers
         $res = explode('|', $str);
 
         $helper = null;
-        if (is_array($value))
-        {
+
+        if (is_array($value)) {
             $helper = array_keys($value);
             $helper = $helper[0];
             $value = $value[$helper];
         }
 
-        if (count($res)==2)
-        {
-            if ($value==1) return str_replace(':'.$helper, $value, $res[0]);
-            else return str_replace(':'.$helper, $value, $res[1]);
-        }
-        else if (count($res)>2)
-        {
+        if (count($res)==2) {
+            if ($value==1) {
+                return str_replace(':'.$helper, $value, $res[0]);
+            } else {
+                return str_replace(':'.$helper, $value, $res[1]);
+            }
+        } else if (count($res)>2) {
             $cons = array();
+
             foreach($res as $r) {
                 preg_match('/^[\{\[]([^\[\]\{\}]*)[\}\]]/', $r, $matches);
                 $cons[] = $matches[1];
@@ -194,31 +218,27 @@ Class Helpers
 
             $selected = 0;
             $count = 0;
-            foreach ($cons as $range)
-            {
+            
+            foreach ($cons as $range) {
                 $r = explode(',', $range);
                 
-                if ($r[1]=='*')
-                {
-                    if ($value >= $r[0])
-                    {
+                if ($r[1]=='*') {
+                    if ($value >= $r[0]) {
                         $selected = $segments[$count];
                         break;
                     }
-                }
-                else if ($r==$value)
-                {
+                } else if ($r==$value) {
+                    $selected = $segments[$count];
+                    break;
+                } else if (in_array($value, range($r[0], $r[1]))) {
                     $selected = $segments[$count];
                     break;
                 }
-                else if (in_array($value, range($r[0], $r[1])))
-                {
-                    $selected = $segments[$count];
-                    break;
-                }
+
                 ++$count;
             }
         }
+
         return str_replace(':'.$helper, $value, $selected);
     }
 
@@ -246,7 +266,6 @@ Class Helpers
             return Arr::get($config, $val);
         }
 
-
         $file = array_shift($array);
 
         if (!file_exists(_DIR_.'config/'.$file.'.php')) {
@@ -262,59 +281,42 @@ Class Helpers
     {
         $new = array();
         $current = 'get';
-        if (count(array_keys($array))==0)
-        {
-            foreach ($array as $val)
-            {
+
+        if (count(array_keys($array))==0) {
+            foreach ($array as $val) {
                 $new[$current] = $val;
                 $current = 'set';
             }
-        }
-        else
-        {
-            foreach ($array as $key => $val)
-            {
-                if (!isset($key))
-                {
+        } else {
+            foreach ($array as $key => $val) {
+                if (!isset($key)) {
                     $new[$current] = $val;
                     $current = 'set';
-                }
-                else
-                {
+                } else {
                     $new[$key] = $val;
                 }
             }
         }
+
         return $new;
     }
 
     public static function toArray($object)
     {
         $arr = array();
-        foreach ($object as $key => $val)
-        {
-            if ($val instanceof Collection || $val instanceof Model)
-            {
+        
+        foreach ($object as $key => $val) {
+            if ($val instanceof Collection || $val instanceof Model) {
                 $arr[$key] = $val->toArray();
-            }
-            elseif ($val instanceof Stringable)
-            {
+            } elseif ($val instanceof Stringable) {
                 $arr[$key] = (string)$val;
-            }
-            elseif ($val instanceof Model)
-            {
+            } elseif ($val instanceof Model) {
                 $arr[$key] = $val->toArray();
-            }
-            elseif ($val instanceof EnumHelper)
-            {
+            } elseif ($val instanceof EnumHelper) {
                 $arr[$key] = $val->value;
-            }
-            elseif (is_array($val) || is_object($val))
-            {
+            } elseif (is_array($val) || is_object($val)) {
                 $arr[$key] = self::toArray($val);
-            }
-            else
-            {
+            } else {
                 $arr[$key] = $val;
             }
         }
@@ -338,8 +340,7 @@ Class Helpers
         
         $count = 0;
 
-        foreach ($lines as $line)
-        {
+        foreach ($lines as $line) {
             if ($count >= $start) {
                 $result[] = htmlentities($line);
             }

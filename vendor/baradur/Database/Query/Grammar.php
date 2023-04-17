@@ -48,15 +48,13 @@ class Grammar
 
     protected function wrapSegments($segments)
     {
-        while (count($segments) > 2)
-        {
+        while (count($segments) > 2) {
             array_shift($segments);
         }
 
         $result = array();
 
-        foreach ($segments as $segment)
-        {
+        foreach ($segments as $segment) {
             $result[] = $this->wrapValue($segment);
         }
 

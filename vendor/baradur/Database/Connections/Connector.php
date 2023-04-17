@@ -9,6 +9,8 @@ Class Connector
     } */
 
     protected $database;
+    protected $lastId = null;
+
 
     public function getDatabase()
     {

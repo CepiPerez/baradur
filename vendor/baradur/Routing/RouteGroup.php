@@ -22,10 +22,10 @@ Class RouteGroup
 
     public function except($except)
     {
-        foreach ($this->added as $route)
-        {
-            if (in_array($route->func, $except))
+        foreach ($this->added as $route) {
+            if (in_array($route->func, $except)) {
                 Route::getInstance()->_collection->pull('name', $route->name);
+            }
         }
 
         return $this;
@@ -34,16 +34,16 @@ Class RouteGroup
     
     public function only($only)
     {
-        foreach ($this->added as $route)
-        {
-            if (!in_array($route->func, $only))
+        foreach ($this->added as $route) {
+            if (!in_array($route->func, $only)) {
                 Route::getInstance()->_collection->pull('name', $route->name);
+            }
         }
 
         return $this;
     }
 
-    private function backupRouteOptions($route)
+    public static function backupRouteOptions($route)
     {
         $result = array();
 
@@ -57,7 +57,29 @@ Class RouteGroup
         return $result;
     }
 
-    private function restoreRouteOptions($route, $options)
+    public static function applyRouteOptions($route, $options)
+    {
+        if (is_array($options['middleware'])) {
+            foreach($options['middleware'] as $m) {
+                if (!in_array($m, $route->_middleware)) {
+                    $route->_middleware[] = $m;
+                }
+            }
+        } else {
+            if (!in_array($options['middleware'], $route->_middleware)) {
+                $route->_middleware[] = $options['middleware'];
+            }
+        }
+
+        //$route->_middleware = array_merge($route->_middleware, $middlewares);
+        $route->_controller = $options['controller'];
+        $route->_domain = $options['domain'];
+        $route->_prefix = $options['prefix'];
+        $route->_name = $options['name'];
+        $route->_scope_bindings = $options['scope_bindings'];
+    }
+
+    public static function restoreRouteOptions($route, $options)
     {
         $route->_middleware = $options['middleware'];
         $route->_controller = $options['controller'];
@@ -67,7 +89,7 @@ Class RouteGroup
         $route->_scope_bindings = $options['scope_bindings'];
     }
 
-    private function swicthRouteOptions($route, $source)
+    public static function swicthRouteOptions($route, $source)
     {
         $route->_middleware = $source->middleware;
         $route->_controller = $source->controller;
@@ -82,13 +104,21 @@ Class RouteGroup
     {        
         $instance = Route::getInstance();
 
-        $backup = $this->backupRouteOptions($instance);
+        //$backup = self::backupRouteOptions($instance);
 
-        $this->swicthRouteOptions($instance, $this);
+        //self::swicthRouteOptions($instance, $this);
 
-        Route::group($routes);
+        $attributes = array(
+            'domain' => $this->domain,
+            'prefix' => $this->prefix,
+            'middleware' => $this->middleware,
+            'name' => $this->name,
+            'controller' => $this->controller
+        );
 
-        $this->restoreRouteOptions($instance, $backup);
+        Route::group($attributes, $routes);
+
+        //self::applyRouteOptions($instance, $backup);
 
         return $this;
     } 
@@ -113,19 +143,17 @@ Class RouteGroup
 
     public function middleware($middleware)
     {
-        if (is_string($middleware))
-            $middleware = array($middleware);
-
+        $middleware = is_string($middleware) ? array($middleware) : $middleware;
         $this->middleware = array_merge($this->middleware, $middleware);
         return $this;
     }
 
     public function withTrashed()
     {
-        foreach ($this->added as $route)
-        {
+        foreach ($this->added as $route) {
             $route->with_trashed = true;
         }
+
         return $this;
     }
 

@@ -13,8 +13,8 @@ trait Prunable
         $this->pruning();
 
         return method_exists(get_class($this), 'forceDelete')
-                ? $this->forceDelete()
-                : $this->delete();
+            ? $this->forceDelete()
+            : $this->delete();
     }
 
     protected function pruning()

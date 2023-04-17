@@ -14,13 +14,15 @@ Class View
 	public function with($key, $value)
     {
         $_SESSION['messages'][$key] = $value;
-        return $this;
+        
+		return $this;
     }
 
 	public function withErrors($errors)
     {
-        foreach ($errors as $key => $val)
+        foreach ($errors as $key => $val) {
             $_SESSION['errors'][$key] = $val;
+		}
 
         return $this;
     }
@@ -39,11 +41,13 @@ Class View
 
 	public static function composer($templates, $callback)
 	{
-		if (!is_array($templates)) 
+		if (!is_array($templates)) {
 			$templates = array($templates);
+		}
 
-		foreach ($templates as $template)
+		foreach ($templates as $template) {
 			self::$composers[$template] = $callback;
+		}
 	}
 
 	# Loads the template file
@@ -56,38 +60,37 @@ Class View
 	{
 		list($views, $file) = Blade::__findTemplate($file);
 
-		$arguments = array(
-			'app_name' => config('app.name')
-		);
+		$arguments = array('app_name' => config('app.name'));
 
 		if (isset($_SESSION['old'])) {
 			$old = new stdClass;
-			foreach ($_SESSION['old'] as $key => $val)
+
+			foreach ($_SESSION['old'] as $key => $val) {
 				$old->$key = $val;
+			}
+
 			$arguments['old'] = $old;
 		}
 
-		if (isset($args))
-		{
-			foreach ($args as $key => $val)
-			$arguments[$key] = $val;
+		if (isset($args)) {
+			foreach ($args as $key => $val) {
+				$arguments[$key] = $val;
+			}
 		}
 
-		if (count(self::$shared)>0)
-		{
+		if (count(self::$shared)>0) {
 			$arguments = array_merge($arguments, self::$shared);
 		}
 
 		$composer = isset(self::$composers[$file])? self::$composers[$file] : null;
-		if (strpos($file, '.')>0 && !$composer)
-		{
+
+		if (strpos($file, '.')>0 && !$composer) {
 			$arr = explode('.', $file);
 			$first = $arr[0];
 
-			if (isset(self::$composers[$first.'.*']))
+			if (isset(self::$composers[$first.'.*'])) {
 				$composer = self::$composers[$first.'.*'];
-
-			else {
+			} else {
 				$last = array_pop($arr); 
 				$temp = str_replace($last, '*', $file);
 
@@ -96,44 +99,39 @@ Class View
 			}
 		}
 
-		if ($composer)
-		{
-			if (is_closure($composer))
-			{
+		if ($composer) {
+			if (is_closure($composer)) {
 				list($class, $method, $params) = getCallbackFromString($composer);
 				$params[0] = new View();
 				call_user_func_array(array($class, $method), $params);
-			}
-			else
-			{
+			} else {
 				$class = new $composer;
 				$class->composer(new View);
 			}
-
 		}
 
-		if (isset($_SESSION['messages']))
-		{
-			//App::setSessionMessages($_SESSION['messages']);
+		if (isset($_SESSION['messages'])) {
 			$arguments = array_merge($arguments, $_SESSION['messages']);
 		}
 
 		global $errors;
-		if (isset($_SESSION['errors']))
-			$errors = new MessageBag($_SESSION['errors']);
 
-		if (isset($errors))
+		if (isset($_SESSION['errors'])) {
+			$errors = new MessageBag($_SESSION['errors']);
+		}
+
+		if (isset($errors)) {
 			$arguments['errors'] = $errors;
+		}
 
 		//$app->arguments = $args;
 
 		$cache = _DIR_.'storage/framework/views';
 		$blade = new BladeOne($views, $cache);
-
-		$result = self::$autoremove ? 
-			$blade->runInternal($file, $arguments, true) : $blade->run($file, $arguments);
-
-		self::$autoremove = false;
+		
+		$result = self::$autoremove 
+			? $blade->runInternal($file, $arguments, true) 
+			: $blade->run($file, $arguments);
 
 		unset($_SESSION['messages']);
 		unset($_SESSION['errors']);
@@ -144,42 +142,48 @@ Class View
 		return $return_blade? $blade : $result;
 	}
 
-	public static function showErrorTemplate($code, $exception=null)
+	public static function showErrorTemplate($code, $message=null)
     {
-		$message = HttpResponse::$reason_phrases[$code];
-		$message = __($message);
+		# Since this view is for end users
+		# all error codes not in the list
+		# will be changed into error 500 
+		if (!in_array($code, array(400, 401, 402, 403, 404, 419, 429, 500, 503))) {
+            $code = 500;
+			$message = __('Server Error');
+        }
 
+		# 404 must show "not found"
+		# This prevent, for example, "model not found"
+		if ($code==404) {
+			$message = __('Not Found');
+		}
+
+		# If there's a blade file inside resources
+		# folder, then use it as template
         if (Blade::__findTemplate('errors.'.$code)) {
-
+			
             $result = view(
                 'errors.'.$code,
                 array(
                     'title' => $message,
                     'code' => $code,
-                    'message' => $message,
-                    'exception' => $exception
+                    'message' => $message
                 )
             );
 
             return CoreLoader::processResponse(response($result, $code));
         }
 
-        if (!in_array($code, array(401, 402, 403, 404, 419, 429, 500, 503))) {
-            $code = 500;
-			$message = __('Server Error');
-        }
-            
-        //list($path, $file) = Blade::__findTemplate($code, 'vendor/baradur/Exceptions/views/');
-        //$cache = _DIR_.'storage/framework/views';
-        //$blade = new BladeOne($path, $cache);
+		# If there isn't a blade file inside resources
+		# folder, then use default framework template
 		$blade = new BladeOne(_DIR_.'vendor/baradur/Exceptions/views', _DIR_.'storage/framework/views');
 
         $result = $blade->runInternal(
-            'error', array(
+            'error', 
+			array(
                 'title' => $message,
                 'code' => $code,
-                'message' => $message,
-                'exception' => $exception
+                'message' => $message
             ),
             true
         );

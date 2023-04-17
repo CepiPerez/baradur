@@ -12,7 +12,6 @@ $version = '';
 $debuginfo = array();
 
 
-define ('BARADUR_VERSION', '1.4');
 #ini_set('memory_limit', '256M');
 
 define ('_DIR_', str_replace('vendor/baradur', '', dirname(__FILE__)));
@@ -38,7 +37,7 @@ if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'cl
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
         {
-            $key = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+            $key = str_ireplace('.php', '', basename($file));
 
             $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
             
@@ -58,7 +57,7 @@ if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'cl
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
         {
-            $key = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+            $key = str_ireplace('.php', '', basename($file));
 
             $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
         }
@@ -69,7 +68,7 @@ if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'cl
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
         {
-            $key = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+            $key = str_ireplace('.php', '', basename($file));
             
             if (!isset($_class_list[$key])) {
                 $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
@@ -82,7 +81,7 @@ if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'cl
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
         {
-            $key = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+            $key = str_ireplace('.php', '', basename($file));
 
             if (!isset($_class_list[$key])) {
                 $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
@@ -151,6 +150,10 @@ if (config('app.debug_info')) {
     $debuginfo['start'] = microtime(true);
 }
 
+# Error handling
+error_reporting(E_ERROR + E_PARSE + E_CORE_ERROR + E_RECOVERABLE_ERROR 
+    + E_USER_ERROR + E_COMPILE_ERROR /* + ~E_WARNING */);
+
 # Display errors only in debug mode
 if (config('app.debug')) {
     ini_set('display_errors', Str::startsWith(PHP_VERSION, '5'));
@@ -170,6 +173,7 @@ $app = new App();
 
 # Instantiating singletons
 $app->singleton('request', 'Request');
+$app->singleton('session', 'RequestSession');
 $app->singleton('_exceptionHandler', 'ExceptionHandler');
 
 # Initializing timezone
@@ -354,6 +358,15 @@ function fataErrorHandler()
     $file = '/'. $error[0];
     $line = $error[1];
 
+    if (strpos($line, ' ')!==false) {
+        $line = explode(' ', $line);
+        $line = $line[0];
+    }
+    if (strpos($line, "\n")!==false) {
+        $line = explode("\n", $line);
+        $line = $line[0];
+    }
+
     $blade = new BladeOne(_DIR_.'vendor/baradur/Exceptions/views', _DIR_.'storage/framework/views');
 
     $result = $blade->runInternal(
@@ -373,10 +386,6 @@ function fataErrorHandler()
 
 }
 
-
-# Error handling
-error_reporting(E_ERROR + E_PARSE + E_CORE_ERROR + E_RECOVERABLE_ERROR 
-    + E_USER_ERROR + E_COMPILE_ERROR /* + ~E_WARNING */);
 
 if (!$artisan) {
     set_exception_handler(array('Handler', 'getInstance'));

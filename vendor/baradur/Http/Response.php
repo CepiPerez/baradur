@@ -2,6 +2,8 @@
 
 class Response
 {
+    protected static $_macros = array();
+
     protected $response;
     protected $decoded;
     public $cookies;
@@ -27,11 +29,19 @@ class Response
         return (string) $this->response->getBody();
     }
 
-    public function json($data=null, $code=null)
+    public static function json($data=null, $code=null)
     {
-        if ($data) $this->response->setBody(json_encode($data));
-        if ($code) $this->response->setStatusCode($code);
-        return $this;
+        return response($data, $code);
+
+        /* if ($data) {
+            $this->response->setBody(json_encode($data));
+        }
+
+        if ($code) {
+            $this->response->setStatusCode($code);
+        }
+        
+        return $this; */
     }
 
     public function with($key, $value)
@@ -42,8 +52,9 @@ class Response
 
     public function withErrors($errors)
     {
-        foreach ($errors as $key => $val)
+        foreach ($errors as $key => $val) {
             $_SESSION['errors'][$key] = $val;
+        }
 
         return $this;
     }
@@ -52,6 +63,7 @@ class Response
     {
         $params = func_get_args();
         $this->response->setHeader('Location', Route::getRoute($params));
+
         return $this;
     }
 
@@ -59,8 +71,7 @@ class Response
     {
         $headers = is_array($headers) ? $headers : array($headers);
 
-        foreach ($headers as $key => $value)
-        {
+        foreach ($headers as $key => $value) {
             $this->response->setHeader($key, $value);
         }
 
@@ -88,7 +99,7 @@ class Response
         $this->inline = true;
         $this->custom_name = $name? $name : basename($path);
 
-        foreach ($headers as $key => $val){
+        foreach ($headers as $key => $val) {
             $this->response->setHeader($key, $val);
         }
 
@@ -329,9 +340,6 @@ class Response
         return $this->serverError() ? $this->__throw() : $this;
     }
 
-
-
-
     public function __toString()
     {
         return $this->body();
@@ -353,4 +361,48 @@ class Response
                     ? $this->macroCall($method, $parameters)
                     : $this->response->{$method}(...$parameters);
     } */
+
+    public static function macro($name, $function)
+    {
+        self::$_macros[$name] = $function;
+    }
+
+    public static function hasMacro($name)
+    {
+        return array_key_exists($name, self::$_macros);
+    }
+
+    public static function getMacros()
+    {
+        return self::$_macros;
+    }
+
+    public function __call($method, $parameters)
+    {
+        global $_class_list;
+
+        if (isset(self::$_macros[$method])) {
+
+            $class = self::$_macros[$method];
+            $params = array();
+
+            if (is_closure($class)) {
+                list($c, $m, $params) = getCallbackFromString($class);
+                $class = new $c();
+            } elseif (isset($_class_list[$class])) {
+                $class = new $class;
+                $m = '__invoke';
+            }
+
+            for ($i=0; $i<count($params); $i++) {
+                if (count($parameters)>=$i) {
+                    $params[$i] = $parameters[$i];
+                }
+            }
+            
+            return executeCallback($class, $m, $params, $class, false);
+        }
+
+        throw new BadMethodCallException("Method $method does not exist");
+    }
 }

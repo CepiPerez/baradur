@@ -16,14 +16,13 @@ Class FinalView
     {
         $view = View::renderTemplate($this->template, $this->arguments, true);
 
-        if (empty($this->fragments))
-        {
+        if (empty($this->fragments)) {
             return $view->html;
         }
 
         $html = '';
-        foreach ($this->fragments as $fragment)
-        {
+
+        foreach ($this->fragments as $fragment) {
             $html .= $view->getFragment($fragment);
         }
 
@@ -37,8 +36,7 @@ Class FinalView
 
     public function fragments($fragments)
     {
-        foreach ($fragments as $fragment)
-        {
+        foreach ($fragments as $fragment) {
             $this->fragments[] = $fragment;
         }
 
@@ -57,13 +55,15 @@ Class FinalView
     public function with($key, $value)
     {
         $_SESSION['messages'][$key] = $value;
+
         return $this;
     }
 
     public function withErrors($errors)
     {
-        foreach ($errors as $key => $val)
+        foreach ($errors as $key => $val) {
             $_SESSION['errors'][$key] = $val;
+        }
 
         return $this;
     }

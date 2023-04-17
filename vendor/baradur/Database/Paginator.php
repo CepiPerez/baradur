@@ -103,10 +103,13 @@ class Paginator extends Collection
      */
     public function links()
     {
-        if ($this->meta['last_page']==1) return null;
+        if ($this->meta['last_page']==1) {
+            return null;
+        }
 
-        if (Paginator::style()!='tailwind') 
+        if (Paginator::style()!='tailwind') {
             return View::loadTemplate('layouts/pagination-bootstrap4', array('paginator' => $this));
+        }
 
         return View::loadTemplate('layouts/pagination-tailwind', array('paginator' => $this));
     }
@@ -121,23 +124,27 @@ class Paginator extends Collection
         unset($params['ruta']);
         unset($params[$this->pageName]);
 
-        if (count($params)>0)
-        {
+        if (count($params)>0) {
+
             $str = http_build_query($params);
 
             $this->query = $str;
             
-            if (isset($this->first))
+            if (isset($this->first)) {
                 $this->first = $str . '&' . $this->first;
+            }
 
-            if (isset($this->previous))
+            if (isset($this->previous)) {
                 $this->previous = $str . '&' . $this->previous;
+            }
 
-            if (isset($this->next))
+            if (isset($this->next)) {
                 $this->next = $str . '&' . $this->next;
+            }
 
-            if (isset($this->last))
+            if (isset($this->last)) {
                 $this->last = $str . '&' . $this->last;
+            }
         }
 
         return $this;

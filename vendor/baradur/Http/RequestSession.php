@@ -3,35 +3,30 @@
 class RequestSession
 {
     protected $data = array();
-
+    
     public function __construct()
     {
-        if (isset($_SESSION['baradur_flash']))
-        {
-            $this->data = $_SESSION['baradur_flash']['data'];
+        if (isset($_SESSION['session'])) {
 
-            if ($_SESSION['baradur_flash']['type']=='flash')
-            {
-                unset($_SESSION['baradur_flash']);
+            foreach ($_SESSION['session']['data']['reflash'] as $key => $val) {
+                $this->data[$key] = $val;
             }
+
+            foreach ($_SESSION['session']['data']['flash'] as $key => $val) {
+                $this->data[$key] = $val;
+            }
+
+            unset($_SESSION['session']['data']['flash']);
         }
     }
 
-    public function get($value=null, $default=null)
+    public function get($key=null, $default=null)
     {
-        if ($value && is_string($value)) {
-            return $this->exists($value) ? $this->data[$value] : $default; 
+        if ($key) {
+            return $this->exists($key) ? $this->data[$key] : $default; 
         }
 
-        if (is_array($value))
-        {
-            foreach ($value as $key => $val)
-            {
-                $this->put($key, $val);
-            }
-        }
-
-        return $this;
+        return $this->data;
     }
 
     public function put($key, $value)
@@ -73,6 +68,9 @@ class RequestSession
         $arr = $this->data;
         $result = Arr::pull($arr, $key, $default);
         $this->data = $arr;
+        unset($_SESSION['session']['data']['flash'][$key]);
+        unset($_SESSION['session']['data']['reflash'][$key]);
+
         return $result;
     }
 
@@ -91,43 +89,72 @@ class RequestSession
     public function flash($key, $value)
     {
         $this->put($key, $value);
-        $_SESSION['baradur_flash']['data'][$key] = $value;
-        $_SESSION['baradur_flash']['type'] = 'flash';
+        $_SESSION['session']['data']['flash'][$key] = $value;
     }
 
     public function reflash()
     {
-        $_SESSION['baradur_flash']['data'] = $this->data;
-        $_SESSION['baradur_flash']['type'] = 'reflash';
+        $_SESSION['session']['data']['reflash'] = $this->data;
+        unset($_SESSION['session']['data']['flash']);
     }
 
-    public function keep($key, $value)
+    public function keep($values = array())
     {
-        $this->put($key, $value);
-        $_SESSION['baradur_flash']['data'][$key] = $value;
-        $_SESSION['baradur_flash']['type'] = 'reflash';
+        foreach ($values as $key) {
+            if ($this->exists($key)) {
+                $_SESSION['session']['data']['reflash'][$key] = $this->get($key);
+                unset($_SESSION['session']['data']['flash'][$key]);
+            }
+        }
     }
 
     public function forget($key)
     {
-        if (!is_array($key)) $key = array($key);
+        $key = !is_array($key) ? array($key) : $key;
 
-        foreach ($key as $k)
-        {
+        foreach ($key as $k) {
             unset($this->data[$k]);
-            unset($_SESSION['baradur_flash']['data'][$k]);
-        }
-
-        if (count($_SESSION['baradur_flash']['data'])==0)
-        {
-            unset($_SESSION['baradur_flash']);
+            unset($_SESSION['session']['data']['flash'][$k]);
+            unset($_SESSION['session']['data']['reflash'][$k]);
         }
     }
 
     public function flush()
     {
         $this->data = array();
-        unset($_SESSION['baradur_flash']);
+        unset($_SESSION['session']['data']['flash']);
+        unset($_SESSION['session']['data']['reflash']);
     }
+
+    public function token()
+    {
+        return $_SESSION['_token'];
+    }
+
+    public function regenerateToken()
+    {
+        if ( config('app.key') === null ) {
+            throw new MissingAppKeyException('No application encryption key has been specified.');
+        }
+        
+        $_SESSION['_token'] = hash_hmac('sha256', Str::random(40), config('app.key'));
+    }
+
+    public function regenerate($destroy = false)
+    {
+        $result = $this->migrate($destroy);
+
+        $this->regenerateToken();
+        
+        return $result;
+    }
+
+    public function migrate($destroy = false)
+    {
+        $id = session_regenerate_id($destroy);
+
+        return true;
+    }
+
 
 }

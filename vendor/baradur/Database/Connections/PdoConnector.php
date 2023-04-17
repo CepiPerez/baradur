@@ -10,19 +10,23 @@ Class PdoConnector extends Connector
     {
         $this->database = $database;
 
-        try
-        {
+        try {
             $this->connection = new PDO("mysql:host=$host; dbname=$database", $user, $password,
                 array(PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8"));
+
             $this->connection->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
         }
-        catch(PDOException $e)
-        {
+        catch(PDOException $e) {
             throw new Exception($e->getMessage());
         }
 
     }
 
+    public function isInTransaction()
+    {
+        return $this->inTransaction;
+    }
+    
     public function beginTransaction()
     {
         $this->inTransaction = true;
@@ -48,8 +52,7 @@ Class PdoConnector extends Connector
 
     public function _execUnpreparedSQL($sql)
     {
-        if (config('app.debug_info'))
-        {
+        if (config('app.debug_info')) {
             global $debuginfo;
             
             $debuginfo['queryes'][] = $sql; // preg_replace('/\s\s+/', ' ', str_replace("'", "\"", $sql));
@@ -57,23 +60,22 @@ Class PdoConnector extends Connector
 
         $query = $this->connection->query($sql);
 
+        $this->lastId = $this->connection->lastInsertId();
+
         $this->status = $query->rowCount();
 
         return true;
     }
     
     public function _execSQL($sql, $parent, $fill=false)
-    {
-        $query = $this->connection->prepare($sql);
-    
+    {    
         $bindings = $parent instanceof Builder? $parent->_bindings : $parent;
 
         $bindings = Builder::__joinBindings($bindings);
         
         //dump($query); dump($bindings);
 
-        if (config('app.debug_info'))
-        {
+        if (config('app.debug_info')) {
             global $debuginfo;
 
             $result = Builder::__getPlainSqlQuery($sql, $bindings);
@@ -81,25 +83,54 @@ Class PdoConnector extends Connector
             $debuginfo['queryes'][] = $result; // preg_replace('/\s\s+/', ' ', str_replace("'", "\"", $sql));
         }
 
+        $query = $this->connection->prepare($sql);
+
         $query->execute($bindings);
 
         $this->status = $query->rowCount();
-        
-        if ($fill)
-        {
-            while( $r = $query->fetchObject() )
-            {
-                if (!$parent->_toBase)
-                    $parent->_collection->put($this->objetToModel($r, $parent));
-                else
-                    $parent->_collection->put($r);
 
+        $this->lastId = $this->connection->lastInsertId();
+        
+        if ($fill) {
+            while( $r = $query->fetchObject() ) {
+                if (!$parent->_toBase) {
+                    $parent->_collection->put($this->objetToModel($r, $parent));
+                } else {
+                    $parent->_collection->put($r);
+                }
             }
 
             return $parent->_collection;
         }
 
         return true;
+    }
+
+    public function getRowSet($sql, $bindings=array())
+    {
+        $bindings = is_array($bindings) ? $bindings : array($bindings);
+
+        foreach ($bindings as $val) {
+            if (is_string($val)) {
+                $val = "'$val'";
+            }
+            $sql = preg_replace('/\?/', $val, $sql, 1);
+        }
+
+        $query = $this->connection->query($sql);
+        
+        $sets = array();
+        
+        try {
+            while ($res = $query->fetchAll(PDO::FETCH_OBJ)) {
+                $sets[] = $res;
+                $query->nextRowset();
+            }
+        } catch (Exception $e) {
+            return $sets;
+        }
+
+        return $sets;
     }
 
 }

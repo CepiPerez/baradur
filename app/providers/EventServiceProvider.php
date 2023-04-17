@@ -2,18 +2,13 @@
 
 class EventServiceProvider extends ServiceProvider
 {
-    protected $listen = [
+    protected $listen = [];
 
-    ];
-
-    protected $observers = [
-
-    ];
+    protected $observers = [];
 
     public function boot()
     {
-
-
+        //
     }
 
 }

@@ -14,14 +14,17 @@ Class OracleConnector extends Connector
             '(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = '.$host.')
             (PORT = '.$port.')) (CONNECT_DATA = (SID = '.$database.')) )');
 
-        if (!$this->connection)
-        {
+        if (!$this->connection) {
             throw new Exception(oci_error());
         }
 
     }
 
-
+    public function isInTransaction()
+    {
+        return $this->inTransaction;
+    }
+    
     public function beginTransaction()
     {
         $this->inTransaction = true;
@@ -46,8 +49,7 @@ Class OracleConnector extends Connector
 
     public function _execUnpreparedSQL($sql)
     {
-        if (config('app.debug_info'))
-        {
+        if (config('app.debug_info')) {
             global $debuginfo;
             
             $debuginfo['queryes'][] = $sql; // preg_replace('/\s\s+/', ' ', str_replace("'", "\"", $sql));
@@ -59,6 +61,8 @@ Class OracleConnector extends Connector
 
         $this->status = oci_num_rows($stmnt);
 
+        $this->lastId = 0;
+
         oci_free_statement($stmnt);
 
         return true;
@@ -68,8 +72,8 @@ Class OracleConnector extends Connector
     {
         $sql = str_replace("`", "", $sql);
         
-        if (strpos($sql, ' LIMIT ')!==false)
-        {
+        if (strpos($sql, ' LIMIT ')!==false) {
+
             preg_match('/ LIMIT[\s]*(\d*)/x', $sql, $matches);
             $sql = str_replace($matches[0], '', $sql);
             $limit = $matches[1];
@@ -89,21 +93,18 @@ Class OracleConnector extends Connector
         $bindings = Builder::__joinBindings($bindings);
 
 
-        if (config('app.debug_info'))
-        {
+        if (config('app.debug_info')) {
             global $debuginfo;
 
             $result = Builder::__getPlainSqlQuery($sql, $bindings);
-
-            //dump($result); __exit();
 
             $debuginfo['queryes'][] = $result; // preg_replace('/\s\s+/', ' ', str_replace("'", "\"", $sql));
         }
 
         $count = 0;
         $new_bindings = array();
-        while (strpos($sql, '?')!==false)
-        {
+
+        while (strpos($sql, '?')!==false) {
             $sql = preg_replace('/\?/', ':baradur_'.$count, $sql, 1);
             $new_bindings['baradur_'.$count] = $bindings[$count];
             $count++;
@@ -111,21 +112,16 @@ Class OracleConnector extends Connector
 
         $stmnt = oci_parse($this->connection, $sql);
 
-        foreach ($new_bindings as $key => $val)
-        {
+        foreach ($new_bindings as $key => $val) {
             oci_bind_by_name($stmnt, $key, $new_bindings[$key]);
         }
 
-        if ($this->inTransaction)
-        {
-            if ( !oci_execute($stmnt, OCI_DEFAULT) )
-            {
+        if ($this->inTransaction) {
+            if ( !oci_execute($stmnt, OCI_DEFAULT) ) {
                 $error = oci_error($stmnt);
                 throw new Exception($error['message']);
             }
-        }
-        else
-        {            
+        } else {
             $query = oci_execute($stmnt);
         }
 
@@ -136,19 +132,18 @@ Class OracleConnector extends Connector
 
         $this->status = oci_num_rows($stmnt);
         
-        if ($fill)
-        {
-            while (($r = oci_fetch_object($stmnt)) != false)
-            {
+        $this->lastId = 0;
+
+        if ($fill) {
+            while (($r = oci_fetch_object($stmnt)) != false) {
                 if (!$parent->_toBase) {
                     $parent->_collection->put($this->objetToModel($r, $parent));
-                }
-                else {
+                } else {
                     unset($r->BARADUR_ROWINDEX);
                     $parent->_collection->put($r);
                 }
-    
             }
+
             oci_free_statement($stmnt);
     
             return $parent->_collection;
@@ -163,8 +158,9 @@ Class OracleConnector extends Connector
     {
         $obj = new stdClass;
         
-        foreach ($data as $key => $val)
+        foreach ($data as $key => $val) {
             $obj->$key = $val;
+        }
 
         return $obj;
     }

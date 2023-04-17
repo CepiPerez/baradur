@@ -4,6 +4,7 @@ class Command
 {
     protected $signature;
     protected $description;
+    protected $callback;
 
     protected $arguments = array();
     protected $options = array();
@@ -126,14 +127,39 @@ class Command
         }
     }
 
+    public function setSignature($signature)
+    {
+        $this->signature = $signature;
+    }
+
+    public function setDescription($description)
+    {
+        $this->description = $description;
+    }
+
     public function setArgument($key, $value)
     {
         $this->arguments[$key] = $value;
     }
 
+    public function setCallback($callback)
+    {
+        $this->callback = $callback;
+    }
+
+    public function purpose($description)
+    {
+        $this->description = $description;
+    }
+
     public function arguments()
     {
         return $this->arguments;
+    }
+
+    public function callback()
+    {
+        return $this->callback;
     }
 
     public function argument($key)

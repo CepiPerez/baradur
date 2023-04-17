@@ -6,7 +6,7 @@ class CoreLoader
     public static function loadClass($file, $is_provider=true, $migration=null)
     {
         global $artisan, $_class_list, $phpConverter;
-        $cfname = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+        $cfname = Str::replace('.php', '', basename($file), false);
 
         $dest_folder = str_replace('/vendor/baradur', '', dirname(__FILE__)).'/storage/framework/classes/';
         $dest_file = basename($file);
@@ -19,82 +19,63 @@ class CoreLoader
 
                 $classFile = file_get_contents($file);
 
-                if (strpos($cfname, 'baradurClosures_')===false)
-                {
+                if (strpos($cfname, 'baradurClosures_')===false) {
                     $classFile = $phpConverter->replaceNewPHPFunctions($classFile, $cfname, _DIR_, $migration!==null);
-                }
-                else
-                {
+                } else {
                     $classFile = $phpConverter->replaceStatics($classFile);
                 }
 
-                if (isset($migration))
-                {
+                $folder = str_replace(_DIR_, '', dirname($file));
+                $classFile = $phpConverter->replaceRequired($classFile, $folder);
+
+                if (isset($migration)) {
                     $classFile = preg_replace('/return[\s]*new[\s]*[cC]lass/', "class $migration ", $classFile);
                 }
 
-                if ($artisan)
-                {
+                if ($artisan) {
                     ini_set('display_errors', false);
                     error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_WARNING & ~E_NOTICE);
                 }
                 
                 if (strpos($cfname, 'baradurClosures_')===false && 
                     strpos($cfname, 'baradurBuilderMacros_')===false && 
-                    strpos($cfname, 'baradurCollectionMacros_')===false)
-                {
+                    strpos($cfname, 'baradurCollectionMacros_')===false) {
                     Cache::store('file')->plainPut($dest_folder.$dest_file, $classFile);
-                    //require_once($dest_folder.$dest_file);
-                }
-                else
-                {
+                } else {
                     Cache::store('file')->plainPut($dest_folder.$dest_file, $classFile);
-                    //require_once($dest_folder.$dest_file);
                 }
                 
-                //$classFile = null;
-
             }
-            /* else
-            { */
-                if ($artisan)
-                {
-                    ini_set('display_errors', false);
-                    error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_WARNING & ~E_NOTICE);
-                }
-                
-                if (file_exists($dest_folder.'baradurClosures_'.$dest_file)) {
-                    //echo "Requiring class: baradurClosures_$dest_file <br>";
-                    require_once($dest_folder.'baradurClosures_'.$dest_file);
-                }
 
-                if (file_exists($dest_folder.'baradurBuilderMacros_'.$dest_file)) {
-                    //echo "Requiring class: baradurBuilderMacros_$dest_file <br>";
-                    require_once($dest_folder.'baradurBuilderMacros_'.$dest_file);
-                }
-
-                if (file_exists($dest_folder.'baradurCollectionMacros_'.$dest_file)) {
-                    //echo "Requiring class: baradurCollectionMacros_$dest_file <br>";
-                    require_once($dest_folder.'baradurCollectionMacros_'.$dest_file);
-                }
-
-                require_once($dest_folder.$dest_file);
-
-            /* } */
+            if ($artisan) {
+                ini_set('display_errors', false);
+                error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_WARNING & ~E_NOTICE);
+            }
             
+            if (file_exists($dest_folder.'baradurClosures_'.$dest_file)) {
+                //echo "Requiring class: baradurClosures_$dest_file <br>";
+                require_once($dest_folder.'baradurClosures_'.$dest_file);
+            }
 
-            if ($is_provider)
-            {
-                /* $provider = new $cfname;
-                $provider->register();
-                $provider->boot(); */
+            if (file_exists($dest_folder.'baradurBuilderMacros_'.$dest_file)) {
+                //echo "Requiring class: baradurBuilderMacros_$dest_file <br>";
+                require_once($dest_folder.'baradurBuilderMacros_'.$dest_file);
+            }
+
+            if (file_exists($dest_folder.'baradurCollectionMacros_'.$dest_file)) {
+                //echo "Requiring class: baradurCollectionMacros_$dest_file <br>";
+                require_once($dest_folder.'baradurCollectionMacros_'.$dest_file);
+            }
+
+            require_once($dest_folder.$dest_file);
+
+
+            if ($is_provider) {
                 global $_service_providers;
                 $_service_providers[$cfname] = null;
             }
-            
-            
+                    
         }
-
     }
 
     public static function loadConfigFile($file, $include=true)
@@ -104,8 +85,10 @@ class CoreLoader
         $dest_folder = dirname(__FILE__).'/../../storage/framework/config/';
         $path_parts = pathinfo($file);
 
-        if (!empty($config) && array_key_exists($path_parts['filename'], $config)) {
-            return $config[$path_parts['filename']];
+        $filename = Str::replace('.php', '', $path_parts['basename'], false);
+
+        if (!empty($config) && array_key_exists($filename, $config)) {
+            return $config[$filename];
         }
 
         $classFile = file_get_contents($file);
@@ -117,7 +100,7 @@ class CoreLoader
         $result = include($dest_folder.$path_parts['basename']);
 
         if ($include) {
-            $config[$path_parts['filename']] = $result;
+            $config[$filename] = $result;
         }
 
         $classFile = null;
@@ -126,44 +109,23 @@ class CoreLoader
 
     }
 
-    /* private static function getItemClass($item)
-    {
-        return $item->getClass()!=null ? $item->getClass()->getName() : null;
-    } */
-
-
     public static function invokeView($route)
     {
         $controller = $route->view;
-        if ($route->parametros)
-        {
-            for ($i=0; $i < count($route->parametros); ++$i)
-            {
+        if ($route->parametros) {
+            for ($i=0; $i < count($route->parametros); ++$i) {
                 $controller = str_replace($route->orig_parametros[$i], $route->parametros[$i], $controller);
             }
         }
+
         return view($controller, $route->viewparams);
     }
 
-    /* public static function invokeClass($route)
-    {
-        //echo "Invoking $route->controller :: $route->func";
-
-        $reflectionMethod = new ReflectionMethod($route->controller, $route->func);
-        
-        return $reflectionMethod->invokeArgs($route->instance, $route->parametros);
-
-    } */
-
     public static function invokeClassMethod($class, $method, $params=array(), $instance=null)
-    {
-        //dump($class);
-        //$controller = $instance? $instance : new $class;
-        
-        if (is_subclass_of($instance, 'BaseController'))
-        {
-            foreach ($instance->middleware as $midd)
-            {
+    {        
+        if (is_subclass_of($instance, 'BaseController')) {
+
+            foreach ($instance->middleware as $midd) {
                 list($middelware, $parameters) = explode(':', $midd->middleware);
 
                 $middelware = HttpKernel::getMiddlewareForController($middelware);
@@ -171,17 +133,17 @@ class CoreLoader
 
                 $res = request();
 
-                if (isset($midd->only) && $midd->only==$method)
+                if (isset($midd->only) && $midd->only==$method) {
                     $res = $middelware->handle($res, null, $parameters);
-
-                elseif (isset($midd->except) && $midd->except!=$method)
+                } elseif (isset($midd->except) && $midd->except!=$method) {
                     $res = $middelware->handle($res, null, $parameters);
-
-                elseif (!isset($midd->except) && !isset($midd->only))
+                } elseif (!isset($midd->except) && !isset($midd->only)) {
                     $res = $middelware->handle($res, null, $parameters);
+                }
 
-                if (!($res instanceof Request))
+                if (!($res instanceof Request)) {
                     return $res;
+                }
             }
         }
         
@@ -192,7 +154,6 @@ class CoreLoader
 
     public static function processResponse($response)
     {
-        //dd($response);
         $status = 'HTTP/'.$response->protocol().' '.$response->status().' '.$response->reason();
         header($status);
 
@@ -201,11 +162,9 @@ class CoreLoader
             $val = is_array($val) ? reset($val) : $val;
 
             if ($key=='Location') {
-                //dd($key, $val);
                 echo header($key. ": ". $val); 
                 __exit();
-            }
-            else {
+            } else {
                 header($key. ": ". $val);
             }
         }
@@ -215,17 +174,18 @@ class CoreLoader
             __exit();
         }
 
-        echo config('app.debug_info') ?
-            self::addDebugInfo($response->body()) :
-            $response->body();
+        echo config('app.debug_info')
+            ? self::addDebugInfo($response->body())
+            : $response->body();
         
         __exit();
     }
 
     private static function addDebugInfo($html)
     {
+
         global $debuginfo;
-        $size = memory_get_usage();
+        $size = function_exists('memory_get_usage') ? memory_get_usage() : 0;
         $debuginfo['memory_usage'] = get_memory_converted($size);
         $params['debug_info'] = $debuginfo;
 

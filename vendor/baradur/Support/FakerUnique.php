@@ -79,27 +79,29 @@ Class FakerUnique
     public function __call($name, $arguments)
     {
         $result = $this->faker->$name();
-        if (isset($this->uniques[$name]))
-        {
+        
+        if (isset($this->uniques[$name])) {
+
             $count = 1;
-            while (in_array($result, $this->uniques[$name]))
-            {
+
+            while (in_array($result, $this->uniques[$name])) {
                 $result = $this->faker->$name();
                 ++$count;
-                if ($count >= self::$counter)
-                {
+                if ($count >= self::$counter) {
                     throw new RuntimeException("Faker unique error: items quanqtity is greater than existent elements");
                 }
             }
         }
+
         $this->uniques[$name][] = $result;
         return $result;
     }
 
     public static function getInstance()
     {
-        if (!isset(self::$instance))
+        if (!isset(self::$instance)) {
             self::$instance = new FakerUnique();
+        }
 
         return self::$instance;
     }

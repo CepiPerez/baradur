@@ -7,7 +7,7 @@ function __($translation, $placeholder=null) { return Helpers::trans($translatio
 function public_path($path=null) { return config('app.url').'/'.$path; }
 function storage_path($path=null) { return _DIR_.'storage/'.$path; }
 function base_path($path=null) { return _DIR_.$path; }
-function csrf_token() { return App::generateToken(); }
+function csrf_token() { return App::getRequestToken(); }
 function config($val) { return Helpers::config($val); }
 function to_route($route) { return redirect()->route($route); }
 function class_basename($name) { return get_class($name); }
@@ -252,7 +252,7 @@ function response($data=null, $code=200, $headers=null)
 	}
 
 	if (is_array($data)) {
-		$data = json_encode($data);
+		$data = json_encode(collect($data)->toArray());
 		$type = 'application/json';
 	}
 
@@ -450,7 +450,7 @@ function __dump($content, $full=false, $die=false)
 		if (config('app.debug_info'))
 		{
 			global $debuginfo;
-			$size = memory_get_usage();
+			$size = function_exists('memory_get_usage') ? memory_get_usage() : 0;
 			//$peak = memory_get_peak_usage();
 			$debuginfo['memory_usage'] = get_memory_converted($size);
 			//$debuginfo['memory_peak'] = get_memory_converted($peak);
@@ -488,7 +488,7 @@ function __dump($content, $full=false, $die=false)
 
 function csrf_field()
 {
-	return "<input type='hidden' name='csrf' value='".csrf_token()."'/>\n";
+	return "<input type='hidden' name='_token' value='".csrf_token()."'/>\n";
 }
 
 function method_field($v)
@@ -593,6 +593,30 @@ function value($default, $parent=null)
 	}
 
 	return $default;
+}
+
+function optional($value, $callback=null)
+{
+	if (!$callback || !is_closure($callback)) {
+		return new Optional($value);
+	}
+	elseif (!is_null($value)) {
+		list($class, $method) = getCallbackFromString($callback);
+		$value = call_user_func_array(array($class, $method), array($value));
+		return $value;
+	}
+}
+
+function with($value, $callback = null)
+{
+	if (!$callback || !is_closure($callback)) {
+		return $value;
+	}
+
+	list($class, $method) = getCallbackFromString($callback);
+	$value = call_user_func_array(array($class, $method), array($value));
+	
+	return $value;
 }
 
 function app_path($value=null)
@@ -1054,3 +1078,5 @@ function event($event)
 {
 	return app('Dispatcher')->dispatch($event);
 }
+
+

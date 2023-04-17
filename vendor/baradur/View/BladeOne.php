@@ -140,8 +140,8 @@ class BladeOne
             # Remove all HTML comments
             /* $contents = preg_replace('/<!--([\s\S]*?)-->/x', '', $contents); */
 
-            # Replace models functions
-            $contents = $phpConverter->replaceStatics($contents);
+            # Replace new PHP version functions
+            $contents = $phpConverter->replaceForView($contents);
 
             # compile the original file
             $contents = $this->compileString($contents);
@@ -232,7 +232,6 @@ class BladeOne
 
     protected function compileError($expression)
     {
-        /* return $this->phpTag."if ( App::getError{$expression} ): ?>"; */
         return $this->phpTag.' $__errorMsg = App::getError('.$expression.');
         if ($__errorMsg) :
         if (isset($message)) $__messageOriginal = $message;
@@ -249,8 +248,6 @@ class BladeOne
 
     protected function compileCsrf()
     {
-        //$csrf = App::generateToken();
-        //$template = '<input type="hidden" id="csrf" name="csrf" value="'.$csrf.'">';
         return $this->phpTag.'echo csrf_field(); ?>';
     }
 

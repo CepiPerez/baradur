@@ -35,6 +35,13 @@ Class Storage
 
     }
 
+    public static function json($path, $flags = 0, $lock = false)
+    {
+        //return file_get_contents(self::$path.$file);
+        $default = config('filesystems.default');
+        return self::disk($default)->json($path, $flags, $lock);
+    }
+
     public static function get($file)
     {
         //return file_get_contents(self::$path.$file);
@@ -58,7 +65,7 @@ Class Storage
     public static function download($file, $name=null, $headers=null)
     {
         $default = config('filesystems.default');
-        return self::disk($default)->download($file);
+        return self::disk($default)->download($file, $name, $headers);
     }
 
     public static function url($file)

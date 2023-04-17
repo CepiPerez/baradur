@@ -10,7 +10,6 @@ return [
 
     'dumper_theme' => env('DUMPER_THEME', 'dark'),
     'debug_info' => env('DEBUG_INFO', false),
-    'http_tokens' => env('HTTP_TOKENS', 30),
     'api_tokens' => env('API_TOKENS', 60),
     'cache_driver' => env('CACHE_DRIVER', 'file'),
 
@@ -77,7 +76,7 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => 'America/Argentina/Buenos_Aires', //'UTC',
 
     /*
     |--------------------------------------------------------------------------

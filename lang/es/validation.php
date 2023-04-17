@@ -36,6 +36,7 @@ return [
     'date' => 'El campo :attribute no es una fecha válida.',
     'date_equals' => 'El campo :attribute debe ser una fecha igual a :date.',
     'date_format' => 'El campo :attribute no corresponde con el formato :format.',
+    'decimal' => 'El campo :attribute debe tener :decimal decimales.',
     'declined' => 'El campo :attribute debe marcar como rechazado.',
     'declined_if' => 'El campo :attribute debe marcar como rechazado cuando :other es :value.',
     'different' => 'Los campos :attribute y :other deben ser diferentes.',
@@ -137,6 +138,7 @@ return [
     'timezone' => 'El campo :attribute debe ser una zona válida.',
     'unique' => 'El campo :attribute ya ha sido tomado.',
     'uploaded' => 'El campo :attribute no ha podido ser cargado.',
+    'ulid' => 'El :attribute debe ser un ULID valido.',
     'url' => 'El formato de :attribute no es válido.',
     'uuid' => 'El :attribute debe ser un UUID valido.',
     'password' => [

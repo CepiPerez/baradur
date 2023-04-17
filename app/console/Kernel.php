@@ -6,7 +6,6 @@ class Kernel extends ConsoleKernel
     protected $commands = [
 
     ];
-
     
     /**
      * Register the commands for the application.

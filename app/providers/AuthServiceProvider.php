@@ -2,15 +2,13 @@
 
 class AuthServiceProvider extends ServiceProvider
 {
-    protected $policies = [
-
-    ];
+    protected $policies = [];
 
     public function boot()
     {
-        //$this->registerPolicies();
+        $this->registerPolicies();
 
-
+        //
     }
 
 }

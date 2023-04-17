@@ -132,9 +132,9 @@ class Stringable
         return $this;
     }
 
-    public function replace($search, $replace)
+    public function replace($search, $replace, $caseSensitive = true)
     {
-        $this->value = str_replace($search, $replace, $this->value);
+        $this->value = Str::replace($search, $replace, $this->value, $caseSensitive);
         return $this;
     }
 
@@ -231,6 +231,24 @@ class Stringable
         return $this;
     }
 
+    public function trim($characters = null)
+    {
+        $trim = $characters? trim($this->value, $characters) : trim($this->value);
+        return new Stringable($trim);
+    }
+
+    public function ltrim($characters = null)
+    {
+        $trim = $characters? ltrim($this->value, $characters) : rtrim($this->value);
+        return new Stringable($trim);
+    }
+
+    public function rtrim($characters = null)
+    {
+        $trim = $characters? rtrim($this->value, $characters) : rtrim($this->value);
+        return new Stringable($trim);
+    }
+
     public function lcfirst()
     {
         $this->value = Str::lcfirst($this->value);
@@ -251,6 +269,27 @@ class Stringable
     public function wordCount()
     {
         return str_word_count($this->value);
+    }
+
+    public function mask($character, $index, $length = null)
+    {
+        return Str::mask($this->value, $character, $index, $length);
+    }
+
+    public function match($pattern)
+    {
+        $this->value = Str::match($pattern, $this->value);
+        return $this;
+    }
+
+    public function isMatch($pattern)
+    {
+        return Str::isMatch($pattern, $this->value);
+    }
+
+    public function matchAll($pattern)
+    {
+        return Str::matchAll($pattern, $this->value);
     }
 
 }

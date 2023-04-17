@@ -18,13 +18,13 @@ class CustomCasterServiceProvider extends ServiceProvider
             ->virtual('pagination', fn($q) => $q->pagination());
 
         CustomCaster::for(Model::class)
-            ->only(['attributes', 'relations'])
+            ->only(['original', 'attributes', 'relations'])
             ->filter();
 
-        CustomCaster::for(Builder::class)
+        /* CustomCaster::for(Builder::class)
             ->only(['sql', 'bindings', '_eagerLoad'])
             ->virtual('sql', fn($q) => $q->toSql())
-            ->virtual('bindings', fn($q) => $q->getBindings());
+            ->virtual('bindings', fn($q) => $q->getBindings()); */
 
         CustomCaster::for(Carbon::class)
             ->only(['date'])

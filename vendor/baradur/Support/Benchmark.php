@@ -16,8 +16,7 @@ class Benchmark
         foreach($benchmarkables as $key => $value) {
             $start = microtime(true);
 
-            for ($i=0; $i < $iterations; $i++)
-            {
+            for ($i=0; $i < $iterations; $i++) {
                 list($class, $method) = getCallbackFromString($value);
                 executeCallback($class, $method, array());
             }

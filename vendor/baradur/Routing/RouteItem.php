@@ -56,8 +56,7 @@ Class RouteItem
     {
         $middleware = is_array($middleware) ? $middleware : array($middleware);
 
-        foreach ($middleware as $m)
-        {
+        foreach ($middleware as $m) {
             unset($this->middleware[$m]);
         }
 
@@ -103,8 +102,7 @@ Class RouteItem
     {
         $parameters = is_array($parameters)? $parameters : array($parameters);
 
-        foreach ($parameters as $param)
-        {
+        foreach ($parameters as $param) {
             $this->where($param, $expression);
         }
 

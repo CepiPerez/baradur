@@ -31,9 +31,6 @@ class EnumHelper
 
     public function set($name)
     {
-        //$cases = $this->cases();
-        //dump("SET", $name, $this);
-
         foreach ($this as $key => $val) {
             if ($key!='name' && $key!='value') {
                 if ($key==$name || $val==$name) {
@@ -75,19 +72,4 @@ class EnumHelper
     }
 
 
-    /* public function cases()
-    {
-        $arr = array();
-
-        $instance = new self;
-
-        foreach ($instance as $k => $v){
-            if ($k!='name' && $k!='value') {
-                $arr[$v] = $k;
-            }
-        }
-
-        return $arr;
-    } */
-   
 }

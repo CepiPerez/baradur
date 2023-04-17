@@ -89,7 +89,7 @@ function migrate()
     foreach(new RecursiveIteratorIterator($it) as $file) {
 
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP') {
-            $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+            $name = str_ireplace('.php', '', basename($file));
             if (is_file($file)) {
                 $files[] = basename($file);
             }
@@ -100,7 +100,7 @@ function migrate()
     
     foreach($files as $file) {
 
-        $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+        $name = str_ireplace('.php', '', basename($file));
         $short =  substr($name, 18);
         //$converted = preg_replace_callback('/(_)(?:[a-z{1}])/', 'upper', $short);
         $converted = Str::camel($short);
@@ -153,7 +153,7 @@ function rollback($rollback, $output = true)
     {
         if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
         {
-            $name = str_replace('.php', '', str_replace('.PHP', '', basename($file)));
+            $name = str_ireplace('.php', '', basename($file));
             $short =  substr($name, 18);
 
             if ($name == $rollback)
@@ -202,7 +202,7 @@ function seed($seeder=null)
     Artisan::info("Database seeding completed successfully.");
 }
 
-function makeController($controller, $resource=false, $api=false, $singleton=false)
+function makeController($controller, $resource=false, $api=false, $singleton=false, $invokable=false)
 {
     $class = null;
     
@@ -212,6 +212,8 @@ function makeController($controller, $resource=false, $api=false, $singleton=fal
         $class = getStub('controller.api');
     } elseif ($singleton) {
         $class = getStub('controller.singleton');
+    } elseif ($invokable) {
+        $class = getStub('controller.invokable');
     } else {
         $class = getStub('controller.plain');
     }
@@ -359,8 +361,7 @@ function showMenu($ex = true)
 
     foreach ($kernel->getCommands() as $command)
     {
-        $class = new $command;
-        $default_commands[$class->signature()] =  $class->description();
+        $default_commands[$command->signature()] =  $command->description();
     }
 
     $artisan_commands = array();
@@ -386,7 +387,7 @@ function showMenu($ex = true)
 
 function printCommands($ex, $commands)
 {
-    if ($ex) printf("Baradur Framework\033[32m ".BARADUR_VERSION."\033[m\n\n");
+    if ($ex) printf("Baradur Framework\033[32m ".Application::VERSION."\033[m\n\n");
     if ($ex) printf("\033[33mUsage:\033[m\n");
     if ($ex) printf("  command [options] [arguments]\n\n");
 
@@ -484,6 +485,7 @@ elseif ($action == 'make:controller')
     $model = null;
     $resource = false;
     $singleton = false;
+    $invokable = false;
     $api = false;
 
     if (count($argv)==0) {
@@ -494,17 +496,23 @@ elseif ($action == 'make:controller')
 
     foreach ($argv as $arg)
     {
-        if (strpos($arg, '-model=')==1)
+        if (strpos($arg, '-model=')==1) {
             $model = str_replace('--model=', '', $arg);
+        }
 
-        elseif ($arg=='--resource')
+        elseif ($arg=='--resource') {
             $resource = true;
+        }
 
-        elseif ($arg=='--singleton')
+        elseif ($arg=='--singleton') {
             $singleton = true;
+        }
 
-        elseif ($arg=='--api')
-        {
+        elseif ($arg=='--invokable') {
+            $invokable = true;
+        }
+
+        elseif ($arg=='--api') {
             $api = true;
             $resource = true;
         }
@@ -515,7 +523,7 @@ elseif ($action == 'make:controller')
         die();
     }
 
-    makeController($controller, $resource, $api, $singleton);
+    makeController($controller, $resource, $api, $singleton, $invokable);
 
     if (isset($model) && !file_exists('app/models/'.ucfirst($model).'.php'))
     {
@@ -1410,7 +1418,7 @@ elseif ($action == 'event:list')
         $space = (int)$screen_cols>80? $screen_cols : 90;
 
         $line = "  " . $_class_list[$event]. " ";
-        $line = str_replace('.php', '', str_replace('.PHP', '', $line));
+        $line = str_ireplace('.php', '', $line);
 
         echo sprintf("%' -11s", $line);
 
@@ -1428,14 +1436,14 @@ elseif ($action == 'event:list')
                 list($class, $method) = getCallbackFromString($value);
                 $str = str_replace('baradurClosures_', '', $class);
                 $str = 'Closure at: ' . $_class_list[$str];
-                $str = str_replace('.php', '', str_replace('.PHP', '', $str));
+                $str = str_ireplace('.php', '', $str);
             } elseif (is_array($value)) {
                 $str = $_class_list[reset($value)];
-                $str = str_replace('.php', '', str_replace('.PHP', '', $str));
+                $str = str_ireplace('.php', '', $str);
                 $str .= '@' . end($value);
             } else {
                 $str = $_class_list[$value];
-                $str = str_replace('.php', '', str_replace('.PHP', '', $str));
+                $str = str_ireplace('.php', '', $str);
             }
 
             printf("\033[38;5;243m  ⇂ ". $str ."\033[m\n");
@@ -1456,13 +1464,13 @@ elseif ($action == 'about')
     printf("\n");
     Artisan::lineTitle("Environment");
     Artisan::lineInfoNormal("Application name", config('app.name'));
-    Artisan::lineInfoNormal("Baradur version", BARADUR_VERSION);
+    Artisan::lineInfoNormal("Baradur version", Application::VERSION);
     Artisan::lineInfoNormal("PHP version", PHP_VERSION);
     Artisan::lineInfoNormal("Environment", config('app.env'));
     Artisan::lineInfoWarning("Debug mode", config('app.debug')?'ENABLED':'OFF', config('app.debug')?1:null);
     $url = str_replace('http://', '', str_replace('https://', '', config('app.url')));
     Artisan::lineInfoNormal("URL", $url);
-    $res = file_exists(_DIR_.'storage/.maintenance_on');
+    $res = file_exists(_DIR_.'storage/framework/down');
     Artisan::lineInfoWarning("Maintenance mode", $res?'ENABLED':'OFF', $res?1:null);
     printf("\n");
     Artisan::lineTitle("Cache");
@@ -1492,13 +1500,13 @@ elseif ($action == 'down')
             $secret = str_replace('--secret=', '', $arg);
     }
 
-    file_put_contents(_DIR_.'storage/.maintenance_on', $secret);
+    file_put_contents(_DIR_.'storage//framework/down', $secret);
     Artisan::info("Application is now in maintenance mode.");
 }
 
 elseif ($action == 'up')
 {
-    @unlink(_DIR_.'storage/.maintenance_on');
+    @unlink(_DIR_.'storage/framework/down');
     Artisan::info("Application is now live.");
 }
 
@@ -1536,7 +1544,7 @@ elseif ($action == 'model:show')
     $result = $res->_collection;
 
     printf("\n");
-    Artisan::lineTitle(str_replace('.php', '', str_replace('.PHP', '', $_class_list[$model])));
+    Artisan::lineTitle(str_ireplace('.php', '', $_class_list[$model]));
     Artisan::lineInfoNormal("Database", $res->connector()->getDatabase());
     Artisan::lineInfoNormal("Table", $class->getTable());
     printf("\n");
@@ -1624,7 +1632,7 @@ elseif ($action == 'model:show')
 
                 $type = $res->_relationVars['relationship'];
                 $related = $_class_list[$res->_parent];
-                $related = str_replace('.php', '', str_replace('.PHP', '', $related));
+                $related = str_ireplace('.php', '', $related);
 
                 $relationships[] = array(
                     'name' => $method->name,
@@ -1667,7 +1675,7 @@ elseif ($action == 'model:show')
             'forceDeleted',
         );
 
-        $classname = str_replace('.php', '', str_replace('.PHP', '', $_class_list[$observers[$model]]));
+        $classname = str_ireplace('.php', '', $_class_list[$observers[$model]]);
 
         foreach ($methods as $method) {
             if (in_array($method->name, $enabled)) {
@@ -1686,7 +1694,7 @@ elseif ($action == 'model:show')
         Artisan::lineTitle("Policies");
 
         foreach ($list as $policy) {
-            $classname = str_replace('.php', '', str_replace('.PHP', '', $_class_list[$policy]));
+            $classname = str_ireplace('.php', '', $_class_list[$policy]);
             Artisan::attributeInfo('Policy', '', $classname, null);
         }
     }
@@ -1694,34 +1702,56 @@ elseif ($action == 'model:show')
     printf("\n");
 }
 
+elseif ($action == 'serve')
+{
+    $host = 'localhost';
+    $port = 80;
+
+    chdir(__DIR__.'/public');
+
+    printf("Baradur development server started on http://{$host}:{$port}/");
+    printf("\n");
+
+    passthru('sudo ' . PHP_BINARY . " -S {$host}:{$port} ".__DIR__."/vendor/baradur/Console/artisan_server.php  2>&1");
+
+}
+
 else 
 {
-    if(!array_key_exists($action, $default_commands))
+    if(!array_key_exists($action, $default_commands) && trim($action)!='')
     {
         $kernel = ConsoleKernel::getKernel();
         $kernel->loadCommands();
     
         foreach ($kernel->getCommands() as $command)
         {
-            $class = new $command;
+            if ($command->signature()==$action) {
 
-            if ($class->signature()==$action) {
+                $command->setParameters($argv);
 
-                $class->setParameters($argv);
+                $exec_class = $command;
 
-                foreach ($class->arguments() as $key => $val) {
-                    if (is_null($val)) {
-                        $value = $class->ask("What should the $key be named?");
-                        $class->setArgument($key, $value);
-                    }
+                $method = 'handle';
+
+                if ($command->callback()) {
+                    list($class, $method) = getCallbackFromString($command->callback());
+                    $exec_class = new $class;
+                }
+                else {
+                    foreach ($command->arguments() as $key => $val) {
+                        if (is_null($val)) {
+                            $value = $command->ask("What should the $key be named?");
+                            $exec_class->setArgument($key, $value);
+                        }
+                    }    
                 }
 
-                $reflectionMethod = new ReflectionMethod($class, 'handle');
+                $reflectionMethod = new ReflectionMethod($exec_class, $method);
                 $method_params = $reflectionMethod->getParameters();
 
                 try {
                     $params = SubstituteBindings::buildClassParameters(
-                        $class, $method_params, $class->arguments()
+                        $exec_class, $method_params, $command->arguments()
                     );
                 }
                 catch (Exception $e) {
@@ -1729,7 +1759,7 @@ else
                     die();
                 }
 
-                call_user_func_array(array($class, 'handle'), $params);
+                call_user_func_array(array($exec_class, $method), $params);
                 break;
             }
         }
@@ -1739,15 +1769,3 @@ else
 
 
 
-/* elseif ($action == 'serve')
-{
-    $host = 'localhost';
-    $port = 80;
-
-    chdir(__DIR__.'/public');
-
-    printf("Baradur development server started on http://{$host}:{$port}/");
-
-    passthru('sudo ' . PHP_BINARY . " -S {$host}:{$port} /vendor/baradur/Console/artisan_server.php  2>&1");
-
-} */

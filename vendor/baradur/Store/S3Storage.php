@@ -184,6 +184,13 @@ class S3Storage
         throw new BadMethodCallException('Function directories() not supported');        
     }
 
+    public function json($path)
+    {
+        $result = $this->s3Request('GET', $this->bucket, $path);
+
+        return ($result->getStatusCode()==200)? json_decode($result->getBody(), true) : null;
+    }
+
     public function get($path)
     {
         $result = $this->s3Request('GET', $this->bucket, $path);
@@ -220,6 +227,10 @@ class S3Storage
             header('Expires: 0');
             header('Cache-Control: must-revalidate');
             header('Pragma: public');
+
+            foreach($headers as $header) {
+                header($header);
+            }   
         
             @readfile($location);
         }
