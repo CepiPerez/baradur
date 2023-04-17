@@ -5,6 +5,7 @@ class PennantServiceProvider extends ServiceProvider
 
     public function register()
     {
+        //
     }
 
     public function boot()
@@ -26,12 +27,11 @@ class PennantServiceProvider extends ServiceProvider
         );
 
         # Features
+
         //Feature::define('new-api', fn (User $user) => match (true) {
         //    $user->isAdmin => true,
         //    default => Lottery::odds(1 / 3),
         //});
-
-        //Feature::define('site-redesign', Lottery::odds(1/2));
 
         //Feature::define('purchase-button', fn (User $user) => Arr::random([
         //    'blue-sapphire',
