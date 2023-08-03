@@ -1,3 +1,3 @@
-vendor/baradur/** linguist-detectable
+vendor/** linguist-detectable
 *.js linguist-vendored
 *.css linguist-vendored
