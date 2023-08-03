@@ -749,6 +749,12 @@ class Carbon
         return self::instance("$year-$month-$day");
     }
 
+
+    public static function createFromTimestamp($timestamp)
+    {
+        return self::instance($timestamp);
+    }
+
     public static function createFromTime($hour=0, $minute=0, $second=0)
     {
         $current = now();
@@ -769,6 +775,24 @@ class Carbon
         $minute = count($time)>1 ? $time[1] : 0; 
         $second = count($time)>2 ? $time[2] : 0; 
         return self::instance("$year-$month-$day $hour:$minute:$second");
+    }
+
+    public static function createFromId($id)
+    {
+        return Ulid::isValid($id)
+            ? self::createFromInterface(Ulid::fromString($id)->getDateTime())
+            : self::createFromInterface(Uuid::fromString($id)->getDateTime());
+    }
+
+    public static function createFromInterface($interface)
+    {
+        if (strlen($interface) > 10) {
+            $interface = substr($interface, 0, 10);
+        }
+
+        $res = new self;
+        $res->date = $interface;
+        return $res;
     }
 
     public static function createMidnightDate($year, $month, $day)

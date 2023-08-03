@@ -95,7 +95,7 @@ class FileStore implements Store
     {
         $this->ensureCacheDirectoryExists($path = $this->path($key));
 
-        $file = new LockableFile($path, 'c+');
+        $file = new LockableFile($path, 'a+');
 
         try {
             $file->getExclusiveLock();
@@ -109,7 +109,8 @@ class FileStore implements Store
 
         if (empty($expire) || time() >= $expire)
         {
-            $file->truncate()->write($this->expiration($seconds).serialize($value))
+            $file->truncate()
+                ->write($this->expiration($seconds).serialize($value))
                 ->close();
 
             $this->ensurePermissionsAreCorrect($path);

@@ -185,6 +185,7 @@ $app_cache = new FileStore(new Filesystem(), _DIR_.'storage/framework/cache', 07
 $appCached = $app_cache->get('Baradur_cache');
 if (!$appCached) $appCached = array();
 
+
 # Initializing Storage
 Storage::$path = _DIR_.'storage/app/public/';
 

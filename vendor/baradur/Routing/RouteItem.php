@@ -5,7 +5,7 @@ Class RouteItem
     public $method;
     public $domain;
     public $url;
-    public $full_url;
+    //public $full_url;
     public $middleware;
     public $name;
     public $scope_bindings;
@@ -15,6 +15,10 @@ Class RouteItem
     public $viewparams;
     public $with_trashed = false;
     public $wheres = array();
+    public $regex;
+    public $parametros;
+    public $domain_parametros;
+    public $url_parametros;
 
     /**
      * Assign a name to route\

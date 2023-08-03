@@ -389,6 +389,17 @@ class Validator
                         }
                     }
 
+                    else if ($arg=='url') {
+                        if (!array_key_exists($key, $req_values)) { 
+                            $ok = false;
+                            $this->setMessage('required', array('attribute' => $key));
+                        }
+                        if (!Str::isUrl($req_values[$key])) {
+                            $ok = false;
+                            $this->setMessage('url', array('attribute' => $key));
+                        }
+                    }
+
                     else if ($arg=='uuid') {
                         if (!array_key_exists($key, $req_values)) { 
                             $ok = false;

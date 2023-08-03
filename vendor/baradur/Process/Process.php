@@ -2,7 +2,6 @@
 
 class Process
 {
-    //public static $pool = array();
 
     public static function run($command)
     {
@@ -41,5 +40,37 @@ class Process
         return $process;
     }
 
+    public static function pipe($callback)
+    {
+        if (is_array($callback) && !is_closure($callback)) {
+            return self::arrayPipe($callback);
+        }
+
+        if (!is_closure($callback)) {
+            throw new Exception("Process::pipe() requires a valid callback.");
+        }
+
+        $process = new ProcessHandler();
+
+        list($class, $method) = getCallbackFromString($callback);
+		call_user_func_array(array($class, $method), array(new Pipe($process)));
+
+        return $process;
+
+    }
+
+    private static function arrayPipe($pipes)
+    {
+        $process = new ProcessHandler();
+
+        $output = null;
+
+        foreach ($pipes as $command) {
+            $output = $process->run($command, $output)->output();
+        }
+
+        return $process;
+
+    }
 
 }

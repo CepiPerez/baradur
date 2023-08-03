@@ -499,9 +499,9 @@ class Route
         $route->viewparams = $viewparams;
         
         $regex = $url;
-        $regex = preg_replace('/(\/\{\w+\?\})/', '(?:/(\w+[^/]*))?', $regex);
-        $regex = preg_replace('/\{([^\}]*)\}/', '(\w+[^/]*)', $regex);
-        $route->regex = '/^' . str_replace('/', '\\/', $regex) . '$/Du';
+        $regex = preg_replace('/(\/\{\w+\?\})/', '(?:/(\w+[^/]))?', $regex);
+        $regex = preg_replace('/\{(\w+)\}/', '(\w+[^/])', $regex);
+        $route->regex = '/' . str_replace('/', '\\/', $regex) . '$/Du';
         
         $params = preg_replace('/\{(\w+?)\?\}/', '{$1}', $url);
         preg_match_all('/\{.*?\}/x', $params, $matches);
@@ -607,6 +607,8 @@ class Route
         if (substr($val, 0, 1) == ':') {
             $val = preg_replace('/:[0-9]*/', '', $val);
         }
+
+        //dd($val, self::getRoutes());
         
         $records = self::getRoutes()->where('method', $method)->where('url', '==', $val);
         
@@ -616,7 +618,6 @@ class Route
 
         $records = self::getRoutes()->where('method', $method)->where('url', '!==', '');
 
-        //dd(rawurldecode($val), $records->toArray());
         //$dictionary = $records->getDictionary();
 
         foreach ($records as $item)
@@ -624,17 +625,13 @@ class Route
             if (preg_match($item->regex, rawurldecode($val), $matches)) {
 
                 if (self::checkDomain($item)) {
-                    array_shift($matches);
 
+                    array_shift($matches);
                     $count = 0;
                     foreach (array_keys($item->url_parametros) as $p) {
-                        if (str_contains($p, ':')) {
-                            $arr = explode(':', $p);
-                            $item->url_parametros[$arr[0]] = array('index' => $arr[1], 'value' => $matches[$count]);
-                        } else {
+                        if ($matches[$count]) {
                             $item->url_parametros[$p] = $matches[$count];
                         }
-                        $count++;
                     }
 
                     if (!$item->domain_parametros) {
@@ -644,12 +641,12 @@ class Route
                     if (!$item->url_parametros) {
                         $item->url_parametros = array();
                     }
-
+                    
                     $item->parametros = array_merge($item->domain_parametros, $item->url_parametros);
                     //unset($item->domain_parametros);
 
                     foreach ($item->parametros as $key => $val) {
-                        if ($val===null) {
+                        if ($val==null) {
                             $item->parametros[$key] = 'baradur_null_parameter';
                         }
                     }
@@ -829,21 +826,6 @@ class Route
 
     }
 
-    private static function removeSubFoldersFromMainUrl($url)
-    {
-        // Here we get the full url from .evn file
-        // and replace the subfolders from current url
-        // this way we can find the exact match for the route
-
-        $parse = parse_url(config('app.url'));
-        $subfolder = $parse['path'];
-
-        if (str_starts_with($url, $subfolder)) {
-            $url = substr($url, strlen($subfolder));
-        }
-        
-        return $url;
-    }
 
     /**
      * Starts the Application\
@@ -853,11 +835,9 @@ class Route
      */
     public static function start()
     {
-        $current = (empty($_SERVER['HTTPS']) ? 'http' : 'https') . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
+        $current = $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
         $parse = parse_url($current);
         $current = $parse['path'];
-
-        $current = self::removeSubFoldersFromMainUrl($current);
 
         # Check redirections first
         self::checkRedirections($current);
@@ -923,8 +903,8 @@ class Route
         $res = Pipeline::send($request)
             ->through($list)
             ->thenReturn();
-        
 
+        
         if ($res instanceof Request) {
             # Save URL history
             self::saveHistory();

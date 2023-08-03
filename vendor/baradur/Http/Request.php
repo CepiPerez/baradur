@@ -349,9 +349,13 @@ Class Request
         return $this->host;
     }
 
-    public function route()
+    public function route($param = null)
     {
-        return $this->route;
+        if (!$param) {
+            return $this->route;
+        }
+
+        return $this->route->url_parametros[$param];
     }
 
     public function routeIs($name)

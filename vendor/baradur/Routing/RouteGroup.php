@@ -22,6 +22,8 @@ Class RouteGroup
 
     public function except($except)
     {
+        $except = is_array($except) ? $except : array($except);
+
         foreach ($this->added as $route) {
             if (in_array($route->func, $except)) {
                 Route::getInstance()->_collection->pull('name', $route->name);
@@ -113,7 +115,8 @@ Class RouteGroup
             'prefix' => $this->prefix,
             'middleware' => $this->middleware,
             'name' => $this->name,
-            'controller' => $this->controller
+            'controller' => $this->controller,
+            'scope_bindings' => $this->scope_bindings
         );
 
         Route::group($attributes, $routes);

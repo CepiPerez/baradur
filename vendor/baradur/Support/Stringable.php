@@ -44,6 +44,21 @@ class Stringable
         return null;
     }
 
+    public function isUrl()
+    {
+        return Str::isUrl($this->value);
+    }
+
+    public function isUuid()
+    {
+        return Str::isUuid($this->value);
+    }
+
+    public function isUlid()
+    {
+        return Str::isUlid($this->value);
+    }
+
     public function append($values)
     {
         $this->value .= $values;

@@ -2,6 +2,7 @@
 
 class Http
 {
+    private static $globalMiddleware = array();
     private static $_instance;
 
     private $url = null;
@@ -10,6 +11,7 @@ class Http
     private $timeout = 30;
     private $tries = 1;
     private $sleep = 1;
+    private $to = null;
 
     public $result = null;
     public $code = null;
@@ -32,6 +34,21 @@ class Http
         return self::$_instance;
     }
 
+    /* public static function globalMiddleware($middleware)
+    {
+        self::$globalMiddleware['global'] = $middleware;
+    } */
+
+    public static function globalRequestMiddleware($middleware)
+    {
+        self::$globalMiddleware['request'] = $middleware;
+    }
+
+    public static function globalResponseMiddleware($middleware)
+    {
+        self::$globalMiddleware['response'] = $middleware;
+    }
+
     public function __toString()
     {
         return $this->result;
@@ -40,47 +57,61 @@ class Http
     public function getResults($method, $url, $data=null, $fullResponse=false)
     {
         $this->url = $url;
-        $curl = new Curl;
 
+        $curl = new Curl;
         $result = null;
 
-        if (!$this->useSsl)
+        if (self::$globalMiddleware['request']) {
+            list($c, $m) = getCallbackFromString(self::$globalMiddleware['request']);
+            call_user_func_array(array($c, $m), array($this));
+        }
+
+        if (!$this->useSsl) {
             $curl->secure(false, false);
+        }
 
         $curl->option(CURLOPT_TIMEOUT, $this->timeout);
 
-        foreach ($this->headers as $key => $value)
-        {
+        foreach ($this->headers as $key => $value) {
             $curl->httpHeaders($key, $value);
         }
-
         
         $tries = 1;
-        while ($tries <= $this->tries)
-        {
+        while ($tries <= $this->tries) {
             $result = $curl->sendRequest($method, $this->url, $data);
 
-            if ($result)
+            if ($result) {
                 break;
+            }
 
             $tries++;
             sleep($this->sleep);
         }
 
-        if ($fullResponse)
-        {
+        if ($fullResponse) {
             return $result;
         }
 
         $response = new Response($result);
 
-        if (isset($result->error_code))
-        {
+        if ($result && isset($result->error_code)) {
             $response->error_code = $result->error_code;
             $response->error_string = $result->error_string;
         }
 
+        if (self::$globalMiddleware['response']) {
+            list($c, $m) = getCallbackFromString(self::$globalMiddleware['response']);
+            call_user_func_array(array($c, $m), array($response));
+        }
+
         return $response;
+    }
+
+    public static function baseUrl($url)
+    {
+        $instance = self::instance();
+        $instance->url = $url;
+        return $instance;
     }
 
     public static function timeout($seconds)
@@ -94,6 +125,13 @@ class Http
     {
         $instance = self::instance();
         $instance->useSsl = false;
+        return $instance;
+    }
+
+    public static function sink($to)
+    {
+        $instance = self::instance();
+        $instance->to = $to;
         return $instance;
     }
     
@@ -126,32 +164,50 @@ class Http
         return $instance;
     }
 
-    /** @return Response */
-    public static function get($url)
+    public static function withHeader($key, $value)
     {
         $instance = self::instance();
-        return $instance->getResults('get', $url);
+        
+        $instance->headers[$key] = $value;
+        
+        return $instance;
+    }
+
+    private function checkSink($response)
+    {
+        if ($this->to) {
+            file_put_contents($this->to, $response->body());
+        }
     }
 
     /** @return Response */
-    public static function post($url, $data=array())
+    public static function get($url=null)
     {
         $instance = self::instance();
-        return $instance->getResults('post', $url, $data);
+        $res = $instance->getResults('get', $url ? $url : $instance->url);
+        $instance->checkSink($res);
+        return $res;
     }
 
     /** @return Response */
-    public static function put($url, $data=array())
+    public static function post($url=null, $data=array())
     {
         $instance = self::instance();
-        return $instance->getResults('put', $url, $data);
+        return $instance->getResults('post', $url ? $url : $instance->url, $data);
+    }
+
+    /** @return Response */
+    public static function put($url=null, $data=array())
+    {
+        $instance = self::instance();
+        return $instance->getResults('put', $url ? $url : $instance->url, $data);
     }
 
     /** @return Response */    
-    public static function delete($url, $data=array())
+    public static function delete($url=null, $data=array())
     {
         $instance = self::instance();
-        return $instance->getResults('delete', $url, $data);
+        return $instance->getResults('delete', $url ? $url : $instance->url, $data);
     }
 
 

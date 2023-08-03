@@ -323,6 +323,10 @@ class Curl
         (isset($this->options[CURLOPT_HTTP_VERSION])) or $this->options[CURLOPT_HTTP_VERSION] = $this->http_version;
         isset($this->options[CURLOPT_USERAGENT]) or $this->options[CURLOPT_USERAGENT] = self::USER_AGENT;
         
+        if (config('app.env')=='local') {
+            $this->options[CURLOPT_PROXY] = $_SERVER['SERVER_ADDR'] . ':' .  $_SERVER['SERVER_PORT'];
+        }
+
         if ($this->request = curl_init($this->url) and is_resource($this->request)) {
             $set_options = curl_setopt_array($this->request, $this->options);
             

@@ -12,12 +12,15 @@ class ThrottleRequests
     public function handle($request, $next, $maxAttempts = 60, $decayMinutes = 1, $prefix = '')
     {
         //dump(func_get_args());__exit();
+        if (is_numeric($maxAttempts)) {
+            $maxAttempts = intval($maxAttempts);
+        }
+        
         if (is_string($maxAttempts)
             && func_num_args() === 3
             && ! is_null($limiter = $this->limiter->limiter($maxAttempts))) {
             return $this->handleRequestUsingNamedLimiter($request, $next, $maxAttempts, $limiter);
         }
-        
 
         $limits = array(
             'key' => $prefix.$this->resolveRequestSignature($request),
@@ -37,8 +40,7 @@ class ThrottleRequests
     {
         $limiterResponse = null;
 
-        if (is_closure($limiter))
-        {
+        if (is_closure($limiter)) {
             list($class, $method) = getCallbackFromString($limiter);
             $limiterResponse = executeCallback($class, $method, array($request));
         }
@@ -97,7 +99,9 @@ class ThrottleRequests
         }
 
         if (! is_numeric($maxAttempts) && $request->user()) {
-            $maxAttempts = $request->user()->{$maxAttempts};
+            $maxAttempts = $request->user()->{$maxAttempts}
+                ? $request->user()->{$maxAttempts}
+                : 60;
         }
 
         return (int) $maxAttempts;
@@ -152,10 +156,10 @@ class ThrottleRequests
             return array();
         }
 
-        $headers = [
+        $headers = array(
             'X-RateLimit-Limit' => $maxAttempts,
             'X-RateLimit-Remaining' => $remainingAttempts,
-        ];
+        );
 
         if (! is_null($retryAfter)) {
             $headers['Retry-After'] = $retryAfter;

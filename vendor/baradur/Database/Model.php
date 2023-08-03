@@ -454,7 +454,6 @@ class Model
     }
 
 
-
     public function _setOriginalRelations($relations)
     {
         $this->_eagerLoad = $relations;

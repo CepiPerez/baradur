@@ -71,7 +71,9 @@ class Ulid
         }
 
         $res = new Ulid(substr($value, 0, self::$TIME_LENGTH), substr($value, self::$TIME_LENGTH, self::$RANDOM_LENGTH), $lowercase);
-        return $res->__toString();
+        
+        //return $res->__toString();
+        return $res;
     }
 
     /**
@@ -135,6 +137,11 @@ class Ulid
     public function getTime()
     {
         return $this->time;
+    }
+
+    public function getDateTime()
+    {
+        return $this->toTimestamp();
     }
 
     public function getRandomness()

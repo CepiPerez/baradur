@@ -416,6 +416,10 @@ Class Relations
             }
         }
 
+        if ( strpos($res->toPlainSql(), 'IN ()') !== false ) {
+            return;
+        }
+        
         $result = $res->get();
         //dump($res, $primary); //dump($parent);
         

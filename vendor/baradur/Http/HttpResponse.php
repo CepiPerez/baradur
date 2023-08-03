@@ -167,7 +167,7 @@ class HttpResponse
      * @return string
      */
     public function getHeaderLine($name) {
-        return implode(', ', $this->getHeader($name));
+        return $this->getHeader($name);
     }
     
     /**
@@ -315,9 +315,9 @@ class HttpResponse
                 
                 $key_name = strtolower($key);
                 if (isset($this->header_names[$key_name])) {
-                    $this->headers[$key] = array_merge($this->headers[$key], array($value));
+                    $this->headers[$key] = array_merge($this->headers[$key], $value);
                 } else {
-                    $this->headers[$key] = array($value);
+                    $this->headers[$key] = $value;
                     $this->header_names[$key_name] = $key;
                 }
             }

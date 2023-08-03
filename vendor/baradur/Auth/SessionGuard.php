@@ -54,7 +54,7 @@ class SessionGuard
 
     public function login($user, $remember = false)
     {
-        $token = md5($user->username.'_'.$user->password.'_'.Carbon::now()->getTimestamp());
+        $token = md5($user->username.'_'.$user->password.'_'.strtotime('now'));
 
         $token_key = $user->getRememberTokenName();
 

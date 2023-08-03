@@ -3,22 +3,23 @@
 function app($val=null) { global $app; return $app->instance($val); }
 function asset($val) { return View::getAsset($val); }
 function route() { return Route::getRoute(func_get_args()); }
+function to_route() { return redirect(Route::getRoute(func_get_args())); }
 function __($translation, $placeholder=null) { return Helpers::trans($translation, $placeholder); }
 function public_path($path=null) { return config('app.url').'/'.$path; }
 function storage_path($path=null) { return _DIR_.'storage/'.$path; }
 function base_path($path=null) { return _DIR_.$path; }
 function csrf_token() { return App::getRequestToken(); }
 function config($val) { return Helpers::config($val); }
-function to_route($route) { return redirect()->route($route); }
 function class_basename($name) { return get_class($name); }
 function abort_if($condition, $code) { if ($condition) abort($code); }
 function abort_unless($condition, $code) { if (!$condition) abort($code); }
 function validator($data, $rules, $messages=array()) { return new Validator($data, $rules, $messages); }
+function bcrypt($password) { return Hash::make($password); }
 
 /** @return Auth */ 
 function auth() { return new Auth; }
 
-/** @return RequestSession */ 
+/** @return mixed */ 
 function session($key=null, $default=null) { return request()->session($key, $default); }
 
 /** @return Stringable */ 
@@ -39,6 +40,10 @@ function today() { return Carbon::today(); }
 /** @return Request */ 
 function request() { return app('request'); }
 
+function old($value, $default=null) { 
+	$old = session('_old', array());
+	return array_key_exists($value, $old) ? $old[$value] : $default;
+}
 
 $errors = new MessageBag();
 
@@ -175,7 +180,8 @@ function back()
 		}
 	}
 
-	$_SESSION['old'] = $old;
+	//$_SESSION['old'] = $old;
+	session()->flash('_old', $old);
 
 	if (isset($_SERVER["HTTP_REFERER"])) {
         $address = $_SERVER["HTTP_REFERER"];
@@ -509,12 +515,14 @@ function js_array($array)
 
 function is_closure($closure)
 {
-	if (!is_string($closure)) {
+	if (!is_array($closure)) {
 		return false;
 	}
-	
-	return count(explode('|', $closure))>=4;
-    //return strpos($closure, '@')!==false;
+
+	//return count(explode('|', $closure))>=4;
+	//return count(explode('|', $closure))>=3;
+
+	return count(explode('|', $closure[0]))==3;
 }
 
 function blank($value)
@@ -586,7 +594,7 @@ function tap($value, $callback=null)
 
 function value($default, $parent=null)
 {
-	if (is_string($default) && is_closure($default)) {
+	if (is_closure($default)) {
 		list($class, $method, $params) = getCallbackFromString($default);
 		$params[0] = $parent;
 		return call_user_func_array(array($class, $method), $params);
@@ -733,6 +741,33 @@ function data_set(&$target, $key, $value, $overwrite = true)
 			data_set($target[$segment], $segments, $value, $overwrite);
 		} elseif ($overwrite) {
 			$target[$segment] = $value;
+		}
+	}
+
+	return $target;
+}
+
+function data_forget(&$target, $key)
+{
+	$segments = is_array($key) ? $key : explode('.', $key);
+
+	if (($segment = array_shift($segments)) === '*' && Arr::accessible($target)) {
+		if ($segments) {
+			foreach ($target as &$inner) {
+				data_forget($inner, $segments);
+			}
+		}
+	} elseif (Arr::accessible($target)) {
+		if ($segments && Arr::exists($target, $segment)) {
+			data_forget($target[$segment], $segments);
+		} else {
+			Arr::forget($target, $segment);
+		}
+	} elseif (is_object($target)) {
+		if ($segments && isset($target->{$segment})) {
+			data_forget($target->{$segment}, $segments);
+		} elseif (isset($target->{$segment})) {
+			unset($target->{$segment});
 		}
 	}
 
@@ -939,13 +974,15 @@ function array_sort($array, $on, $order=SORT_ASC)
 
 function getCallbackFromString($string)
 {
-	$string = str_replace(', ', ',', $string);
+	$closurestring = str_replace(', ', ',', $string[0]);
+	array_shift($string);
 
-	preg_match('/(.+?(?=\|))\|(.+?(?=\|))\|(.+?(?=\|))\|(.*)/', $string, $matches);
+	//preg_match('/(.+?(?=\|))\|(.+?(?=\|))\|(.+?(?=\|))\|(.*)/', $string, $matches);
+	preg_match('/(.+?(?=\|))\|(.+?(?=\|))\|(\d)/', $closurestring, $matches);
 
 	$class = $matches[1];
 	$method = $matches[2];
-	$params = explode(',', $matches[4]);
+	$params = $string; //explode(',', $matches[4]);
 	$use_params = $matches[3];
 
 	$reflectionMethod = new ReflectionMethod($class, $method);
@@ -958,15 +995,13 @@ function getCallbackFromString($string)
 
 	$result = array($class, $method, $params, $names);
 
-    /* if (!class_exists($class)) {
-        CoreLoader::loadClass(_DIR_.'storage/framework/classes/'.$class.'.php', false);
-    } */
-
     return $result;
 }
 
 function executeCallback($class, $method, $parameters, $parent=null, $construct=true)
 {
+	//dd(func_get_args());
+
 	if (is_string($class) && !class_exists($class, false) && (file_exists(_DIR_.'storage/framework/classes/'.$class.'.php'))) {
 		require_once(_DIR_.'storage/framework/classes/'.$class.'.php');
 	}

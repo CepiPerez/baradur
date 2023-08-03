@@ -62,16 +62,6 @@ Class View
 
 		$arguments = array('app_name' => config('app.name'));
 
-		if (isset($_SESSION['old'])) {
-			$old = new stdClass;
-
-			foreach ($_SESSION['old'] as $key => $val) {
-				$old->$key = $val;
-			}
-
-			$arguments['old'] = $old;
-		}
-
 		if (isset($args)) {
 			foreach ($args as $key => $val) {
 				$arguments[$key] = $val;
@@ -135,7 +125,6 @@ Class View
 
 		unset($_SESSION['messages']);
 		unset($_SESSION['errors']);
-		unset($_SESSION['old']);
 
 		$blade->html = $result;
 		

@@ -45,4 +45,9 @@ Class Authenticatable extends Model
         return $this->rememberTokenName;
     }
 
+    public function can($function, $param)
+    {
+        return Gate::authorize($function, $param);
+    }
+
 }

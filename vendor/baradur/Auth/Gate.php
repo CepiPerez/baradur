@@ -62,10 +62,26 @@ Class Gate {
         return !self::getResult($function, $param);
     }
 
+    public static function any($functions, $param=null)
+    {
+        $functions = is_array($functions)? $functions : array($functions);
+
+        foreach ($functions as $function) {
+            $res = self::getResult($function, $param);
+
+            if ($res) return true;
+        }
+
+        return false;
+    }
+
     public static function authorize($function, $param=null)
     {
-        if (!self::getResult($function, $param))
+        if (!self::getResult($function, $param)) {
             abort(403);
+        }
+
+        return true;
     }
 
     public static function forUser($user)

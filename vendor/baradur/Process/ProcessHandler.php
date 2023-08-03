@@ -302,7 +302,7 @@ class ProcessHandler
                     }
 
                     if (!$isRunning) {
-                        dump($status);
+                        //dump($status);
                         $this->_exitCode = $status['exitcode'];
                         if ($this->_exitCode !== 0 && empty($this->_stdErr)) {
                             if ($status['stopped']) {
@@ -338,7 +338,7 @@ class ProcessHandler
                 fclose($pipes[1]);
                 fclose($pipes[2]);
                 $status = proc_get_status($process);
-                dump($status);
+                //dump($status);
                 $this->_exitCode = $status['exitcode'];
                 proc_close($process);
             }
@@ -405,7 +405,6 @@ class ProcessHandler
         //$this->nonBlockingMode = true;
         //$this->setCommand($command);
         //return $this->execute();
-
 
 
         $this->_hash = md5(microtime(true) . $command);
@@ -549,8 +548,9 @@ class ProcessHandler
         return $this->setOptions(array('quietly' => true));
     }
 
-    public function run($command)
+    public function run($command, $stdin=null)
     {
+        $this->_stdIn = $stdin;
         $this->start($command);
         return $this->wait();
     }
@@ -561,6 +561,11 @@ class ProcessHandler
     }
 
     public function pid()
+    {
+        return $this->_pid;
+    }
+
+    public function id()
     {
         return $this->_pid;
     }

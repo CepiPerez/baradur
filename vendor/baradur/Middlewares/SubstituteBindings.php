@@ -99,8 +99,6 @@ class SubstituteBindings
             $current_callback = null;
             $class_name = self::getClassName($param);
 
-            //dump($param, $class_name);
-
             if ($class_name && $class_name=='Request')
             {
                 $arguments[] = request();
@@ -131,7 +129,7 @@ class SubstituteBindings
 
                 $param_index = is_array($parametro) ? $parametro['index'] : null;
                 $param_value = is_array($parametro) ? $parametro['value'] : $parametro;
-
+                
                 if (!$class_name) {
                     $parametro = reset($route_params);
                     $param_value = is_array($parametro) ? $parametro['value'] : $parametro;

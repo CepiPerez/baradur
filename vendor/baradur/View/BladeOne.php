@@ -41,6 +41,8 @@ class BladeOne
     protected $footer = array();
     protected $verbatimPlaceholder = '__verbatim__';
     protected $verbatimBlocks = array();
+    protected $scriptPlaceholder = '__script_tag__';
+    protected $scriptBlocks = array();
     protected $forelseCounter = 0;
     protected $compilers = array(
         'SelfClosingComponents',
@@ -124,8 +126,6 @@ class BladeOne
 
     public function compile($fileName = null,$forced=false)
     {
-        global $phpConverter;
-
         if ($fileName) {
             $this->fileName = $fileName;
         }
@@ -139,9 +139,6 @@ class BladeOne
 
             # Remove all HTML comments
             /* $contents = preg_replace('/<!--([\s\S]*?)-->/x', '', $contents); */
-
-            # Replace new PHP version functions
-            $contents = $phpConverter->replaceForView($contents);
 
             # compile the original file
             $contents = $this->compileString($contents);
@@ -164,7 +161,22 @@ class BladeOne
             $value = $this->storeVerbatimBlocks($value);
         }
 
+        if (strpos($value, '<script') !== false) {
+            $value = $this->storeScriptBlocks($value);
+        }
+
         $this->footer = array();
+
+        $value = preg_replace('/\{{2}([^\{])/x', '{{ $1', $value);
+        $value = preg_replace('/([^\}])\}{2}/x', '$1 }}', $value);
+        $value = str_replace('{{  ', '{{ ', $value);
+        $value = str_replace('  }}', ' }}', $value);
+        $value = str_replace('{{ --', '{{--', $value);
+        $value = str_replace('-- }}', '--}}', $value);
+    
+        # Replace new PHP version functions
+        global $phpConverter;
+        $value = $phpConverter->replaceForView($value);
 
         // Here we will loop through all of the tokens returned by the Zend lexer and
         // parse each one into the corresponding valid PHP. We will then have this
@@ -180,10 +192,15 @@ class BladeOne
         }
         $result = '<?php global $errors; ?>'.$value;
 
+        if (! empty($this->scriptBlocks)) {
+            $result = $this->restoreScriptBlocks($result);
+        }
 
         if (! empty($this->verbatimBlocks)) {
             $result = $this->restoreVerbatimBlocks($result);
         }
+
+       
 
         // If there are any footer lines that need to get added to a template we will
         // add them here at the end of the template. This gets used mainly for the
@@ -394,12 +411,13 @@ class BladeOne
         }
         else
         {
-            $reflect  = new ReflectionClass('Component');
-            $instance = $reflect->newInstance();
+            /* $reflect  = new ReflectionClass('Component');
+            $instance = $reflect->newInstance(); */
+            $instance = new Component;
             $instance->setComponent($component);
             $instance->setAttributes($attributes);
             $instance->slot = $content;
-            //ddd($instance);
+            //dd($instance);
         }
         
 
@@ -709,8 +727,10 @@ class BladeOne
 
     public function compileEchoDefaults($value)
     {
-        
-        return preg_replace('/^(?=\$)(.+?)(?:\s+or\s+)(.+?)$/s', 'isset($1) ? $1 : $2', $value);
+        return $value;
+
+        // {{ $something or 'empty' }} was removed from Blade
+        //return preg_replace('/^(?=\$)(.+?)(?:\s+or\s+)(.+?)$/s', 'isset($1) ? $1 : $2', $value);
     }
 
     protected function compileEach($expression)
@@ -950,6 +970,16 @@ class BladeOne
         return $this->phpTag."elseif ( Gate::allows{$expression} ): ?>";
     }
 
+    protected function compileCanany($expression)
+    {
+        return $this->phpTag."if ( Gate::any{$expression} ): ?>";
+    }
+
+    protected function compileElsecanany($expression)
+    {
+        return $this->phpTag."elseif ( Gate::any{$expression} ): ?>";
+    }
+
     protected function compileCannot($expression)
     {
         return $this->phpTag."if ( Gate::denies{$expression} ): ?>";
@@ -998,6 +1028,11 @@ class BladeOne
     }
 
     protected function compileEndcan()
+    {
+        return $this->phpTag.'endif; ?>';
+    }
+
+    protected function compileEndcanany()
     {
         return $this->phpTag.'endif; ?>';
     }
@@ -1328,6 +1363,28 @@ class BladeOne
         return preg_replace_callback('/(?<!@)@verbatim(.*?)@endverbatim/s', array($this, "callbackStoreVerbatimBlocks"), $value);
     }
 
+    function callbackStoreScriptBlocks ($matches) {
+        if (preg_match('/<script[\s]*src=/x', $matches[0])==1) {
+            return $matches[0];
+        }
+
+        global $phpConverter;
+        $value = $phpConverter->replaceForScriptsInView($matches[0]);
+
+        foreach ($this->compilers as $type) {
+            $value = $this->{"compile{$type}"}($value);
+        }
+
+        $this->scriptBlocks[] = $value;
+        
+        return $this->scriptPlaceholder;
+    }
+
+    protected function storeScriptBlocks($value)
+    {
+        return preg_replace_callback('/(<script[\s\S]*?>[\s\S]*?<\/script[\s\S]*?>)/x', array($this, "callbackStoreScriptBlocks"), $value);
+    }
+
     protected function convertArg($array,$merge=null) {
         if (!is_array($array)) {
             if ($array=='') {
@@ -1359,6 +1416,20 @@ class BladeOne
                     array($this, "callbackRestoreVerbatimBlocks"), $result);
 
         $this->verbatimBlocks = array();
+
+        return $result;
+    }
+
+    function callbackRestoreScriptBlocks() {
+        return array_shift($this->scriptBlocks);
+    }
+
+    protected function restoreScriptBlocks($result)
+    {
+        $result = preg_replace_callback('/'.preg_quote($this->scriptPlaceholder).'/', 
+                    array($this, "callbackRestoreScriptBlocks"), $result);
+
+        $this->scriptBlocks = array();
 
         return $result;
     }
@@ -1765,7 +1836,9 @@ class BladeOne
  
     public function addLoop($data)
     {
-        $length = is_array($data) || $data instanceof Countable ? count($data) : null;
+        $length = is_array($data) || $data instanceof Countable 
+            ? count($data) 
+            : ($data instanceof Collection ? $data->count() : null);
 
         $parent = $this->last($this->loopsStack);
 

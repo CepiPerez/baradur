@@ -452,6 +452,38 @@ Class Builder
     {
         dd($this->toSql(), str_replace('"', "'", json_encode($this->getBindings())));
     }
+
+    /**
+     * Get the raw SQL representation of the query with embedded bindings.
+     *
+     * @return string
+     */
+    public function toRawSql()
+    {
+        return $this->toPlainSql();
+    }
+
+    /**
+     * Dump the raw current SQL with embedded bindings.
+     *
+     * @return $this
+     */
+    public function dumpRawSql()
+    {
+        dump($this->toRawSql());
+
+        return $this;
+    }
+
+    /**
+     * Die and dump the current SQL with embedded bindings.
+     *
+     * @return never
+     */
+    public function ddRawSql()
+    {
+        dd($this->toRawSql());
+    }
     
     /**
      * Returns an array with the full query as a string
@@ -767,7 +799,7 @@ Class Builder
 
     private function getWhere($column, $cond, $val=null, $class='where')
     {
-        if (!$val) {
+        if ($val===null) {
             $val = $cond;
             $cond = '=';
         }
@@ -780,16 +812,18 @@ Class Builder
 
     }
 
-    private function addWhere($column, $cond='', $val='', $boolean='AND')
+    private function addWhere($column, $cond=null, $val=null, $boolean='AND')
     {
-        if (is_array($column)) {
-            $result = $this->getArrayOfWheres($column, $boolean);
-        } elseif (is_closure($column)) {
+        if (is_closure($column)) {
             $prev_where = $this->_where;
             $this->_where = '';
             $this->getCallback($column, $this);
             $result = '(' . str_replace('WHERE ', '', $this->_where) . ')';
             $this->_where = $prev_where;
+        } elseif (is_array($column)) {
+            $result = $this->getArrayOfWheres($column, $boolean);
+        } elseif ($column instanceof Expression) {
+            $result = $column->__toString();
         } else {
             $result = $this->getWhere($column, $cond, $val, get_class($this)=='JoinClause'?'join':'where');
         }
@@ -807,12 +841,12 @@ Class Builder
      * Adds a basic WHERE clause\
      * Returns the Query builder
      * 
-     * @param string|Closure $column 
+     * @param string|Closure|Expression $column 
      * @param string $condition Can be ommited for '='
      * @param string $value
      * @return Builder
      */
-    public function where($column, $cond='', $val='', $boolean='AND')
+    public function where($column, $cond=null, $val=null, $boolean='AND')
     {
         $this->addWhere($column, $cond, $val, $boolean);
 
@@ -828,7 +862,7 @@ Class Builder
      * @param string $value
      * @return Builder
      */
-    public function whereNot($column, $cond='', $val='', $boolean='AND')
+    public function whereNot($column, $cond=null, $val=null, $boolean='AND')
     {
         $this->addWhere($column, $cond, $val, $boolean);
         $this->_where = str_replace('WHERE ', 'WHERE NOT ', $this->_where);
@@ -845,7 +879,7 @@ Class Builder
      * @param string $value
      * @return Builder
      */
-    public function orWhere($column, $cond='', $val='')
+    public function orWhere($column, $cond=null, $val=null)
     {
         $this->addWhere($column, $cond, $val, 'OR');
 
@@ -1117,9 +1151,9 @@ Class Builder
         }
 
         if ($this->_where == '') {
-            $this->_where = 'WHERE ' . $column . ($not? ' NOT': ' IS') . ' NULL';
+            $this->_where = 'WHERE ' . $column . ($not? ' IS NOT': ' IS') . ' NULL';
         } else {
-            $this->_where .= " $boolean " . $column . ($not? ' NOT': ' IS') . ' NULL';
+            $this->_where .= " $boolean " . $column . ($not? ' IS NOT': ' IS') . ' NULL';
         }
 
         return $this;
@@ -1365,7 +1399,7 @@ Class Builder
 
     private function addWhereDate($first, $operator, $second, $chain, $type)
     {
-        if (!isset($value)) {
+        if ($second===null) {
             $second = $operator;
             $operator = '=';
         }
@@ -1375,19 +1409,19 @@ Class Builder
         }
 
         if ($type=='date') {
-            $second = $second->toDateString();
+            $second = '"' . $second->toDateString() . '"';
         } elseif ($type=='year') {
             $first = "YEAR($first)";
-            $second = $second->year;
+            $second = '"'. $second->year . '"';
         } elseif ($type=='month') {
             $first = "MONTH($first)";
-            $second = $second->month;
+            $second = '"'. $second->month . '"';
         } elseif ($type=='day') {
             $first = "DAY($first)";
-            $second = $second->day;
+            $second = '"'. $second->day . '"';
         } elseif ($type=='time') {
             $first = "TIME($first)";
-            $second = $second->rawFormat('H:i:s');
+            $second = '"'. $second->rawFormat('H:i:s') . '"';
         }
 
         if ($this->_where == '') {
@@ -1600,6 +1634,10 @@ Class Builder
             return $this;
         }
 
+        if ($reference instanceof Expression) {
+            return $reference->__toString();
+        } 
+
         if (!$value) {
             $value = $operator;
             $operator = '=';
@@ -1660,9 +1698,9 @@ Class Builder
     public function havingNull($reference, $boolean = 'and', $not = false)
     {
         if ($this->_having == '') {
-            $this->_having = 'HAVING ' . $reference . ($not? ' NOT': ' IS') . ' NULL';
+            $this->_having = 'HAVING ' . $reference . ($not? ' IS NOT': ' IS') . ' NULL';
         } else {
-            $this->_having .= ' ' . $boolean . ' ' . $reference . ($not? ' NOT': ' IS') . ' NULL';
+            $this->_having .= ' ' . $boolean . ' ' . $reference . ($not? ' IS NOT': ' IS') . ' NULL';
         }
 
         return $this;
@@ -2012,11 +2050,11 @@ Class Builder
      */
     protected function createSub($query)
     {
-        if (is_string($query) && !is_closure($query)) {
+        if (is_string($query)) {
             return array($query, array());
         }
 
-        if (is_string($query) && is_closure($query)) {
+        if (is_closure($query)) {
             $query = $this->getCallback($query, $this);
         }
 
@@ -2276,7 +2314,7 @@ Class Builder
 
             $val = Helpers::ensureValueIsNotObject($val);
             
-            array_push($this->_values, isset($val)? $val : "NULL");
+            array_push($this->_values, $val); //isset($val)? $val : "NULL");  // WTF is this?????
         }
 
         return $this;
@@ -3772,11 +3810,11 @@ Class Builder
         
         foreach ($relations as $relation => $values) {
 
-            if (is_string($values) && !is_closure($values)) {
+            if (is_string($values)) {
                 $this->addRelation($this->_eagerLoad, $values);
             }
 
-            elseif (is_array($values)) {
+            elseif (is_array($values) && !is_closure($values)) {
                 foreach ($values as $val) {
                     $this->addRelation($this->_eagerLoad, $relation.'.'.$val);
                 }
@@ -3930,7 +3968,7 @@ Class Builder
 
         $filter = '';
         
-        if (isset($constraints) && !is_array($constraints) && is_closure($constraints)) {
+        if (isset($constraints) && is_closure($constraints)) {
 
             $this->getCallback($constraints, $data);
 
@@ -3945,7 +3983,7 @@ Class Builder
             $filter = ' AND ('. ltrim($data->_where, 'WHERE') . ')';
         } 
 
-        elseif (isset($constraints) && !is_array($constraints) && !is_closure($constraints)) {
+        elseif (isset($constraints) && !is_array($constraints)) {
             
             $filter = " AND `$data->table`.`$constraints` $comparator ?";
             
@@ -4434,7 +4472,7 @@ Class Builder
             $constraints = null;
             $alias = null;
 
-            if (is_string($values) && !is_closure($values)) {
+            if (is_string($values)) {
                 list($relation, $alias) =  explode(' as ', strtolower($values));
                 $constraints = null;
             } elseif (is_null($values)) {

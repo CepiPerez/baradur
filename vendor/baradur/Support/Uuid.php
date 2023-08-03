@@ -9,12 +9,62 @@
 class Uuid
 {
     private static $TIME_OFFSET_BIN = "\x01\xb2\x1d\xd2\x13\x81\x40\x00";
+    const TIME_OFFSET_INT = 0x01B21DD213814000;
+    const TIME_OFFSET_BIN = "\x01\xb2\x1d\xd2\x13\x81\x40\x00";
+    const TIME_OFFSET_COM = "\xfe\x4d\xe2\x2d\xec\x7e\xc0\x00";
 
+    private $uuid;
+
+    public function __construct($uuid)
+    {
+        $this->uuid = $uuid;
+    }
 
     public static function isValid($uuid)
     {
-        return (bool) preg_match('{^[0-9a-f]{8}(?:-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4})-[0-9a-f]{12}$}Di', $uuid);
+        //return (bool) preg_match('{^[0-9a-f]{8}(?:-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4})-[0-9a-f]{12}$}Di', $uuid);
+        return (bool) preg_match('{^[0-9a-f]{8}(?:-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4})-[0-9a-f]{12}$}Di', $uuid);
     }
+
+    private static function parse($uuid)
+    {
+        if (!preg_match('{^([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f])([0-9a-f]{3})-([0-9a-f]{4})-([0-9a-f]{12})$}Di', $uuid, $matches)) {
+            return null;
+        }
+
+        return array(
+            'time' => '0'.$matches[4].$matches[2].$matches[1],
+            'version' => hexdec($matches[3]),
+            'clock_seq' => hexdec($matches[5]),
+            'node' => $matches[6],
+        );
+    }
+
+    public static function uuid_time($uuid)
+    {
+        if (!self::isValid($uuid)) {
+            throw new Exception('Invalid Uuid');
+        }
+
+        $parsed = self::parse($uuid);
+        
+        if ($parsed['version']!==1 && $parsed['version']!==2) {
+            throw new Exception('This function only supports Uuid versions 1 and 2');
+        }
+
+        /* if (PHP_INT_SIZE >= 8) {
+            return intdiv(hexdec($parsed['time']) - self::TIME_OFFSET_INT, 10000000);
+        } */
+
+        $time = str_pad(hex2bin($parsed['time']), 8, "\0", \STR_PAD_LEFT);
+        $time = self::binaryAdd($time, self::TIME_OFFSET_COM);
+        $time[0] = $time[0] & "\x7F";
+
+        //dd($time);
+
+        return (int) substr(self::toDecimal($time), 0, -7);
+    }
+
 
 
     public static function uuid_generate_random()
@@ -44,9 +94,9 @@ class Uuid
         $time = microtime(false);
         $time = substr($time, 11).substr($time, 2, 7);
 
-            $time = str_pad(self::toBinary($time), 8, "\0", \STR_PAD_LEFT);
-            $time = self::binaryAdd($time, self::$TIME_OFFSET_BIN);
-            $time = bin2hex($time);
+        $time = str_pad(self::toBinary($time), 8, "\0", \STR_PAD_LEFT);
+        $time = self::binaryAdd($time, self::$TIME_OFFSET_BIN);
+        $time = bin2hex($time);
 
         // https://tools.ietf.org/html/rfc4122#section-4.1.5
         // We are using a random data for the sake of simplicity: since we are
@@ -83,6 +133,19 @@ class Uuid
         );
     }
 
+    public static function fromString($string)
+    {
+        if (!self::isValid($string)) {
+            throw new Exception('Invalid UUID string');
+        }
+
+        return new self($string);
+    }
+
+    public function getDateTime() {
+        return self::uuid_time($this->uuid);
+    }
+
     private static function toBinary($digits)
     {
         $bytes = '';
@@ -107,6 +170,32 @@ class Uuid
         }
 
         return $bytes;
+    }
+
+    private static function toDecimal($bytes)
+    {
+        $digits = '';
+        $bytes = array_values(unpack('C*', $bytes));
+
+        while ($count = \count($bytes)) {
+            $quotient = array();
+            $remainder = 0;
+
+            for ($i = 0; $i !== $count; ++$i) {
+                $carry = $bytes[$i] + ($remainder << 8);
+                $digit = (int) ($carry / 10);
+                $remainder = $carry % 10;
+
+                if ($digit || $quotient) {
+                    $quotient[] = $digit;
+                }
+            }
+
+            $digits = $remainder.$digits;
+            $bytes = $quotient;
+        }
+
+        return $digits;
     }
 
     private static function binaryAdd($a, $b)

@@ -78,6 +78,14 @@ class Response
         return $this;
     }
 
+    public function withHeader($key, $value)
+    {
+        $this->response->setHeader($key, $value);
+        
+        return $this;
+    }
+
+
     public function file($path, $headers=array())
     {
         $this->filename = $path;

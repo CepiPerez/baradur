@@ -56,7 +56,7 @@ Class PHPConverter
                         $arr = explode(' ', $temp);
                         $temp = $arr[1];
                     }
-                    if (strpos($temp, ' ')!==false && strpos($temp, '=')!==false) {
+                    if (strpos($temp, '=')!==false) {
                         $arr = explode('=', $temp);
                         $temp = trim($arr[0]);
                     }
@@ -65,7 +65,7 @@ Class PHPConverter
                     
             }
         }
-        //dump($params);
+        //var_dump($defparms);
         //$params[] = '$_baradur_send='.(count($defparms) + count($params));
         $to_send = count($defparms) + count($params);
     
@@ -77,11 +77,18 @@ Class PHPConverter
         else
             $counter = count($this->_arrow_functions);
         
-        $return = '"' . ($this->_for_macro? 'baradur'. $this->_for_macro .'Macros' : 'baradurClosures') .
-            '_' . $this->_current_classname[0] . '|closure_' . $counter . '|' . 
-            $to_send . '|' . implode(', ', array_merge($defparms, $params)) . '"';
 
-        //dump($return);
+        // working
+        /* $return = '"' . ($this->_for_macro? 'baradur'. $this->_for_macro .'Macros' : 'baradurClosures') .
+            '_' . $this->_current_classname[0] . '|closure_' . $counter . '|' . 
+            $to_send . '|' . implode(', ', array_merge($defparms, $params)) . '"'; */
+
+        // last
+        $return = 'array("' . ($this->_for_macro? 'baradur'. $this->_for_macro .'Macros' : 'baradurClosures') .
+            '_' . $this->_current_classname[0] . '|closure_' . $counter . '|' . 
+            $to_send . '"' . (count(array_merge($defparms, $params))>0 ? ', ' : '') . 
+            implode(', ', array_merge($defparms, $params)) . ')';
+            
     
         preg_match_all('/(\$\w*)/x', $match[2], $body_attrs);
     
@@ -584,6 +591,31 @@ Class PHPConverter
         return 'CoreLoader::loadClass(!DIR!' . $file . ', false);';
     }
     
+
+    public function replaceTernaries($text)
+    {
+        # short ternary / null coalescing operators
+        //$text = preg_replace('/\s([^\s]*.?[^\b.*[^\?{2}])(\?{2})/x', " $1!==null ? $1 : ", $text);
+        $text = preg_replace('/([a-zA-Z\$_\-]*(\[(?>[^\[\]]|(?R))*\])*(\((?>[^\(\)]|(?R))*\))*[\s]*[^\?{2}])\?\?[\s]*/x', " $1!== null ? $1 : ", $text);
+        $text = preg_replace('/([a-zA-Z\$_\-]*(\[(?>[^\[\]]|(?R))*\])*(\((?>[^\(\)]|(?R))*\))*[\s]*[^\?{2}])\?\:[\s]*/x', " filled($1) ? $1 : ", $text);
+
+        return $text;
+    }
+
+    public function replaceArrayVariables($text)
+    {
+        # Convert [] to array()
+        // this one doesn't work on PHP 5.1.6
+        //$text = preg_replace_callback('/(?<sign>[\s|\(|,|=])(?<main>[^\[\]]*){0}(?<query>\[\g<main>\]|\[(?:\g<main>\g<query>\g<main>)*\])/x', 'callbackReplaceNewArray', $text);
+        $text = preg_replace_callback('/[^\]|\S](\[(?>[^\[\]]|(?R))*])[\s]*=/x', array($this, 'callbackReplaceNewArraySet'), $text);
+        $text = preg_replace_callback('/([\s|\(|,|=|>]*)(\[(?>[^\[\]]|(?R))*])/x', array($this, 'callbackReplaceNewArray'), $text);
+
+        # [val, val, val,] to [val, val, val] (remove extra comma at the end of arrays)
+        $text = preg_replace('/,([\s]*)\]/x', "$1]", $text);
+                
+        return $text;
+    }
+    
     public function replaceNewPHPFunctions($text, $classname=null, $dir=null, $is_migration=false)
     {
         global $_model_list, $_class_list, $_enum_list;
@@ -656,14 +688,18 @@ Class PHPConverter
         $text = preg_replace('/\bdie\(/x', '__exit(', $text);
         $text = preg_replace('/\bdie;/x', '__exit();', $text);
 
-        # something ?? else  -> isset(something)? something : else
-        $text = preg_replace('/\s([^\s]*.?[^\b.*[^\?{2}])(\?{2})/x', " isset($1) ? $1 : ", $text);
-    
+        # short ternary / null coalescing operators
+        $text = $this->replaceTernaries($text);
+
         # Someclass::class to 'Someclass' and \Path\To\SomeClass::class to 'SomeClass"
         $text = preg_replace_callback('/([\w|\\\]*)(::class)/x', array($this, 'callbackReplaceClasses'), $text);
         
         # Resources static wrap to _wrap
         //$text = preg_replace('/public[\s]*static[\s]*\$wrap/x', 'protected $_wrap', $text);
+
+        # Sleep for / and
+        $text = preg_replace('/(Sleep::for\(.*[^and\(]*)(and)\(/x', '$1andFor(' , $text);
+        $text = str_replace('Sleep::for', 'Sleep::instanceFor', $text);
 
         # CustomCaster for
         $text = str_replace('CustomCaster::for', 'CustomCaster::instanceFor', $text);
@@ -679,13 +715,9 @@ Class PHPConverter
     
         # Blade::if workaround
         $text = str_replace('Blade::if', 'Blade::_if', $text);
-    
-        # Convert [] to array()
-        // this one doesn't work on PHP 5.1.6
-        //$text = preg_replace_callback('/(?<sign>[\s|\(|,|=])(?<main>[^\[\]]*){0}(?<query>\[\g<main>\]|\[(?:\g<main>\g<query>\g<main>)*\])/x', 'callbackReplaceNewArray', $text);
-        $text = preg_replace_callback('/[^\]|\S](\[(?>[^\[\]]|(?R))*])[\s]*=/x', array($this, 'callbackReplaceNewArraySet'), $text);
-        $text = preg_replace_callback('/([\s|\(|,|=|>]*)(\[(?>[^\[\]]|(?R))*])/x', array($this, 'callbackReplaceNewArray'), $text);
-            
+
+        $text = $this->replaceArrayVariables($text);
+                
         # Stupid true inside Match function
         $text = preg_replace_callback('/fn[\s]*\(([^\)]*)\)[\s]*\=\>[\s]*match[\s]*\(([^\)]*)\)/x', array($this, 'callbackReplaceMatchDefault'), $text);
         $text = preg_replace_callback('/function.*\((.+)\)[\s\S]*[$match][\s]*\(([^\)]*)\)/x', array($this, 'callbackReplaceMatchDefaultClass'), $text);
@@ -708,10 +740,7 @@ Class PHPConverter
 
         # Line breaks in functions (prevents missing some callback replacements)
         $text = preg_replace('/\)([\s]*)\{/x', ') {', $text);
-    
-        # [val, val, val,] to [val, val, val] (remove extra comma at the end of arrays)
-        $text = preg_replace('/,([\s]*)\]/x', "$1]", $text);
-    
+        
         # throw() to __trow() (stupid old php shit)
         $text = str_replace('->throw(', '->__throw(', $text);
 
@@ -843,12 +872,19 @@ Class PHPConverter
     public function replaceForView($text)
     {
         $text = preg_replace_callback('/(\w*)::(\w*)/x', array($this, 'callbackReplaceStatics'), $text);
-        $text = preg_replace('/\s([^\s]*.?[^\b.*[^\?{2}])(\?{2})/x', " isset($1) ? $1 : ", $text);
+        $text = $this->replaceTernaries($text);
         $text = str_replace('__DIR__', 'dirname(__FILE__)', $text);
 
-        $text = preg_replace_callback('/[^\]|\S](\[(?>[^\[\]]|(?R))*])[\s]*=/x', array($this, 'callbackReplaceNewArraySet'), $text);
-        $text = preg_replace_callback('/([\s|\(|,|=|>]*)(\[(?>[^\[\]]|(?R))*])/x', array($this, 'callbackReplaceNewArray'), $text);
-        $text = preg_replace('/,([\s]*)\]/x', "$1]", $text);
+        $text = $this->replaceArrayVariables($text);
+
+        return $text;
+    }
+
+    public function replaceForScriptsInView($text)
+    {
+        $text = preg_replace_callback('/(\w*)::(\w*)/x', array($this, 'callbackReplaceStatics'), $text);
+        $text = $this->replaceTernaries($text);
+        $text = str_replace('__DIR__', 'dirname(__FILE__)', $text);
 
         return $text;
     }

@@ -78,6 +78,7 @@ class RateLimiter
 
         $key = $instance->cleanRateLimiterKey($key);
 
+        //dd("HOLA", $key.':timer', $instance->availableAt($decaySeconds), $decaySeconds);
         $instance->cache->add(
             $key.':timer', $instance->availableAt($decaySeconds), $decaySeconds
         );

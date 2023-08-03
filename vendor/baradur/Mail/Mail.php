@@ -74,6 +74,10 @@ Class Mail
 
     private function buildTemplate($template)
     {
+        if (is_string($template)) {
+            return $template;
+        }
+        
         $final = $template->build(); 
         
         $view = $final->_template;
@@ -190,7 +194,8 @@ Class Mail
 
         $mail->Subject = $this->subject;
         $mail->Body = $this->content;
-
+        $mail->isHTML(true);
+        
         //$mail->SMTPDebug = SMTP::DEBUG_SERVER;
 
         return $mail->send();

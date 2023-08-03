@@ -30,7 +30,7 @@ class Dispatcher
             
             $method = 'handle'; 
 
-            if (is_array($listener)) {
+            if (is_array($listener) && !is_closure($listener)) {
                 $listener = $listener[0];
                 $method = $listener[1];
             }
@@ -63,7 +63,7 @@ class Dispatcher
     {
         global $_class_list;
 
-        if (is_array($listener)) {
+        if (is_array($listener) && !is_closure($listener)) {
             $class = $listener[0];
             $method = $listener[1];
             $class = new $class;
