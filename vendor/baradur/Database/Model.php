@@ -49,6 +49,8 @@
  * @method static Builder oldest($column)
  * @method static Builder orderBy(string|Builder $column, string $order='ASC')
  * @method static Builder orderByRaw(string $order)
+ * @method static bool increment(string $column, int $amount=1, array $extra=array())
+ * @method static bool decrement(string $column, int $amount=1, array $extra=array())
  * @method static int count(string $column)
  * @method static mixed min(string $column)
  * @method static mixed max(string $column)
@@ -74,6 +76,9 @@
 
 class Model
 {
+    protected static $traitInitializers = array();
+    protected static $booted = array();
+
     public $timestamps = true;
     protected $primaryKey = 'id';
     protected $fillable = array();
@@ -90,6 +95,7 @@ class Model
     protected $appends = array();
     protected $wasRecentlyCreated = false;
     protected $connection = null;
+    protected $connectionDriver = null;
     protected $_query;
     protected $_CREATED_AT = 'created_at';
     protected $_UPDATED_AT = 'updated_at';
@@ -139,6 +145,10 @@ class Model
         'timestamp',
     );
 
+    protected static $keepQueryMethods = array(
+        'increment',
+        'decrement'
+    );
 
     public static function preventsLazyLoading()
     {
@@ -179,6 +189,8 @@ class Model
 
     public function __construct($attributes=array())
     {
+        $this->bootIfNotBooted(get_class($this));
+
         if (!isset($this->table)) {
             $this->table = Helpers::camelCaseToSnakeCase(get_class($this));
         }
@@ -186,6 +198,67 @@ class Model
         foreach ($attributes as $key => $value) {
             $this->attributes[$key] = $value;
         }
+    }
+
+    public function bootIfNotBooted($class)
+    {
+        if (! isset(self::$booted[$class])) {
+            self::$booted[$class] = true;
+
+            $booted = array();
+
+            foreach (class_uses_recursive($class) as $trait) {
+                $method = 'boot'. $trait;
+                
+                if (method_exists($class, $method) && ! in_array($method, $booted)) {
+                    $c = new $class;
+                    $c->{$method}();
+                    $booted[] = $method;
+                }
+            }
+        }
+    }
+
+    protected static function booting()
+    {
+        //
+    }
+
+    protected static function boot()
+    {
+        //self::bootTraits();
+    }
+
+    protected static function booted()
+    {
+        //
+    }
+
+    protected static function bootTraits()
+    {
+        /* $class = static::class;
+
+        $booted = [];
+
+        self::$traitInitializers[$class] = [];
+
+        foreach (class_uses_recursive($class) as $trait) {
+            $method = 'boot'.class_basename($trait);
+
+            if (method_exists($class, $method) && ! in_array($method, $booted)) {
+                forward_static_call([$class, $method]);
+
+                $booted[] = $method;
+            }
+
+            if (method_exists($class, $method = 'initialize'.class_basename($trait))) {
+                static::$traitInitializers[$class][] = $method;
+
+                static::$traitInitializers[$class] = array_unique(
+                    static::$traitInitializers[$class]
+                );
+            }
+        } */
     }
 
     protected function addGlobalScope($scope, $callback=null)
@@ -415,6 +488,13 @@ class Model
 
     }
 
+    public function setTable($table)
+    {
+        $this->table = $table;
+
+        return $this;
+    }
+
     public function mergeCasts($casts)
     {
         $this->casts = array_merge($this->casts, $casts);
@@ -444,6 +524,45 @@ class Model
         $this->connection = $connection;
 
         return $this;
+    }
+
+
+    public function __getConnector($connection=null)
+    {
+        if ($this->connectionDriver) {
+            return $this->connectionDriver;
+        }
+
+        $config = config('database.connections.' . $connection);
+
+        $this->connectionDriver = $this->setConnectorDriver($config);
+
+        return $this->connectionDriver;
+    }
+
+    protected function setConnectorDriver($config)
+    {
+        if (isset($_SERVER['USERNAME']) || isset($_SERVER['SHELL'])) {
+            $config['host'] = "127.0.0.1";
+        }
+    
+        if ($config['driver']=='mysql') {
+            return new PdoConnector($config);
+        }
+
+        if ($config['driver']=='mysqli') {
+            return new MysqliConnector($config);
+        }
+
+        if ($config['driver']=='oracle') {
+            return new OracleConnector($config);
+        }
+
+        if ($config['driver']=='sqlite' || $config['driver']=='sqlite2') {
+            return new SqliteConnector($config);
+        }
+
+        throw new RuntimeException("Driver [" . $config['driver'] . "] not supported.");
     }
 
     public function resolveRouteBinding($value, $field = null)
@@ -531,17 +650,24 @@ class Model
     {
         if (method_exists('Builder', $method)) {
             $calls = $this->newEloquentBuilder($this->getQuery());
+
+            if (in_array($method, self::$keepQueryMethods)) {
+                $calls = $calls->where($this->getRouteKeyName(), $this->getRouteKey());
+
+            }
+
             return call_user_func_array(array($calls, $method), $arguments);
         }
         
         if (Str::startsWith($method, 'through')) {
             $relationMethod = Str::of($method)->after('through')->lcfirst()->toString();
+
             if (method_exists($this, $relationMethod)) {
                 return $this->through($relationMethod);
             }
         }
 
-        //throw new BadMethodCallException("Method $method does not exist");
+        throw new BadMethodCallException("Method $method does not exist");
     }
 
     public function __get($key)
@@ -571,7 +697,6 @@ class Model
             return $this->getAttributeValue($key);
         }
 
-
         // Here we will determine if the model base class itself contains this given key
         // since we don't want to treat any of those methods as relationships because
         // they are all intended as helper methods and none of these are relations.
@@ -582,6 +707,20 @@ class Model
         return $this->isRelation($key) || $this->relationLoaded($key)
                     ? $this->getRelationValue($key)
                     : $this->throwMissingAttributeExceptionIfApplicable($key);
+    }
+
+    protected function throwMissingAttributeExceptionIfApplicable($key)
+    {
+        //if ($key=='timestamps') return null;
+
+        if (! $this->wasRecentlyCreated && self::preventsAccessingMissingAttributes()) {
+            /* if (isset(sel::$missingAttributeViolationCallback)) {
+                return call_user_func(static::$missingAttributeViolationCallback, $this, $key);
+            } */
+            throw new MissingAttributeException($this, $key);
+        }
+
+        return null;
     }
 
     public function relationLoaded($key)
@@ -707,6 +846,83 @@ class Model
         }
 
         throw new InvalidCastException($this, $key, $castType);
+    }
+
+    protected function isJsonCastable($key)
+    {
+        return $this->hasCast($key, array('array', 'json', 'object', 'collection', 'encrypted:array', 'encrypted:collection', 'encrypted:json', 'encrypted:object'));
+    }
+
+    protected function isEncryptedCastable($key)
+    {
+        return $this->hasCast($key, array('encrypted', 'encrypted:array', 'encrypted:collection', 'encrypted:json', 'encrypted:object'));
+    }
+
+    protected function asJson($value)
+    {
+        return json_encode($value);
+    }
+
+    protected function castAttributeAsJson($key, $value)
+    {
+        $value = $this->asJson($value);
+
+        if ($value === false) {
+            throw JsonEncodingException::forAttribute(
+                $this, $key, 'Cannot cast attribute as JSON element'
+            );
+        }
+
+        return $value;
+    }
+
+    protected function getArrayAttributeByKey($key)
+    {
+        if (! isset($this->attributes[$key])) {
+            return array();
+        }
+
+        return $this->fromJson(
+            /* $this->isEncryptedCastable($key)
+                ? $this->fromEncryptedString($this->attributes[$key])
+                :  */ $this->attributes[$key]
+        );
+    }
+
+    protected function getArrayAttributeWithValue($path, $key, $value)
+    {
+        $result = $this->getArrayAttributeByKey($key);
+
+        Arr::set($result, str_replace('->', '.', $path), $value);
+
+        return $result;
+    }
+
+    /**
+     * Set a given JSON attribute on the model.
+     *
+     * @param  string  $key
+     * @param  mixed  $value
+     * @return $this
+     */
+    public function fillJsonAttribute($key, $value)
+    {
+        list($key, $path) = explode('->', $key, 2);
+
+        $value = $this->asJson($this->getArrayAttributeWithValue(
+            $path, $key, $value
+        ));
+
+        $this->attributes[$key] = /* $this->isEncryptedCastable($key)
+            ? $this->castAttributeAsEncryptedString($key, $value)
+            : */ $value;
+
+        if ($this->isClassCastable($key)) {
+            dump("CCAST");
+            unset($this->classCastCache[$key]);
+        }
+
+        return $this;
     }
     
     protected function parseCasterClass($class)
@@ -949,12 +1165,13 @@ class Model
             return $this;
         }
 
-        /* if (! is_null($value) && $this->isJsonCastable($key)) {
+        if (! is_null($value) && $this->isJsonCastable($key)) {
             $value = $this->castAttributeAsJson($key, $value);
-        } */
-        /* if (str_contains($key, '->')) {
+        }
+
+        if (str_contains($key, '->')) {
             return $this->fillJsonAttribute($key, $value);
-        } */
+        }
 
         /* if (! is_null($value) && $this->isEncryptedCastable($key)) {
             $value = $this->castAttributeAsEncryptedString($key, $value);
@@ -1018,14 +1235,19 @@ class Model
 
     public function getDates()
     {
-        return $this->usesTimestamps() ? array(
-            $this->getCreatedAtColumn(),
-            $this->getUpdatedAtColumn(),
-        ) : array();
+        if ($this->usesTimestamps())  {
+            return array(
+                $this->getCreatedAtColumn(),
+                $this->getUpdatedAtColumn(),
+            );
+        }
+        
+        return array();
     }
 
     public function usesTimestamps()
     {
+        //dd($this->timestamps);
         return $this->timestamps; // && ! self::isIgnoringTimestamps($this::class);
     }
 
@@ -1690,7 +1912,7 @@ class Model
         } else {
             $query = $this->getQuery();
             $query->_fillableOff = true;         
-            $result = $query->create($this->attributes);
+            $result = $query->create($this);
             $query->_fillableOff = false;
         }
 
@@ -1739,6 +1961,7 @@ class Model
 
         return true;
     }
+
 
     /**
      * Updates a record or an array of reccords in database

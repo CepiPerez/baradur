@@ -24,6 +24,7 @@ Class Column {
     public function nullable()
     {
         $this->nullable = true;
+        $this->default = null;
         return $this;
     }
 
@@ -267,7 +268,7 @@ class Blueprint extends ArrayObject
 
     public function integer($name, $increments=false, $unsigned=false, $length=null)
     {
-        return $this->newColumn($name, 'int', $increments, $length, null, null, null, null, null, $unsigned);
+        return $this->newColumn($name, 'int', $increments, $length, null, null, null, null, false, $unsigned);
     }
 
     public function unsignedInteger($name, $increments=false, $length=null)
@@ -277,7 +278,7 @@ class Blueprint extends ArrayObject
 
     public function tinyInteger($name, $increments=false, $unsigned=false, $length=null)
     {
-        return $this->newColumn($name, 'tinyint', $increments, $length, null, null, null, null, null, $unsigned);
+        return $this->newColumn($name, 'tinyint', $increments, $length, null, null, null, null, false, $unsigned);
     }
 
     public function unsignedTinyInteger($name, $increments=false, $length=null)
@@ -287,7 +288,7 @@ class Blueprint extends ArrayObject
 
     public function smallInteger($name, $increments=false, $unsigned=false, $length=null)
     {
-        return $this->newColumn($name, 'smallint', $increments, $length, null, null, null, null, null, $unsigned);
+        return $this->newColumn($name, 'smallint', $increments, $length, null, null, null, null, false, $unsigned);
     }
 
     public function unsignedSmallInteger($name, $increments=false, $length=null)
@@ -297,7 +298,7 @@ class Blueprint extends ArrayObject
 
     public function mediumInteger($name, $increments=false, $unsigned=false, $length=null)
     {
-        return $this->newColumn($name, 'mediumint', $increments, $length, null, null, null, null, null, $unsigned);
+        return $this->newColumn($name, 'mediumint', $increments, $length, null, null, null, null, false, $unsigned);
     }
 
     public function unsignedMediumInteger($name, $increments=false, $length=null)
@@ -312,7 +313,7 @@ class Blueprint extends ArrayObject
 
     public function unsignedBigInteger($name)
     {
-        return $this->newColumn($name, 'bigint', false, null, null, null, null, null, null, true);
+        return $this->newColumn($name, 'bigint', false, null, null, null, null, null, false, true);
     }
 
     public function decimal($name, $precision, $scale)
@@ -335,10 +336,20 @@ class Blueprint extends ArrayObject
         return $this->newColumn($name, 'boolean');
     }
 
+    public function json($name)
+    {
+        return $this->newColumn($name, 'json');
+    }
+
+    public function timestamp($name)
+    {
+        return $this->newColumn($name, 'timestamp', false, null, null, null, 'CURRENT_TIMESTAMP', null);
+    }
+
     public function timestamps()
     {
-        $col = $this->newColumn('created_at', 'timestamp', false, null, null, null, 'CURRENT_TIMESTAMP', null)->nullable();
-        $col2 = $this->newColumn('modified_at', 'timestamp', false, null, null, null, 'CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP')->nullable();
+        $col = $this->newColumn('created_at', 'timestamp', false, null, null, null, 'CURRENT_TIMESTAMP', null);
+        $col2 = $this->newColumn('modified_at', 'timestamp', false, null, null, null, 'CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP');
     }
 
     public function morphs($name)

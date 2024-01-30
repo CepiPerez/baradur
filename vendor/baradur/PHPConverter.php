@@ -7,13 +7,14 @@ Class PHPConverter
     public $_collection_macros = array();
     public $_current_classname = array();
     public $_functions_to_add = array();
+    public $_temp_traits = array();
     public $_trait_to_add = '';
     public $_for_macro = null;
     
     
     function callbackReplaceClosures($match)
     {
-        //dump($match);
+        //var_dump($match);
     
         if (count($this->_current_classname)==0)
             return $match[0];
@@ -71,9 +72,9 @@ Class PHPConverter
     
         $counter = array();
         if ($this->_for_macro == 'Builder')
-            $counter = count($this->_builder_macros);
+            $counter = count($this->_builder_macros[$this->_current_classname[0]]);
         elseif ($this->_for_macro == 'Collection')
-            $counter = count($this->_collection_macros);
+            $counter = count($this->_collection_macros[$this->_current_classname[0]]);
         else
             $counter = count($this->_arrow_functions);
         
@@ -88,7 +89,8 @@ Class PHPConverter
             '_' . $this->_current_classname[0] . '|closure_' . $counter . '|' . 
             $to_send . '"' . (count(array_merge($defparms, $params))>0 ? ', ' : '') . 
             implode(', ', array_merge($defparms, $params)) . ')';
-            
+        
+        //echo $return . "<br>".$this->_current_classname[0]."<br><br>";
     
         preg_match_all('/(\$\w*)/x', $match[2], $body_attrs);
     
@@ -104,9 +106,9 @@ Class PHPConverter
         $method .= /* $match[2]." = Model::instance('DB');\n". */$res."\n}\n";
     
         if ($this->_for_macro == 'Builder')
-            $this->_builder_macros[] = $method;
+            $this->_builder_macros[$this->_current_classname[0]][] = $method;
         elseif ($this->_for_macro == 'Collection')
-            $this->_collection_macros[] = $method;
+            $this->_collection_macros[$this->_current_classname[0]][] = $method;
         else
             $this->_arrow_functions[] = $method;
     
@@ -202,9 +204,9 @@ Class PHPConverter
     
     function callbackReplaceTraits($match)
     {
-        //print_r($match);
         global $_class_list;
-    
+
+        //print_r($match);
         //$this->_functions_to_add = array();
     
         $traits = explode(',', $match[1]);
@@ -212,6 +214,7 @@ Class PHPConverter
         foreach ($traits as $trait)
         {
             $trait = trim($trait);
+            $this->_temp_traits[] = $trait;
             $newclass = _DIR_ . $_class_list[$trait];
     
             if ($newclass)
@@ -381,7 +384,7 @@ Class PHPConverter
     function callbackReplaceArrowFunctions($match)
     {
         $text = trim($match[2]);
-    
+
         $opened = 0;
         $end = 0;
     
@@ -411,15 +414,15 @@ Class PHPConverter
     
         preg_match_all('/(\$\w*)/x', $match[1], $default);
         preg_match_all('/(\$\w*)/x', $text, $attributes);
+
     
         $use = array();
         foreach ($attributes[0] as $attr)
         {
-            //if ($attr=='$this') $attr=='$_self';
-    
             if (!in_array($attr, $default[0]))
                 $use[] = $attr;
         }
+
     
         $result = str_replace($match[2], $final . '; }', $match[0]);
     
@@ -432,7 +435,9 @@ Class PHPConverter
     
         //$result = str_replace(';;', ';', $result) . $end;
         
-        //dump($result);
+        //var_dump($result);
+
+        //$result = str_replace('return match', 'match', $result);
     
         return $result;
     }
@@ -483,7 +488,7 @@ Class PHPConverter
         $result = str_replace($match[2], $final . '; }', $match[0]);
     
         $result = str_replace('fn', 'function', $result) . $ending;
-    
+        
         if (count($use) == 0)
             $result = preg_replace('/=>/x', "{\n\treturn ", $result, 1);
         else
@@ -492,6 +497,8 @@ Class PHPConverter
         //$result = str_replace(';;', ';', $result) . $end;
         
         //dump($match);
+        
+        //$result = str_replace('return match', 'match', $result);
     
         return $result;
     }
@@ -545,13 +552,27 @@ Class PHPConverter
 
     function callbackReplaceMatch($match)
     {
-        $function = trim($match[2]);
+        /* $function = trim($match[2]);
         $function = preg_replace('/,\s*\}/x', '', $function);
         $function = ltrim($function, '{');
         $function = rtrim($function, '}');
         $function = str_replace('default', '"default"', $function);
 
-        return '__match (' . $match[1] . ', array(' . $function . '))';
+        return '__match (' . $match[1] . ', array(' . $function . '))'; */
+
+        $function = trim($match[2]);
+        $function = preg_replace('/,\s*\}/x', '', $function);
+        $function = ltrim($function, '{');
+        $function = rtrim($function, '}');
+        $function = str_replace('default', 'else', $function);
+       
+        $function = preg_replace('/(?:(.*)=>)([^,]*)([,]*)/x', 'elseif ($1) { return $2; }', $function);
+        $function = preg_replace('/elseif[\s]*\([\s]*else[\s]*\)/x', 'else', $function);
+        $function = preg_replace('/elseif/', 'if', $function, 1);
+
+        return $function;
+
+
     }
 
     public function callbackReplaceFailMethod($match)
@@ -620,7 +641,7 @@ Class PHPConverter
     {
         global $_model_list, $_class_list, $_enum_list;
         
-        if ($classname) $this->_current_classname[] = $classname;
+        if ($classname) $this->_current_classname[0] = $classname;
     
         # Remove declarations (namespace, use)
         //$text = preg_replace_callback('/\<[\s]*\?[\s]*php[\s]*.*[^\{]*/mx', array($this, 'callbackReplaceDeclarations'), $text);
@@ -654,9 +675,15 @@ Class PHPConverter
             $text = preg_replace('/const[\s]*DELETED_AT/x', 'protected $_DELETED_AT', $text);
         }
         
-        # Find Traits inside classes
+        # Find Traits inside classes, and save list
+        global $_class_traits;
+        $this->_temp_traits = array();
         $text = preg_replace_callback('/use\s[\s]*([a-zA-Z, ]*);/x', array($this, 'callbackReplaceTraits'), $text);
-    
+        if (count($this->_temp_traits)>0) {
+            $_class_traits[$classname] = $this->_temp_traits;
+            @file_put_contents(_DIR_.'storage/framework/config/traits.php', serialize($_class_traits));
+        }
+
         # Remove DELETED_AT in softDelete if setted in model
         if (in_array($classname, $_model_list)) {
             preg_match_all('/protected[\s]*\$_DELETED_AT.*/x', $text, $cant);
@@ -681,6 +708,7 @@ Class PHPConverter
             $text .= $this->_trait_to_add . "\n}";
         }
         $this->_trait_to_add = '';
+        $text = str_replace(' function bootSushi($name="sushi")', ' function bootSushi($name="'.$classname.'")', $text);
 
         # exit() and die() --> __exit() 
         $text = preg_replace('/\bexit\(/x', '__exit(', $text);
@@ -725,6 +753,12 @@ Class PHPConverter
         # arrow function to annonymous function
         // First we need to be sure they're in separate lines
         $text = preg_replace('/fn[\s]*\(/x', "\nfn (", $text);
+
+
+        $text = preg_replace('/(fn[\s]*\([^\)]*\)[\s]*=>)[\s]*[\n]*[\s]*/x', '$1 ', $text);
+        $text = preg_replace('/\n[\s]*\?/x', ' ?', $text);
+        $text = preg_replace('/\n[\s]*\:/x', ' :', $text);
+
         // Support multi-line arrow functions {}
         //$text = preg_replace_callback('/fn[\s].*\s{/x', array($this, 'callbackReplaceLineBreakArrowFunctions'), $text);
         // Now we convert it to closure
@@ -734,13 +768,18 @@ Class PHPConverter
         if ($text_new) $text = $text_new;
         $text = preg_replace_callback('/fn[\s]*\(([^\)]*)\)[\s]*\=\>(.*)/x', array($this, 'callbackReplaceArrowFunctions'), $text);
         //$text = str_replace("\nfunction", ' function', $text);
-    
+
+        $text = str_replace('return match', 'match', $text);
+
         # New PHP function match()
         $text = preg_replace_callback('/match[\s]*\(([^\)]*)\)[\s]*({(?:[^{}]*|(?2))*})/x', array($this, 'callbackReplaceMatch'), $text);
 
         # Line breaks in functions (prevents missing some callback replacements)
         $text = preg_replace('/\)([\s]*)\{/x', ') {', $text);
         
+        # as() to __as() (stupid old php shit)
+        $text = str_replace('->as(', '->__as(', $text);
+            
         # throw() to __trow() (stupid old php shit)
         $text = str_replace('->throw(', '->__throw(', $text);
 
@@ -768,6 +807,7 @@ Class PHPConverter
         
         # static:: to self::
         $text = preg_replace('/protected[\s]*static[\s]*function[\s]*booted/x', 'public function booted', $text);
+        $text = preg_replace('/public[\s]*static[\s]*function[\s]*boot[\w]+\(/x', 'public function boot$1(', $text);
         $text = str_replace('static::', '$this->', $text);
 
         # Constructor property promotion
@@ -779,6 +819,8 @@ Class PHPConverter
         # Validation rule Closure $fail to function __fail()
         $text = preg_replace_callback('/public[\s]function[\s]*validate[\s\S]*\{[\s\S]*(\$fail\()/x', array($this, 'callbackReplaceFailMethod'), $text);
 
+        # Replace Protected for CLI Commands
+        $text = str_replace('protected function promptForMissingArgumentsUsing', 'public function promptForMissingArgumentsUsing', $text);
 
         # Invokable: $someClass($value) to $someClass->__invoke($value)
         $text = preg_replace_callback('/[^\w]\$[a-zA-Z]*\(/x', array($this, 'callbackReplaceInvokable'), $text);
@@ -823,16 +865,19 @@ Class PHPConverter
     
         # Generates new class for Builder macros
         if (count($this->_builder_macros)>0 && $classname) {
-            $controller = "<?php\n\nclass baradurBuilderMacros_".$this->_current_classname[0]." extends Builder {\n\n";
+            $__name = reset(array_keys($this->_builder_macros));
+            //var_dump($__name);
 
-            foreach ($this->_builder_macros as $closure) {
+            $controller = "<?php\n\nclass baradurBuilderMacros_".$__name." extends Builder {\n\n";
+
+            foreach ($this->_builder_macros[$__name] as $closure) {
                 $controller .= $closure; //str_replace('public static', 'public ', $closure)."\n\n";
             }
 
             $controller .= "}";
             
             Cache::store('file')
-                ->plainPut($dir.'/storage/framework/classes/baradurBuilderMacros_'.$this->_current_classname[0].'.php', $controller);
+                ->plainPut($dir.'/storage/framework/classes/baradurBuilderMacros_'.$__name.'.php', $controller);
         
             $controller = null;
             $this->_builder_macros = array();
@@ -840,15 +885,18 @@ Class PHPConverter
     
         # Generates new class for Collection macros
         if (count($this->_collection_macros)>0 && $classname) {
-            $controller = "<?php\n\nclass baradurCollectionMacros_".$this->_current_classname[0]." extends Collection {\n\n";
+            $__name = reset(array_keys($this->_collection_macros));
+            //var_dump($__name);
 
-            foreach ($this->_collection_macros as $closure) {
+            $controller = "<?php\n\nclass baradurCollectionMacros_".$__name." extends Collection {\n\n";
+
+            foreach ($this->_collection_macros[$__name] as $closure) {
                 $controller .= $closure; //str_replace('public static', 'public ', $closure)."\n\n";
             }
             $controller .= "}";
             
             Cache::store('file')
-                ->plainPut($dir.'/storage/framework/classes/baradurCollectionMacros_'.$this->_current_classname[0].'.php', $controller);    
+                ->plainPut($dir.'/storage/framework/classes/baradurCollectionMacros_'.$__name.'.php', $controller);    
     
             $controller = null;
             $this->_collection_macros = array();

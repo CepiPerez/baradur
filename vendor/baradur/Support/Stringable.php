@@ -159,9 +159,21 @@ class Stringable
         return $this;
     }
 
+    public function replaceStart($search, $replace)
+    {
+        $this->value = Str::replaceStart($search, $replace, $this->value);
+        return $this;
+    }
+
     public function replaceLast($search, $replace)
     {
         $this->value = Str::replaceLast($search, $replace, $this->value);
+        return $this;
+    }
+
+    public function replaceEnd($search, $replace)
+    {
+        $this->value = Str::replaceEnd($search, $replace, $this->value);
         return $this;
     }
 
@@ -307,4 +319,13 @@ class Stringable
         return Str::matchAll($pattern, $this->value);
     }
 
+    public function wordWrap($characters = 75, $break = "\n", $cutLongWords = false)
+    {
+        return Str::wordWrap($this->value, $characters, $break, $cutLongWords);
+    }
+
+    public function position($needle, $offset = 0, $encoding = 'utf-8')
+    {
+        return Str::position($this->value, $needle, $offset, $encoding);
+    }
 }

@@ -10,14 +10,9 @@ while ($working)
 {
     $res = DB::select("SHOW TABLES LIKE 'baradur_queue'");
     
-    if ($res->count() > 0)
-    {
+    if (count($res) > 0) {
         Worker::checkQueue();
     }
-    /* else
-    {
-        printf("Checking queue... no jobs found\n");
-    } */
 
     sleep(10);
 }

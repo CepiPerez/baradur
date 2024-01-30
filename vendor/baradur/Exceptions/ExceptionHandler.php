@@ -133,7 +133,7 @@ Class ExceptionHandler
             $result["exception"] = get_class($this->exception);
             $result["file"] = $this->exception->getFile();
             $result["line"] = $this->exception->getLine();
-            $result["trace"] = $this->exception->getTrace();
+            //$result["trace"] = $this->exception->getTrace();
         }
 
         return CoreLoader::processResponse(response($result, $code));

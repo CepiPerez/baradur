@@ -49,6 +49,10 @@ class Schema
         if (!isset($column->nullable)) $col .= ' NOT NULL';
         if (isset($column->increments)) $col .= ' AUTO_INCREMENT';
 
+        if ($column->type=='timestamp' && $column->default===null) {
+            $col .= ' NULL DEFAULT NULL';
+        }
+
         if (isset($column->default)) $col .= ' DEFAULT '.$column->default;
         if (isset($column->update)) $col .= ' ON UPDATE '.$column->update;
 

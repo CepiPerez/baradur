@@ -131,10 +131,11 @@ class BladeOne
         }
         $compiled = $this->getCompiledFile();
         $template = $this->getTemplateFile();
+        $template = str_replace('//', '/', $template);
+        
         if ($this->isExpired() || $forced ) //|| substr($fileName, 0, 11)=='components/')
         {
             //echo "Compiling $fileName<br>";
-
             $contents = $this->getFile($template);
 
             # Remove all HTML comments
@@ -142,7 +143,6 @@ class BladeOne
 
             # compile the original file
             $contents = $this->compileString($contents);
-
 
             if (!is_null($this->compiledPath))
             {
@@ -156,6 +156,18 @@ class BladeOne
     public function compileString($value)
     {
         $result = '';
+
+        // Folio support - Remove exclusive PHP syntax
+        if (rtrim($this->templatePath, '/') == rtrim(resource_path('views/pages'), '/')) {
+            preg_match( '/<\?[=|php]?[\s\S]*?\?>/is', $value, $blocks);
+
+            foreach ($blocks as $block) {
+                $value = str_replace($block, '', $value);
+            }
+        }
+
+        //$value = str_replace('withTrashed();', '', $value);
+        //$value = str_replace('middleware(', '//middleware(', $value);
 
         if (strpos($value, '@verbatim') !== false) {
             $value = $this->storeVerbatimBlocks($value);
@@ -1678,6 +1690,8 @@ class BladeOne
 
     public function getFile($fileName)
     {
+        //dd($fileName, is_file($fileName));
+
         if (is_file($fileName)) {
             /* $res = file_get_contents($fileName);
             $res = preg_replace('/(@end[a-zA-Z0-9]+)/s', " $1 ", $res);

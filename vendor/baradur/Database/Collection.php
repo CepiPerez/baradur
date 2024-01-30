@@ -198,9 +198,45 @@ Class Collection implements ArrayAccess, Iterator
     }
 
     /**
+     * Get one or a specified number of items randomly from the collection.
+     *
+     * @param  $number
+     * @param  $preserveKeys
+     */
+    public function random($number = null, $preserveKeys = false)
+    {
+        if (is_null($number)) {
+            return Arr::random($this->items);
+        }
+
+        if (is_closure($number)) {
+            list($class, $method) = getCallbackFromString($number);
+
+            $result = executeCallback($class, $method, array($this));
+            
+            return new Collection(Arr::random($this->items, $result, $preserveKeys));
+        }
+
+        return new Collection(Arr::random($this->items, $number, $preserveKeys));
+    }
+
+
+    protected function getArrayableItems($items)
+    {
+        if (is_array($items)) {
+            return $items;
+        } elseif ($items instanceof Collection) {
+            return $items->all();
+        }
+
+        return (array) $items;
+    }
+
+
+    /**
      * Remove an item from the collection by key.
      *
-     * @param  TKey|array<array-key, TKey>  $keys
+     * @param $keys
      * @return $this
      */
     public function forget($keys)
@@ -228,6 +264,18 @@ Class Collection implements ArrayAccess, Iterator
         $this->offsetSet($key, $value = value($value));
 
         return $value;
+    }
+
+    /**
+     * Converts the collection into a JSON serialized string:
+     * 
+     * @return string
+     */
+    public function toJson()
+    {
+        $json = Helpers::toArray($this->items);
+
+        return json_encode($json);
     }
 
     /**
@@ -299,6 +347,28 @@ Class Collection implements ArrayAccess, Iterator
         return array_pop($this->items);
     }
 
+    /**
+     * Get the first item by the given key value pair.
+     *
+     * @param  string  $key
+     * @param  mixed  $operator
+     * @param  mixed  $value
+     * @return TValue|null
+     */
+    public function firstWhere($key, $operator = null, $value = null)
+    {
+        if (func_num_args() === 1) {
+            $value = null;
+            $operator = '!=';
+        }
+
+        if (func_num_args() === 2) {
+            $value = $operator;
+            $operator = '=';
+        }
+
+        return $this->where($key, $operator, $value)->first();
+    }
 
     /**
      * Returns the first item from the collection
@@ -392,6 +462,19 @@ Class Collection implements ArrayAccess, Iterator
     }
 
     /**
+     * Transform each item in the collection using a callback.
+     *
+     * @param  $callback
+     * @return Collection
+     */
+    public function transform($callback)
+    {
+        $this->items = $this->map($callback)->all();
+
+        return $this;
+    }
+
+    /**
      * Run a map over each of the items.
      * Check Laravel documentation
      *
@@ -474,7 +557,7 @@ Class Collection implements ArrayAccess, Iterator
             $dictionary[$key][] = $value;
         }
 
-        return collect($dictionary);
+        return new Collection($dictionary);
     }
 
 
@@ -797,7 +880,7 @@ Class Collection implements ArrayAccess, Iterator
             }
         }
 
-        return collect($results);
+        return new Collection($results);
     }
 
 
@@ -858,8 +941,8 @@ Class Collection implements ArrayAccess, Iterator
     {
         $res = new Collection();
         
-        foreach ($this->items as $record) {
-            $res->items[] = $record;
+        foreach ($this->items as $item) {
+            $res->items[] = $item;
         }
         
         return $res;
@@ -892,7 +975,7 @@ Class Collection implements ArrayAccess, Iterator
     public function get($key, $default = null)
     {
         if (array_key_exists($key, $this->items)) {
-            return collect($this->items[$key]);
+            return new Collection($this->items[$key]);
         }
 
         return value($default);
@@ -1270,7 +1353,7 @@ Class Collection implements ArrayAccess, Iterator
             $results[$key] = $item;
         }
         
-        return collect($results);
+        return new Collection($results);
     }
 
 
@@ -1386,7 +1469,7 @@ Class Collection implements ArrayAccess, Iterator
             ? array_slice($this->items, $offset, $length, false)
             : array_slice($this->items, $offset);
 
-        return collect($res);
+        return new Collection($res);
     }
 
     /**
@@ -1647,6 +1730,19 @@ Class Collection implements ArrayAccess, Iterator
     }
 
 
+
+    /**
+     * Union the collection with the given items.
+     *
+     * @param  \Illuminate\Contracts\Support\Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
+     * @return static
+     */
+    public function union($items)
+    {
+        return new Collection($this->items + $this->getArrayableItems($items));
+    }
+
+
     /**
      * Return only unique items from the collection.
      *
@@ -1655,7 +1751,7 @@ Class Collection implements ArrayAccess, Iterator
     public function unique($key = null, $strict = false)
     {
         if (is_null($key) && $strict === false) {
-            return collect(array_unique($this->items, SORT_REGULAR));
+            return new Collection(array_unique($this->items, SORT_REGULAR));
         }
 
         $new = array();
@@ -1682,7 +1778,7 @@ Class Collection implements ArrayAccess, Iterator
                 }
             }
 
-            return collect(array_values($new));
+            return new Collection(array_values($new));
         }
 
         foreach ($this->items as $item) {
@@ -1694,7 +1790,7 @@ Class Collection implements ArrayAccess, Iterator
             }
         }
 
-        return collect(array_values($new));
+        return new Collection(array_values($new));
     }
 
     /**
@@ -1713,7 +1809,7 @@ Class Collection implements ArrayAccess, Iterator
             asort($items, $callback ? $callback : SORT_REGULAR);
         }
 
-        return collect($items);
+        return new Collection($items);
     }
 
     /**
@@ -1728,7 +1824,7 @@ Class Collection implements ArrayAccess, Iterator
 
         arsort($items, $options);
 
-        return collect($items);
+        return new Collection($items);
     }
 
     /**
@@ -1780,7 +1876,7 @@ Class Collection implements ArrayAccess, Iterator
 
         $descending ? krsort($items, $options) : ksort($items, $options);
 
-        return collect($items);
+        return new Collection($items);
     }
 
     /**
@@ -1810,7 +1906,7 @@ Class Collection implements ArrayAccess, Iterator
 
         uksort($items, $callback);
 
-        return collect($items);
+        return new Collection($items);
     }
 
 
@@ -1821,6 +1917,12 @@ Class Collection implements ArrayAccess, Iterator
      */
     public function intersect($items)
     {
+        $types = $this->getContentType();
+        
+        if (count($types)==0) {
+            return new Collection(array_intersect($this->items, $this->getArrayableItems($items)));
+        }
+
         $intersect = new Collection;
 
         if (empty($items)) {
@@ -1865,6 +1967,128 @@ Class Collection implements ArrayAccess, Iterator
         }
 
         return reset($types);
+    }
+
+
+    private function checkType($item, $type)
+    {
+        return gettype($item) == $type;
+    }
+
+    /**
+     * Ensure that every item in the collection is of the expected type.
+     *
+     * @param  class|string  $type
+     * @return $this
+     *
+     * @throws UnexpectedValueException
+     */
+    public function ensure($type)
+    {
+        if ($type=='int') $type = 'integer';
+        if ($type=='bool') $type = 'boolean';
+        if ($type=='float') $type = 'double';
+
+        foreach ($this->items as $item) {
+            $itemType = gettype($item);
+
+            
+            if ($itemType !== $type && ! $item instanceof $type) {
+                if ($itemType=='object') $itemType = get_class($item);
+
+                throw new UnexpectedValueException(
+                    sprintf("Collection should only include '%s' items, but '%s' found.", $type, $itemType)
+                );
+            }
+        }
+
+        return $this;
+    }
+
+
+    /**
+     * Determine if all items pass the given truth test.
+     *
+     * @param  $key
+     * @param  $operator
+     * @param  $value
+     * @return bool
+     */
+    public function every($key, $operator = null, $value = null)
+    {
+        if (func_num_args() === 1) {
+            if (!is_closure($key)) {
+                throw new LogicException('Error: key must be a callback.');
+            }
+
+            list($class, $method) = getCallbackFromString($key);
+
+            foreach ($this->items as $key => $item) {
+                if (! executeCallback($class, $method, array($item, $key) )) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if (func_num_args() === 2) {
+            $value = $operator;
+            $operator = '=';
+        }
+
+        foreach ($this->items as $record)
+        {
+            $retrieved = $this->getItemValue($record, $key);
+
+            if (is_string($value) && is_string($retrieved)) {
+                $retrieved = trim($retrieved);
+                $value = trim($value);
+            }
+
+            $result = false;
+
+            switch ($operator) {
+                default:
+                case '=':
+                case '==':  if ($retrieved == $value) $result = true; break;
+                case '!=':
+                case '<>':  if ($retrieved != $value) $result = true; break;
+                case '<':   if ($retrieved < $value) $result = true; break;
+                case '>':   if ($retrieved > $value) $result = true; break;
+                case '<=':  if ($retrieved <= $value) $result = true; break;
+                case '>=':  if ($retrieved >= $value) $result = true; break;
+                case '===': if ($retrieved === $value) $result = true; break;
+                case '!==': if ($retrieved !== $value) $result = true; break;
+            }
+
+            if ($result==false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Get a flattened array of the items in the collection.
+     *
+     * @param  int  $depth
+     * @return Collection
+     */
+    public function flatten($depth = INF)
+    {
+        return new Collection(Arr::flatten($this->items, $depth));
+    }
+
+    /**
+     * Flip the items in the collection.
+     *
+     * @return Collection
+     */
+    public function flip()
+    {
+        return new Collection(array_flip($this->items));
     }
 
     /**
@@ -1975,6 +2199,50 @@ Class Collection implements ArrayAccess, Iterator
     }
 
     /**
+     * Calculate the percentage of items that pass a given truth test.
+     *
+     * @param $callback
+     * @param  int  $precision
+     * @return float|null
+     */
+    public function percentage($callback, $precision = 2)
+    {
+        if ($this->isEmpty()) {
+            return null;
+        }
+
+        if (!is_closure($callback)) {
+            throw new InvalidArgumentException('Invalid callback');
+        }
+
+        $count = 0;
+        
+        list($class, $method, $params, $names) = getCallbackFromString($callback);
+
+        foreach ($this->items as $key => $item) {
+
+            for ($i=0; $i < count($params); $i++) {
+                if ($names[$i]=='key') $params[$i] = $key;
+                if ($names[$i]=='value') $params[$i] = $item;
+            }
+
+            if (!in_array('value', $names)) {
+                $params[0] = $item;
+            }
+
+            if (executeCallback($class, $method, $params, $this)) {
+                $count++;
+            }
+        }
+
+        return round(
+            $count / $this->count() * 100,
+            $precision
+        );
+    }
+
+
+    /**
      * Reduce the collection to a single value.
      *
      */
@@ -2010,7 +2278,7 @@ Class Collection implements ArrayAccess, Iterator
 
         $dictionary = Arr::only($this->getDictionary(), $keys);
 
-        return collect(array_values($dictionary));
+        return new Collection(array_values($dictionary));
     }
 
     /**
@@ -2032,7 +2300,7 @@ Class Collection implements ArrayAccess, Iterator
 
         $dictionary = Arr::except($this->getDictionary(), $keys);
 
-        return collect(array_values($dictionary));
+        return new Collection(array_values($dictionary));
     }
 
 

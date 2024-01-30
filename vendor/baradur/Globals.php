@@ -19,7 +19,7 @@ if ( !function_exists( 'hex2bin' ) ) {
 if ( !function_exists('json_decode') )
 {
     function json_decode($content, $assoc=false) {
-        include(_DIR_.'vendor/json/json.php');
+        include_once(_DIR_.'vendor/json/json.php');
         if ( $assoc ){
             $json = new Services_JSON(SERVICES_JSON_LOOSE_TYPE);
         } else {
@@ -199,6 +199,35 @@ if (!function_exists('get_called_class'))
             return get_called_class($i_level + 2);
     
         return $s_class;
+    }
+}
+
+if (!function_exists('class_uses_recursive')) {
+    function class_uses_recursive($class)
+    {
+        $results = array($class);
+
+        foreach (array_merge(array($class), class_parents($class)) as $class) {
+            $results += trait_uses_recursive($class);
+        }
+
+        return array_unique($results);
+    }
+}
+
+if (!function_exists('trait_uses_recursive')) {
+    function trait_uses_recursive($trait)
+    {
+        $result = array($trait);
+
+        global $_class_traits;
+        $traits = isset($_class_traits[$trait]) ? $_class_traits[$trait] : array(); //class_uses($trait);
+
+        foreach ($traits as $t) {
+            $result = array_merge($result, trait_uses_recursive($t));
+        }
+
+        return array_unique($result);
     }
 }
 

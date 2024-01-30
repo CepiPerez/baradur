@@ -82,7 +82,7 @@ class EloquentUserProvider implements UserProvider
             return false;
         }
 
-        return strcmp($user->getAuthPassword(), md5($credentials['password']))===0;
+        return strcmp($user->getAuthPassword(), Hash::make($credentials['password']))===0;
     }
 
     protected function newModelQuery($model = null)

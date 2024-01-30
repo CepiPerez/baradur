@@ -24,6 +24,10 @@ Class Connector
             return $this->_execUnpreparedSql($sql);
         }
         catch (Exception $e) {
+            //dump($e->getMessage());
+            if ($this->isUniqueConstraintError($e)) {
+                throw new UniqueConstraintViolationException($e->getMessage());
+            }
 
             if (config('app.debug')) {
                 throw new QueryException($e->getMessage());
@@ -43,6 +47,9 @@ Class Connector
             return $this->_execSQL($sql, $parent, $fill);
         }
         catch (Exception $e) {
+            if ($this->isUniqueConstraintError($e)) {
+                throw new UniqueConstraintViolationException($e->getMessage());
+            }
 
             if (config('app.debug')) {
                 throw new QueryException($e->getMessage());
@@ -83,4 +90,10 @@ Class Connector
 
         return $item;
     }
+
+    protected function isUniqueConstraintError($exception)
+    {
+        return false;
+    }
+
 }

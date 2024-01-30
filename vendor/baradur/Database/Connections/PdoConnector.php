@@ -6,15 +6,30 @@ Class PdoConnector extends Connector
     public $status;
     protected $inTransaction = false;
 
-    public function __construct($host, $user, $password, $database, $port=3306)
+    public function __construct($config)
     {
+        $host = $config['host'];
+        $username = $config['username'];
+        $password = $config['password'];
+        $database = $config['database'];
+        //$port = $config['port'] ? $config['port'] : 3306;
+
         $this->database = $database;
 
         try {
-            $this->connection = new PDO("mysql:host=$host; dbname=$database", $user, $password,
-                array(PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8"));
+            $this->connection = new PDO(
+                "mysql:host=$host; dbname=$database", 
+                $username, 
+                $password,
+                array(PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8")
+            );
 
-            $this->connection->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
+            $this->connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+            foreach ($config['options'] as $key => $value) {
+                $this->connection->setAttribute($key, $value);
+            }
+                    
         }
         catch(PDOException $e) {
             throw new Exception($e->getMessage());
@@ -29,19 +44,22 @@ Class PdoConnector extends Connector
     
     public function beginTransaction()
     {
-        $this->inTransaction = true;
+        //$this->inTransaction = true;
+        $this->connection->query('START TRANSACTION');
         $this->connection->beginTransaction();
     }
 
     public function commit()
     {
-        $this->connection->commit();
+        //$this->connection->commit();
+        $this->connection->query('COMMIT');
         $this->inTransaction = false;
     }
     
     public function rollBack()
     {
-        $this->connection->rollBack();
+        //$this->connection->rollBack();
+        $this->connection->query('ROLLBACK');
         $this->inTransaction = false;
     }
 
@@ -68,7 +86,7 @@ Class PdoConnector extends Connector
     }
     
     public function _execSQL($sql, $parent, $fill=false)
-    {    
+    {
         $bindings = $parent instanceof Builder? $parent->_bindings : $parent;
 
         $bindings = Builder::__joinBindings($bindings);
@@ -133,4 +151,8 @@ Class PdoConnector extends Connector
         return $sets;
     }
 
+    protected function isUniqueConstraintError($exception)
+    {
+        return preg_match('#Integrity constraint violation: 1062#i', $exception->getMessage());
+    }
 }

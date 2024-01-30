@@ -411,6 +411,10 @@ class Response
             return executeCallback($class, $m, $params, $class, false);
         }
 
+        if (Str::startsWith($method, 'with')) {
+            return $this->with(Str::camel(substr($method, 4)), $parameters[0]);
+        }
+
         throw new BadMethodCallException("Method $method does not exist");
     }
 }

@@ -6,11 +6,17 @@ Class OracleConnector extends Connector
     public $status;
     protected $inTransaction = false;
 
-    public function __construct($host, $user, $password, $database, $port=3306)
+    public function __construct($config)
     {
+        $host = $config['host'];
+        $username = $config['username'];
+        $password = $config['password'];
+        $database = $config['database'];
+        $port = $config['port'] ? $config['port'] : 3306;
+        
         $this->database = $database;
 
-        $this->connection = oci_pconnect($user, $password, 
+        $this->connection = oci_pconnect($username, $password, 
             '(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = '.$host.')
             (PORT = '.$port.')) (CONNECT_DATA = (SID = '.$database.')) )');
 

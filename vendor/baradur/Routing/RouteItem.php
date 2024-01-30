@@ -28,31 +28,46 @@ Class RouteItem
      */
     public function name($name)
     {
+        if (!$name) return $this;
+
         $this->name .= $name;
         return $this;
     }
 
+    /**
+     * Get or set the middlewares attached to the route.
+     *
+     * @param  array|string  $middleware
+     */
     public function middleware($middleware)
     {
-        $this->middleware[] = $middleware;
+        $middleware = is_array($middleware) ? $middleware : array($middleware);
+
+        foreach ($middleware as $m) {
+            $this->middleware[] = $m;
+        }
+
         return $this;
     }
 
     public function can($action, $param=null)
     {
         $this->middleware[] = 'can:'.$action.($param? ','.$param : '');
+        
         return $this;
     }
 
     public function scopeBindings()
     {
         $this->scope_bindings = true;
+        
         return $this;
     }
 
     public function withoutScopeBindings()
     {
         $this->scope_bindings = false;
+        
         return $this;
     }
 
@@ -67,9 +82,14 @@ Class RouteItem
         return $this;
     }
 
-    public function withTrashed()
+    /**
+     * Allow "trashed" models to be retrieved when resolving implicit model bindings for this route.
+     *
+     * @param  bool $withTrashed
+     */
+    public function withTrashed($withTrashed = true)
     {
-        $this->with_trashed = true;
+        $this->with_trashed = $withTrashed;
         return $this;
     }
 

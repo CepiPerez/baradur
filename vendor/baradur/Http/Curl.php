@@ -73,6 +73,8 @@ class Curl
     public function sendRequest($method, $url, $data = array(), $options = array())
     {
         $this->setUrl($url);
+
+        //dd($this);
         $post_data = false;
         
         switch (strtolower($method)) {
@@ -261,10 +263,11 @@ class Curl
      * @param int $port
      */
     public function setUrl($url, $port = NULL) {
+        
         if (!empty($url)) {
             if ($url_parts = parse_url($url)) {
                 $this->url = $url_parts['scheme'] . '://' . $url_parts['host'];
-                
+
                 empty($url_parts['path']) or $this->url .= $url_parts['path'];
                 empty($url_parts['query']) or $this->url .= '?' . $url_parts['query'];
                 
@@ -277,6 +280,7 @@ class Curl
                 $this->error_msg = 'Invalid URL format.';
             }
         }
+
         return $this;
     }
     
@@ -323,13 +327,15 @@ class Curl
         (isset($this->options[CURLOPT_HTTP_VERSION])) or $this->options[CURLOPT_HTTP_VERSION] = $this->http_version;
         isset($this->options[CURLOPT_USERAGENT]) or $this->options[CURLOPT_USERAGENT] = self::USER_AGENT;
         
-        if (config('app.env')=='local') {
+        /* if (config('app.env')=='local') {
             $this->options[CURLOPT_PROXY] = $_SERVER['SERVER_ADDR'] . ':' .  $_SERVER['SERVER_PORT'];
-        }
+        } */
 
         if ($this->request = curl_init($this->url) and is_resource($this->request)) {
             $set_options = curl_setopt_array($this->request, $this->options);
-            
+
+            curl_setopt($this->request, CURLOPT_PORT, 9000);
+
             $this->response = curl_exec($this->request);
             $this->info = curl_getinfo($this->request);
             

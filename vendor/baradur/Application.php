@@ -2,7 +2,7 @@
 
 class Application
 {
-    const VERSION = '1.5';
+    const VERSION = '1.6';
 
     protected $basePath;
     protected $databasePath;

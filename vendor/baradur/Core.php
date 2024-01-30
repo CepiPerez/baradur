@@ -23,94 +23,14 @@ $_feature_list = array();
 $_enum_list = array();
 $_builder_methods = array();
 $_invokable_list = array();
+$_class_traits = array();
+
+$_classes_already_checked = false;
 
 global $artisan;
 
 # Load all classes
-if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'))
-{
-    global $debuginfo, $artisan;
-    $debuginfo['startup'] = 'Cache is empty. Creating all classes';
-
-    $it = new RecursiveDirectoryIterator(_DIR_.'app');
-    foreach(new RecursiveIteratorIterator($it) as $file)
-    {
-        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
-        {
-            $key = str_ireplace('.php', '', basename($file));
-
-            $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
-            
-            if (strpos(realpath($file), '/app/models/')>0)
-                $_model_list[] = $key;
-            
-            if (strpos(realpath($file), '/app/resources/')>0)
-                $_resource_list[] = $key;
-
-            if (strpos(realpath($file), '/app/features/')>0)
-                $_feature_list[] = $key;
-
-        }
-    }
-    $it = new RecursiveDirectoryIterator(_DIR_.'database');
-    foreach(new RecursiveIteratorIterator($it) as $file)
-    {
-        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
-        {
-            $key = str_ireplace('.php', '', basename($file));
-
-            $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
-        }
-    }
-
-    $it = new RecursiveDirectoryIterator(_DIR_.'vendor/baradur');
-    foreach(new RecursiveIteratorIterator($it) as $file)
-    {
-        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
-        {
-            $key = str_ireplace('.php', '', basename($file));
-            
-            if (!isset($_class_list[$key])) {
-                $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
-            }
-        } 
-    }
-
-    $it = new RecursiveDirectoryIterator(_DIR_.'vendor/faker');
-    foreach(new RecursiveIteratorIterator($it) as $file)
-    {
-        if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
-        {
-            $key = str_ireplace('.php', '', basename($file));
-
-            if (!isset($_class_list[$key])) {
-                $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
-            }
-        }
-    }
-
-    $it = null;
-
-    @file_put_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php', serialize($_class_list));
-    @file_put_contents(_DIR_.'storage/framework/config/models.php', serialize($_model_list));
-    @file_put_contents(_DIR_.'storage/framework/config/resources.php', serialize($_resource_list));
-    @file_put_contents(_DIR_.'storage/framework/config/features.php', serialize($_feature_list));
-}
-else
-{
-    global $debuginfo;
-    $debuginfo['startup'] = 'All classes loaded from cache';
-
-    $_class_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'));
-    $_model_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/models.php'));
-    $_resource_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/resources.php'));
-    $_feature_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/features.php'));
-
-}
-if (file_exists(_DIR_.'storage/framework/config/enums.php')) {
-    $_enum_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/enums.php'));
-}
-
+baradur_load_all();
 
 # Autoload function registration
 spl_autoload_register('baradur_class_loader');
@@ -225,12 +145,109 @@ foreach ($_service_providers as $key => $provider) {
 }
 
 
+# Load all classes and save them in framework folder
+function baradur_load_all()
+{
+    global $artisan, $_class_list, $_model_list, $_resource_list, $_feature_list;
+    
+    if (!file_exists(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'))
+    {
+        global $debuginfo, $artisan;
+        $debuginfo['startup'] = 'Cache is empty. Creating all classes';
+
+        $it = new RecursiveDirectoryIterator(_DIR_.'app');
+        foreach(new RecursiveIteratorIterator($it) as $file)
+        {
+            if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
+            {
+                $key = str_ireplace('.php', '', basename($file));
+
+                $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
+                
+                if (strpos(realpath($file), '/app/models/')>0)
+                    $_model_list[] = $key;
+                
+                if (strpos(realpath($file), '/app/resources/')>0)
+                    $_resource_list[] = $key;
+
+                if (strpos(realpath($file), '/app/features/')>0)
+                    $_feature_list[] = $key;
+
+            }
+        }
+        $it = new RecursiveDirectoryIterator(_DIR_.'database');
+        foreach(new RecursiveIteratorIterator($it) as $file)
+        {
+            if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
+            {
+                $key = str_ireplace('.php', '', basename($file));
+
+                $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
+            }
+        }
+
+        $it = new RecursiveDirectoryIterator(_DIR_.'vendor/baradur');
+        foreach(new RecursiveIteratorIterator($it) as $file)
+        {
+            if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
+            {
+                $key = str_ireplace('.php', '', basename($file));
+                
+                if (!isset($_class_list[$key])) {
+                    $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
+                }
+            } 
+        }
+
+        $it = new RecursiveDirectoryIterator(_DIR_.'vendor/faker');
+        foreach(new RecursiveIteratorIterator($it) as $file)
+        {
+            if (substr(basename($file), -4)=='.php' || substr(basename($file), -4)=='.PHP')
+            {
+                $key = str_ireplace('.php', '', basename($file));
+
+                if (!isset($_class_list[$key])) {
+                    $_class_list[$key] = str_replace(_DIR_, '', realpath($file));
+                }
+            }
+        }
+
+        $it = null;
+
+        @file_put_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php', serialize($_class_list));
+        @file_put_contents(_DIR_.'storage/framework/config/models.php', serialize($_model_list));
+        @file_put_contents(_DIR_.'storage/framework/config/resources.php', serialize($_resource_list));
+        @file_put_contents(_DIR_.'storage/framework/config/features.php', serialize($_feature_list));
+    }
+    else
+    {
+        global $debuginfo;
+        $debuginfo['startup'] = 'All classes loaded from cache';
+
+        $_class_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php'));
+        $_model_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/models.php'));
+        $_resource_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/resources.php'));
+        $_feature_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/features.php'));
+    }
+
+    if (file_exists(_DIR_.'storage/framework/config/traits.php')) {
+        global $_class_traits;
+        $_class_traits = unserialize(file_get_contents(_DIR_.'storage/framework/config/traits.php'));
+    }
+
+    if (file_exists(_DIR_.'storage/framework/config/enums.php')) {
+        global $_enum_list;
+        $_enum_list = unserialize(file_get_contents(_DIR_.'storage/framework/config/enums.php'));
+    }
+}
+
+
 # Autoload function
 function baradur_class_loader($class, $require=true) 
 {
     if (strpos($class, 'PHPExcel_')!==false) return;
 
-    //if ($require) echo "Loading Baradur class: ".$class."<br>";
+    //if ($require) echo "Loading Baradur class: ".$class."\n";
  
     $newclass = null;
 
@@ -239,7 +256,12 @@ function baradur_class_loader($class, $require=true)
     if (isset($_class_list[$class])) {
         $newclass = _DIR_ . $_class_list[$class];
     }
+
+    if (strpos($class, 'baradurClosures_')===0) {
+        $newclass = $class;
+    }
     
+
     if (file_exists(_DIR_.'storage/framework/classes/'.$class.'.php') && $newclass)
     {
         $date = filemtime($newclass);
@@ -326,6 +348,27 @@ function baradur_class_loader($class, $require=true)
     }
     
     if (!$require) {
+        return;
+    }
+
+    global $_classes_already_checked;
+
+    if (!$_classes_already_checked) {
+        unlink(_DIR_.'storage/framework/config/'.($artisan? 'artisan_':'').'classes.php');
+        
+        if (file_exists(_DIR_.'storage/framework/config/traits.php')) {
+            unlink(_DIR_.'storage/framework/config/traits.php');
+        }
+        if (file_exists(_DIR_.'storage/framework/config/enums.php')) {
+            unlink(_DIR_.'storage/framework/config/enums.php');
+        }
+
+        baradur_load_all();
+
+        $_classes_already_checked = true;
+
+        baradur_class_loader($class);
+        
         return;
     }
 

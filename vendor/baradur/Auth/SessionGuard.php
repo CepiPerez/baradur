@@ -81,10 +81,11 @@ class SessionGuard
 
     public function logout()
     {
-        //$user = Model::instance($this->provider)->find($this->id());
-        $user = $this->provider->retrieveById($this->id());
-        $user->token = null;
-        $user->save();
+        if ($this->id()) {
+            $user = $this->provider->retrieveById($this->id());
+            $user->token = null;
+            $user->save();
+        }
 
         $domain = $_SERVER["HTTP_HOST"];
         setcookie(config('app.name').'_token', '', time() - 3600, '/', $domain);

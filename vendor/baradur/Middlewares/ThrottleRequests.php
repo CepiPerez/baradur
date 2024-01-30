@@ -11,11 +11,10 @@ class ThrottleRequests
 
     public function handle($request, $next, $maxAttempts = 60, $decayMinutes = 1, $prefix = '')
     {
-        //dump(func_get_args());__exit();
         if (is_numeric($maxAttempts)) {
             $maxAttempts = intval($maxAttempts);
         }
-        
+
         if (is_string($maxAttempts)
             && func_num_args() === 3
             && ! is_null($limiter = $this->limiter->limiter($maxAttempts))) {
@@ -99,10 +98,14 @@ class ThrottleRequests
         }
 
         if (! is_numeric($maxAttempts) && $request->user()) {
-            $maxAttempts = $request->user()->{$maxAttempts}
-                ? $request->user()->{$maxAttempts}
+            $attrs = $request->user()->getAttributes();
+
+            $maxAttempts = $attrs[$maxAttempts]
+                ? $attrs[$maxAttempts]
                 : 60;
-        }
+        } /* else {
+            $maxAttempts = 60;
+        } */
 
         return (int) $maxAttempts;
     }

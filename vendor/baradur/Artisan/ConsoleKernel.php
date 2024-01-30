@@ -39,7 +39,7 @@ class ConsoleKernel
             'CoreLoader::loadClass($2, false);', 
             $temp
         );
-        $temp = $phpConverter->replaceNewPHPFunctions($temp, 'App_Http_Kernel', _DIR_);        
+        $temp = $phpConverter->replaceNewPHPFunctions($temp, 'App_Console_Kernel', _DIR_);        
 
         Cache::store('file')->plainPut(_DIR_.'storage/framework/classes/App_Console_Kernel.php', $temp);
         require_once(_DIR_.'storage/framework/classes/App_Console_Kernel.php');
@@ -63,6 +63,11 @@ class ConsoleKernel
         $this->commands();
     }
 
+    public function loadSchedule()
+    {
+        $this->schedule(new Schedule);
+    }
+
     public function load($path)
     {
         $it = new RecursiveDirectoryIterator($path);
@@ -79,6 +84,11 @@ class ConsoleKernel
     public function getCommands()
     {
         return $this->commands;        
+    }
+
+    protected function schedule(Schedule $schedule)
+    {
+
     }
 
 }

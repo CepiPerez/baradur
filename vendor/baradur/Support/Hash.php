@@ -245,6 +245,7 @@ class Hash
 	public static function check($password, $hash)
 	{
 		$result = self::make($password);
+
 		return strcmp($result, $hash) == 0;
 	}
 

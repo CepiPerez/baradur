@@ -45,6 +45,11 @@ Class App {
         return Application::VERSION;
     }
 
+    public function environment()
+    {
+        return config('app.env');
+    }
+
     public function isLocal()
     {
         return config('app.env') == 'local';

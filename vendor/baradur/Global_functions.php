@@ -6,10 +6,12 @@ function route() { return Route::getRoute(func_get_args()); }
 function to_route() { return redirect(Route::getRoute(func_get_args())); }
 function __($translation, $placeholder=null) { return Helpers::trans($translation, $placeholder); }
 function public_path($path=null) { return config('app.url').'/'.$path; }
+function resource_path($path=null) { return _DIR_.'resources/'.$path; }
 function storage_path($path=null) { return _DIR_.'storage/'.$path; }
+function database_path($path=null) { return _DIR_.'database/'.$path; }
 function base_path($path=null) { return _DIR_.$path; }
 function csrf_token() { return App::getRequestToken(); }
-function config($val) { return Helpers::config($val); }
+function config($val, $default=null) { return Helpers::config($val,$default); }
 function class_basename($name) { return get_class($name); }
 function abort_if($condition, $code) { if ($condition) abort($code); }
 function abort_unless($condition, $code) { if (!$condition) abort($code); }
@@ -23,7 +25,7 @@ function auth() { return new Auth; }
 function session($key=null, $default=null) { return request()->session($key, $default); }
 
 /** @return Stringable */ 
-function str($string=null) { if (!$string) return new Stringable; else return Str::of($string); }
+function str($string=null) { return Str::of($string); }
 
 /** @return Collection */ 
 function collect($data=array()) { return new Collection($data); }
@@ -109,27 +111,6 @@ function abort($code, $message=null)
 	if (!$message && !in_array($code, array(401, 402, 403, 404, 419, 429, 500, 503))) {
 		$message = HttpResponse::$reason_phrases[$code];
 	}
-
-	error($code, $message);
-}
-
-/**
- * Shows the error page with custom number and message\
- * Example: error(666, 'Unexpected error')
- * 
- * @param string $error
- * @param string $message
- */
-function error($code, $message)
-{
-	/* if (file_exists(_DIR_.'resources/views/errors/'.$error_code.'.blade.php')) {
-		$res = view('errors.'.$error_code, compact('error_code', 'error_message'));
-	} else {
-		$res = view('layouts.error', compact('error_code', 'error_message', 'breadcrumb'));
-	}
-
-	$response = response( (string)$res, $error_code);
-	echo $response->body(); exit();  */
 		
 	switch ((int)$code) {
         case 401: 
@@ -155,14 +136,6 @@ function error($code, $message)
 }
 
 
-/**
- * Returns to previous page if no parameter is defined
- * or eturns back the number of pages 
- * Example: error(666, 'Unexpected error')
- * 
- * @param string $pages
- * @return Response
- */
 function back()
 {
 	$old = array();
@@ -186,7 +159,7 @@ function back()
 	if (isset($_SERVER["HTTP_REFERER"])) {
         $address = $_SERVER["HTTP_REFERER"];
 	} else {
-		$address = $_SESSION['url_history'][0];
+		$address = config('app.url') . $_SESSION['url_history'][0];
 	}
 
 	$rawHeaders = "HTTP/1.1 200 OK" . 
@@ -322,7 +295,10 @@ function __dump($content, $full=false, $die=false)
 	$final_content = array();
 	$show_buttons = false;
 
+	$legend = basename($file) . ':' . $line;
+
 	//$dumper = new NewDumper;
+
 
 	foreach ($content as $data) {
 
@@ -335,7 +311,7 @@ function __dump($content, $full=false, $die=false)
 
 		preg_match_all('/\)(#\d*)/', $str, $matches); */
 
-		$res = VarDumper::getDump($data, $full/* , $matches[1] */);
+		$res = VarDumper::getDump($data, $full, $legend);
 		//$res = $dumper->process($data);
 
 		if(strpos($res, '_btn">&#9660;</span')!==false) {
@@ -345,7 +321,17 @@ function __dump($content, $full=false, $die=false)
 		$final_content[] = $res;
 	}
 
-	$legend = basename($file) . ': ' . $line;
+	global $artisan;
+
+	if ($artisan) {
+
+		echo join("\n", $final_content); // . "\n";
+		
+		if ($die) die();
+
+		return;
+	}
+	
 
 	$html = '<div style="line-height:1.1rem;background:'.($theme=='dark'? '#18181b':'#f9fafb').
 		';margin:0 0 .5rem 0;padding:.75rem 1rem .5rem;border:1px solid lavender;font-family:monospace;
@@ -366,7 +352,7 @@ function __dump($content, $full=false, $die=false)
 	}
 	
 	$html .= implode('<div style="margin:.5rem 0 0 0"></div>', $final_content).
-		'<p style="color:gray;margin:.5rem 0 0 0;">// '.$legend.'</p></div>
+		'</div>
 		<script>function toggleDisplay(id) { 
 			var current = document.getElementById(id).style.height;
 			document.getElementById(id).style.height = (current == "auto") ? "0" : "auto"; 
@@ -1099,7 +1085,8 @@ function find_similar($input, $words, $limit=4)
 	return $shortest < $limit ? $closest : null;
 }
 
-function __match($value, $options)
+// Deprecated ??
+/* function __match($value, $options)
 {
 	foreach ($options as $key => $val) {
 		if ($key == $value) {
@@ -1107,11 +1094,54 @@ function __match($value, $options)
 		}
 	}
 	return $options['default'];
-}
+} */
 
 function event($event)
 {
 	return app('Dispatcher')->dispatch($event);
 }
 
+// Laravel Prompts
 
+function text($label, $placeholder = '', $default = '', $required = false, $validate = null, $hint = '')
+{
+	return Prompts::get_user_input($label, $placeholder, $default, $required, false, $validate, $hint);
+}
+
+function password($label, $placeholder = '', $required = false, $validate = null, $hint = '')
+{
+	return Prompts::get_user_input($label, $placeholder, '', $required, true, $validate, $hint);
+}
+
+function select($label, $options, $default = null, $scroll = 5, $validate = null, $hint = '')
+{
+    return Prompts::get_user_choice($label, $options, $default, $scroll, $validate, $hint);
+}
+
+function multiselect($label, $options, $default = array(), $scroll = 5, $required = false, $validate = null, $hint = '')
+{
+    return Prompts::get_user_multichoice($label, $options, $default, $scroll, $required, $validate, $hint);
+}
+
+function confirm($label, $default = true, $yes = 'Yes', $no = 'No', $required = false, $hint = '')
+{
+    return Prompts::get_user_confirm($label, $default, $yes, $no, $required, $hint);
+}
+
+function suggest($label, $options, $placeholder = '', $default = '', $scroll = 5, $required = false, $validate = null, $hint = '')
+{
+    return Prompts::get_user_suggest($label, $options, $placeholder, $default, $scroll, $required, $validate, $hint);
+}
+
+function search($label, $options, $placeholder = '', $scroll = 5, $validate = null, $hint = '')
+{
+    return Prompts::get_user_search($label, $options, $placeholder, $scroll, $validate, $hint);
+}
+
+function outro($message) { return Prompts::show_note($message, 'outro'); }
+function intro($message) { return Prompts::show_note($message, 'intro'); }
+function note($message) { return Prompts::show_note($message, 'note'); }
+function info($message) { return Prompts::show_note($message, 'info'); }
+function warning($message) { return Prompts::show_note($message, 'warning'); }
+function error($message) { return Prompts::show_note($message, 'error'); }
+function alert($message) { return Prompts::show_note($message, 'alert'); }

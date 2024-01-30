@@ -146,9 +146,12 @@ class CoreLoader
                 }
             }
         }
-        
-        $reflectionMethod = new ReflectionMethod($class, $method);       
-        return $reflectionMethod->invokeArgs($instance, $params);
+
+        $reflectionMethod = new ReflectionMethod($class, $method);
+        return $reflectionMethod->invokeArgs(
+            $instance? $instance : new $class(), 
+            $params? $params : array()
+        );
 
     }
 
@@ -185,8 +188,12 @@ class CoreLoader
     {
 
         global $debuginfo;
-        $size = function_exists('memory_get_usage') ? memory_get_usage() : 0;
-        $debuginfo['memory_usage'] = get_memory_converted($size);
+        if (function_exists('memory_get_usage')) {
+            $size = memory_get_usage();
+            $debuginfo['memory_usage'] = get_memory_converted($size);
+        } else {
+            $debuginfo['memory_usage'] = 'Disabled';
+        }
         $params['debug_info'] = $debuginfo;
 
         $start = $debuginfo['start'];

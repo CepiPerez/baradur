@@ -56,7 +56,7 @@ Class View
 		return self::renderTemplate($file, $args);
 	}
 
-	public static function renderTemplate($file, $args, $return_blade=false)
+	public static function renderTemplate($file, $args=array(), $return_blade=false)
 	{
 		list($views, $file) = Blade::__findTemplate($file);
 

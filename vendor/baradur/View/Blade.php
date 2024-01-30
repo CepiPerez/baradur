@@ -53,13 +53,16 @@ class Blade
 
     public static function __findTemplate($template)
     {
-        $dir = _DIR_ . 'resources/views/';
+        $dir = reset(config('view.paths')) . '/'; // _DIR_ . 'resources/views/';
+        //dd($dir, $template,
+        //str_replace('//', '/', $dir . str_replace('.', '/', $template) . '/index.blade.php'),
+        //file_exists(str_replace('//', '/', $dir . str_replace('.', '/', $template) . '/index.blade.php')));
 
-        if (file_exists($dir . str_replace('.', '/', $template) . '.blade.php')) { 
+        if (file_exists(str_replace('//', '/', $dir . str_replace('.', '/', $template) . '.blade.php'))) { 
             return array($dir, $template);
         }
 
-        if (file_exists($dir . str_replace('.', '/', $template) . '/index.blade.php')) {
+        if (file_exists(str_replace('//', '/', $dir . str_replace('.', '/', $template) . '/index.blade.php'))) {
             return array($dir, $template.'.index');
         }
         

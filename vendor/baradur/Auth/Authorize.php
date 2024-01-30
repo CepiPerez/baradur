@@ -46,6 +46,7 @@ class Authorize
             $func = Str::camel($function);
         }
 
+        
         if (!$cont) {
             
             $callable = Gate::$policies[$function];
@@ -83,6 +84,14 @@ class Authorize
 
         $c = new $cont;
         $res = false;
+
+        if (method_exists($c, 'before')) {
+            $res = $c->before(Auth::user(), $func);
+
+            if ($res!==null) {
+                return $res ? $res : abort(403);
+            }
+        }
 
         if ($model) {
             $res = $c->$func(Auth::user(), $model);

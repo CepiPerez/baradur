@@ -12,6 +12,10 @@ class DB
      * @param string $table
      * @return Builder
      */
+
+    protected static $connection = null;
+    protected $connectionDriver = null;
+
     public static function table($table, $as = null)
     {
         $res = Model::instance('Model', $table, $as);
@@ -134,6 +138,44 @@ class DB
 
             return false;
         }
+    }
+
+    public function __getConnector($connection=null)
+    {
+        if ($this->connectionDriver) {
+            return $this->connectionDriver;
+        }
+
+        $config = config('database.connections.' . $connection);
+
+        $this->connectionDriver = $this->setConnectorDriver($config);
+
+        return $this->connectionDriver;
+    }
+
+    protected function setConnectorDriver($config)
+    {
+        if (isset($_SERVER['USERNAME']) || isset($_SERVER['SHELL'])) {
+            $config['host'] = "127.0.0.1";
+        }
+    
+        if ($config['driver']=='mysql') {
+            return new PdoConnector($config);
+        }
+
+        if ($config['driver']=='mysqli') {
+            return new MysqliConnector($config);
+        }
+
+        if ($config['driver']=='oracle') {
+            return new OracleConnector($config);
+        }
+
+        if ($config['driver']=='sqlite' || $config['driver']=='sqlite2') {
+            return new SqliteConnector($config);
+        }
+
+        throw new RuntimeException("Driver [" . $config['driver'] . "] not supported.");
     }
 
 

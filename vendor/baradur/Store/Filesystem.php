@@ -80,6 +80,19 @@ class Filesystem
 
     }
 
+    public function append($path, $contents)
+    {
+        $path = $this->getPath() . $path;
+
+        //echo "Saving $path<br>";
+        $res = file_put_contents($path, $contents, FILE_APPEND | LOCK_EX);
+
+        if ($res) @chmod($path, 0777);
+
+        return $res===false? false : true;
+
+    }
+
     public function delete($paths)
     {
         $paths = is_array($paths) ? $paths : func_get_args();

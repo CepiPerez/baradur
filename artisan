@@ -21,11 +21,13 @@ $default_commands = array(
     'about' => "Display basic information about your application",
     'down' => "Put the application into maintenance / demo mode",
     'env' => "Display the current framework environment",
+    'inspire' => "Display an inspiring quote",
     'migrate' => "Run the database migrations",
     'up' => "Bring the application out of maintenance mode",
     'cache:clear' => "Flush the application cache",
     'config:cache' => "Create a cache file for faster configuration loading",
     'config:clear' => "Remove the configuration cache file",
+    'config:show' => "Display all of the values for a given configuration file",
     'db:seed' => "Seed the database with records",
     'event:generate' => "Generate the missing events and listeners based on registration",
     'event:list' => "List the application's events and listeners",
@@ -46,6 +48,7 @@ $default_commands = array(
     'make:resource' => "Create a new resource",
     'make:rule' => "Create a new validation rule",
     'make:seeder' => "Create a new seeder class",
+    'make:view' => "Create a new view",
     'migrate:fresh' => "Drop all tables and re-run all migrations",
     'migrate:reset' => "Rollback all database migrations",
     'migrate:rollback' => "Rollback the last database migration",
@@ -58,6 +61,9 @@ $default_commands = array(
     'route:cache' => "Create a route cache file for faster route registration",
     'route:clear' => "Remove the route cache file",
     'route:list' => "List all registered routes",
+    'schedule:list' => 'List all scheduled tasks',
+    'schedule:run' => 'Start the schedule worker',
+    'schedule:work' => 'List all scheduled tasks',
     'storage:link' => "Create the symbolic links configured for the application",
     'view:cache' => "Compile all of the application's Blade templates",
     'view:clear' => "Clear all compiled view files"
@@ -202,6 +208,61 @@ function seed($seeder=null)
     Artisan::info("Database seeding completed successfully.");
 }
 
+function scheduleRun()
+{
+    $kernel = ConsoleKernel::getKernel();
+    $kernel->loadSchedule();
+
+    //dd(Schedule::getJobs());
+
+    //printf("\n");
+    foreach(Schedule::getJobs() as $job) {
+        if ($job['now']) {
+            //Artisan::scheduleInfo($job['expression'], $job['command'], $job['next']);
+            
+            if (is_closure($job['real'])) {
+                Artisan::info("Running ".$job['command']);
+                
+                list($class, $method) = getCallbackFromString($job['real']);
+
+                $reflectionMethod = new ReflectionMethod($class, $method);
+                $method_params = $reflectionMethod->getParameters();
+
+                $route_params = array();
+
+                for ($i=0; $i < count($method_params); $i++) {
+                    $key = $method_params[$i];
+                    $route_params[$key->name] = $job['parameters'][$i];
+                }
+
+                try {
+                    $params = SubstituteBindings::buildClassParameters($c, $method_params, $route_params);
+                } catch (Exception $e) {
+                    Artisan::exception(get_class($e), $e->getMessage());
+                }
+
+                executeCallback($class, $method, $params);
+            }
+            else {
+                Artisan::info("Running ".$job['command']);
+
+                $command = $job['real'];
+                
+                foreach ($job['parameters'] as $param) {
+                    if (is_numeric($param))
+                        $command .= ' ' . $param;
+                    else
+                        $command .= ' "' . $param . '"';
+                }
+                
+                shell_exec('cd ' . _DIR_ . '; ' . $command);
+            }
+
+        }
+    }
+    printf("\n");
+}
+
 function makeController($controller, $resource=false, $api=false, $singleton=false, $invokable=false)
 {
     $class = null;
@@ -222,7 +283,7 @@ function makeController($controller, $resource=false, $api=false, $singleton=fal
 
     file_put_contents('app/http/controllers/'.$controller.'.php', $class);
     
-    Artisan::info("Controller [$controller] created successfully.");
+    Artisan::info("Controller [app/http/controllers/$controller.php] created successfully.");
 
 }
 
@@ -234,7 +295,7 @@ function makeModel($model)
 
     file_put_contents('app/models/'.$model.'.php', $class);
     
-    Artisan::info("Model [$model] created successfully.");
+    Artisan::info("Model [app/models/$model.php] created successfully.");
 
 }
 
@@ -246,7 +307,7 @@ function makePolicy($policy)
 
     file_put_contents('app/policies/'.$policy.'.php', $class);
     
-    Artisan::info("Policy [$policy] created successfully.");
+    Artisan::info("Policy [app/policies/$policy] created successfully.");
 }
 
 function makeCommand($command)
@@ -310,7 +371,7 @@ function makeMigration($command)
 
     file_put_contents('database/migrations/'.$timestamp.'_'.$command.'.php', $class);
 
-    Artisan::info("Migration created successfully.");
+    Artisan::info("Migration [database/migrations/".$timestamp."_".$command.".php] created successfully.");
 
 }
 
@@ -453,7 +514,7 @@ if ($action == '--raw')
 if ($action == 'make:migration')
 {
     if (count($argv)==0) {
-        $migration = Artisan::input("What should the migration be named?");
+        $migration = text("What should the migration be named?", "E.g. create_flights_table", "", "The name is required.");
     } else {
         $migration = $argv[0];
     }
@@ -487,9 +548,11 @@ elseif ($action == 'make:controller')
     $singleton = false;
     $invokable = false;
     $api = false;
+    $type = false;
 
     if (count($argv)==0) {
-        $controller = Artisan::input("What should the controller be named?");
+        $controller = text("What should the controller be named?", "E.g. UserController", '', "The name is required.");
+        //die("CONTRILLER: $controller\n");
     } else {
         $controller = $argv[0];
     }
@@ -501,21 +564,36 @@ elseif ($action == 'make:controller')
         }
 
         elseif ($arg=='--resource') {
+            $type = true;
             $resource = true;
         }
 
         elseif ($arg=='--singleton') {
+            $type = true;
             $singleton = true;
         }
 
         elseif ($arg=='--invokable') {
+            $type = true;
             $invokable = true;
         }
 
         elseif ($arg=='--api') {
+            $type = true;
             $api = true;
             $resource = true;
         }
+    }
+
+    if (!$type) {
+        $type = select("Which type of controller would you like?",
+                array('Empty', 'Resource', 'Singleton', 'API', 'Invokable')
+            );
+
+        if ($type=="Resource") { $resource = true; }
+        if ($type=="Singleton") { $singleton = true; }
+        if ($type=="API") { $resource = true; $api = true; }
+        if ($type=="Invokable") { $invokable = true; }
     }
 
     if (file_exists('app/http/controllers/'.$controller.'.php')) {
@@ -534,9 +612,9 @@ elseif ($action == 'make:controller')
 elseif ($action == 'make:policy')
 {
     if (count($argv)==0) {
-        $polocy = Artisan::input("What should the polocy be named?");
+        $policy = text("What should the policy be named?", "E.g. PostPolicy", "", "The name is required.");
     } else {
-        $polocy = $argv[0];
+        $policy = $argv[0];
     }
     
     if (file_exists('app/policies/'.$policy.'.php')) {
@@ -553,16 +631,26 @@ elseif ($action == 'make:model')
     $controller = false;
     $resource = false;
     $migration = false;
+    $policy = false;
 
     if (count($argv)==0) {
-        $model = Artisan::input("What should the model be named?");
-    }    
+        $model = text("What should the model be named?", "E.g. Flight", "", "The name is required.");
+
+        $types = multiselect("Would you like any of the following?",
+                array('Migration', 'Policy', 'Resource Controller')
+            );
+
+        if (in_array("Migration", $types)) { $migration = true; }
+        if (in_array("Policy", $types)) { $policy = true; }
+        if (in_array("Resource Controller", $types)) { $controller = true; $resource = true; }
+    }
 
     foreach ($argv as $arg)
     {
         if ($arg=='--controller') $controller = true;
         elseif ($arg=='--migration') $migration = true;
         elseif ($arg=='--resource') $resource = true;
+        elseif ($arg=='--policy') $policy = true;
         elseif (substr($arg, 0, 1)=='-' && strlen($arg)>1)
         {
             foreach (str_split(str_replace('_', '', $arg)) as $a)
@@ -581,22 +669,29 @@ elseif ($action == 'make:model')
         die();
     }
         
-    makeModel(ucfirst($model));
+    $model = ucfirst(strtolower($model));
+
+    makeModel($model);
 
     /* $config = new Config;
     $config->boot(); */
     CoreLoader::loadClass(_DIR_.'app/providers/RouteServiceProvider.php', true);
 
-    if (!file_exists('app/http/controllers/'.$model.'Controller.php') && $controller)
-    {
+    if (!file_exists('app/http/controllers/'.$model.'Controller.php') && $controller) {
+        echo "\r\033[K\033[1A\r\033[K\r";
         makeController($model.'Controller', $resource);        
     }
 
-    if ($migration)
-    {
+    if (!file_exists('app/policies/'.$model.'Policy.php') && $policy) {
+        echo "\r\033[K\033[1A\r\033[K\r";
+        makePolicy($model.'Policy');        
+    }
+
+    if ($migration) {
         $table = Helpers::getPlural($model, true);
         $arg = 'create_'.strtolower($table).'_table';
 
+        echo "\r\033[K\033[1A\r\033[K\r";
         makeMigration($arg);
     }
 }
@@ -604,7 +699,7 @@ elseif ($action == 'make:model')
 elseif ($action == 'make:mail')
 {
     if (count($argv)==0) {
-        $mail = Artisan::input("What should the mail be named?");
+        $mail = text("What should the mailable be named?", "", "", "The name is required.");
     } else {
         $mail = $argv[0];
     }
@@ -623,14 +718,14 @@ elseif ($action == 'make:mail')
 
     file_put_contents('app/mail/'.$mail.'.php', $class);
 
-    Artisan::info("Mail [$mail] created successfully.");
+    Artisan::info("Mail [app/mail/$mail.php] created successfully.");
 
 }
 
 elseif ($action == 'make:seeder')
 {
     if (count($argv)==0) {
-        $seeder = Artisan::input("What should the seeder be named?");
+        $seeder = text("What should the seeder be named?", "E.g. UserSeeder", "", "The name is required.");
     } else {
         $seeder = $argv[0];
     }
@@ -646,7 +741,7 @@ elseif ($action == 'make:seeder')
 
     file_put_contents('database/seeders/'.$seeder.'.php', $class);
 
-    Artisan::info("Seeder [$seeder] created successfully.");
+    Artisan::info("Seeder [database/seeders/$seeder.php] created successfully.");
 
 }
 
@@ -655,7 +750,7 @@ elseif ($action == 'make:factory')
     $factory = null;
 
     if (count($argv)==0) {
-        $factory = Artisan::input("What should the factory be named?");
+        $factory = text("What should the factory be named?", "E.g. PostFactory", "", "The name is required.");
     } else {
         $factory = $argv[0];
     }
@@ -683,20 +778,20 @@ elseif ($action == 'make:factory')
 
     file_put_contents('database/factories/'.$factory.'.php', $class);
 
-    Artisan::info("Factory [$factory] created successfully.");
+    Artisan::info("Factory [database/factories/$factory.php] created successfully.");
 
 }
 
 elseif ($action == 'make:middleware')
 {
     if (count($argv)==0) {
-        $middleware = Artisan::input("What should the middleware be named?");
+        $middleware = text("What should the middleware be named?", "E.g. EnsureTokenIsValid", "", "The name is required.");
     } else {
         $middleware = $argv[0];
     }
 
     if (file_exists('app/http/middleware/'.$middleware.'.php')) {
-        Artisan::error("Middleware [$middleware] already exists.");
+        Artisan::error("Middleware [app/http/middleware/$middleware.php] already exists.");
         die();
     }
 
@@ -706,14 +801,14 @@ elseif ($action == 'make:middleware')
 
     file_put_contents('app/http/middleware/'.$middleware.'.php', $class);
 
-    Artisan::info("Middleware [$middleware] created successfully.");
+    Artisan::info("Middleware [app/http/middleware/$factory.php] created successfully.");
 
 }
 
 elseif ($action == 'make:request')
 {
     if (count($argv)==0) {
-        $request = Artisan::input("What should the request be named?");
+        $request = text("What should the request be named?", "E.g. StorePodcastRequest", "", "The name is required.");
     } else {
         $request = $argv[0];
     }
@@ -732,14 +827,14 @@ elseif ($action == 'make:request')
 
     file_put_contents('app/http/requests/'.$request.'.php', $class);
 
-    Artisan::info("Request created successfully.");
+    Artisan::info("Request [app/http/requests/$request.php] created successfully.");
 
 }
 
 elseif ($action == 'make:component')
 {
     if (count($argv)==0) {
-        $component = Artisan::input("What should the component be named?");
+        $component = text("What should the component be named?", "E.g. Alert", "", "The name is required.");
     } else {
         $component = $argv[0];
     }
@@ -771,14 +866,14 @@ elseif ($action == 'make:component')
     $class = "<div>\n\t<!-- Well begun is half done. - Aristotle -->\n</div>";
     file_put_contents('resources/views/components/'.$kebab.'.blade.php', $class);
 
-    Artisan::info("Component created successfully.");
+    Artisan::info("Component [app/view/components/$component.php] created successfully.");
 
 }
 
 elseif ($action == 'make:observer')
 {
     if (count($argv)==0) {
-        $observer = Artisan::input("What should the observer be named?");
+        $observer = text("What should the observer be named?", "E.g. UserObserver", "", "The name is required.");
     } else {
         $observer = $argv[0];
     }
@@ -805,14 +900,14 @@ elseif ($action == 'make:observer')
 
     file_put_contents('app/observers/'.$observer.'.php', $class);
 
-    Artisan::info("Observer [$observer] created successfully.");
+    Artisan::info("Observer [app/observers/$observer.php] created successfully.");
 
 }
 
 elseif ($action == 'make:resource')
 {
     if (count($argv)==0) {
-        $resource = Artisan::input("What should the resource be named?");
+        $resource = text("What should the resource be named?", "E.g. UserResource", "", "The name is required.");
     } else {
         $resource = $argv[0];
     }
@@ -852,14 +947,13 @@ elseif ($action == 'make:resource')
 
     file_put_contents('app/resources/'.$resource.'.php', $class);
 
-    Artisan::info("Resource created successfully.");
-
+    Artisan::info("Resource [app/resources/$resource.php] created successfully.");
 }
 
 elseif ($action == 'make:rule')
 {
     if (count($argv)==0) {
-        $rule = Artisan::input("What should the validation rule be named?");
+        $rule = text("What should the rule be named?", "E.g. Uppercase", "", "The name is required.");
     } else {
         $rule = $argv[0];
     }
@@ -879,7 +973,40 @@ elseif ($action == 'make:rule')
 
     file_put_contents('app/rules/'.$rule.'.php', $class);
 
-    Artisan::info("Validation rule created successfully.");
+    Artisan::info("Rule [app/rules/$rule.php] created successfully.");
+}
+
+elseif ($action == 'make:view')
+{
+    if (count($argv)==0) {
+        $view = text("What should the view be named?", "E.g. Post", "", "The name is required.");
+    } else {
+        $view = $argv[0];
+    }
+
+    $view = 'resources/views/' . str_replace('.', '/', $view);
+
+    $pathinfo = pathinfo($view);
+    $path = str_replace(base_path($view), $pathinfo['filename'], $view);
+
+    if (!is_dir($pathinfo['dirname'])) {
+        mkdir($pathinfo['dirname'], 0755, true);
+    }
+
+    if (file_exists($path.'.blade.php')) {
+        Artisan::error("View [$view] already exists.");
+        die();
+    }
+
+    $class = getStub('view');
+
+    $inspiring = Inspiring::quotes()->random();
+
+    $class = str_replace('{{ inspiring }}', $inspiring, $class);
+
+    file_put_contents($path.'.blade.php', $class);
+
+    Artisan::info("View [$view.blade.php] created successfully.");
 
 }
 
@@ -1136,8 +1263,8 @@ elseif ($action == 'view:cache')
 
 elseif ($action == 'cache:clear')
 {
-    //Cache::store('file')->setDirectory(_DIR_.'storage/framework/cache')->flush();
-    //Cache::store('file')->setDirectory(_DIR_.'storage/framework/classes')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/cache')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/classes')->flush();
     Artisan::info("Application cache cleared successfully.");
 }
 
@@ -1180,6 +1307,7 @@ elseif ($action == 'optimize:clear')
     Artisan::lineInfo("views");
 
     Cache::store('file')->setDirectory(_DIR_.'storage/framework/cache')->flush();
+    Cache::store('file')->setDirectory(_DIR_.'storage/framework/config')->flush();
     Cache::store('file')->setDirectory(_DIR_.'storage/framework/classes')->flush();
     Artisan::lineInfo("cache");
 
@@ -1188,7 +1316,6 @@ elseif ($action == 'optimize:clear')
     Artisan::lineInfo("route");
 
     @unlink(_DIR_.'bootstrap/cache/config.php');
-    Cache::store('file')->setDirectory(_DIR_.'storage/framework/config')->flush();
     Artisan::lineInfo("config");
 
     printf("\n");
@@ -1435,7 +1562,7 @@ elseif ($action == 'event:list')
             if (is_closure($value)) {
                 list($class, $method) = getCallbackFromString($value);
                 $str = str_replace('baradurClosures_', '', $class);
-                $str = 'Closure at: ' . $_class_list[$str];
+                //$str = 'Closure at: ' . $_class_list[$str];
                 $str = str_ireplace('.php', '', $str);
             } elseif (is_array($value)) {
                 $str = $_class_list[reset($value)];
@@ -1458,6 +1585,12 @@ elseif ($action == 'env')
 {
     Artisan::info("The application environment is [".config('app.env')."].");
 }
+
+elseif ($action == 'inspire')
+{
+    printf(Inspiring::quote());
+}
+
 
 elseif ($action == 'about')
 {
@@ -1510,6 +1643,43 @@ elseif ($action == 'up')
     Artisan::info("Application is now live.");
 }
 
+elseif ($action == 'config:show')
+{
+    //die(Artisan::confirm("Are you having a good time")?'yeah':'nope');
+
+    if (count($argv)==0) {
+        /* $available = array();
+        foreach (glob('config/*.php') as $file) {
+            $k = str_replace(array('.PHP', '.php'), '', basename($file));
+            $available[$k] = ucfirst($k);
+        }
+
+        $file = Artisan::choice("Which configuration do you want to be inspected?", $available); */
+        Artisan::halt('Not enough arguments (missing: "config").');
+        die();
+    } else {
+        $file = $argv[0];
+    }
+
+    $config = config($file);
+
+    if (empty($config) || is_null($config)) {
+        Artisan::error("Configuration file `$file` does not exist.");
+        exit();
+    }
+
+    printf("\n");
+
+    Artisan::lineTitle($file);
+    
+    foreach (Arr::dot($config) as $key => $val) {
+        Artisan::lineInfoDotted($key, $val);
+    }
+
+    printf("\n");
+
+}
+
 elseif ($action == 'model:show')
 {
     if (count($argv)==0) {
@@ -1520,10 +1690,10 @@ elseif ($action == 'model:show')
                 $available[] = $model;
             }
         }
-        $model = Artisan::choice("Which model do you want to be inspected?", $available);
-        //$model = Artisan::input("Which model do you want to be inspected?");
+        $model = select("Which model do you want to be inspected?", $available);
     } else {
         $model = $argv[0];
+        printf("\n");
     }
 
     global $_model_list, $_class_list;
@@ -1543,7 +1713,6 @@ elseif ($action == 'model:show')
 
     $result = $res->_collection;
 
-    printf("\n");
     Artisan::lineTitle(str_ireplace('.php', '', $_class_list[$model]));
     Artisan::lineInfoNormal("Database", $res->connector()->getDatabase());
     Artisan::lineInfoNormal("Table", $class->getTable());
@@ -1583,7 +1752,6 @@ elseif ($action == 'model:show')
                 $type = Str::before($type, '(') . Str::after($type, ')');
             }
         }
-
 
         $cast = null;
         if (array_key_exists($field, $casts)) {
@@ -1702,6 +1870,36 @@ elseif ($action == 'model:show')
     printf("\n");
 }
 
+elseif ($action == 'schedule:list')
+{
+    $kernel = ConsoleKernel::getKernel();
+    $kernel->loadSchedule();
+
+    printf("\n");
+    foreach(Schedule::getJobs() as $job) {
+        Artisan::scheduleInfo($job['expression'], $job['command'], $job['next']);
+    }
+    printf("\n");
+}
+
+elseif ($action == 'schedule:run')
+{
+    scheduleRun();
+}
+
+elseif ($action == 'schedule:work')
+{
+    Artisan::info("Running scheduled tasks every minute.");
+
+    while (true)
+    {
+        scheduleRun();
+    
+        sleep(60);
+    }
+}
+
+
 elseif ($action == 'serve')
 {
     $host = 'localhost';
@@ -1740,7 +1938,17 @@ else
                 else {
                     foreach ($command->arguments() as $key => $val) {
                         if (is_null($val)) {
-                            $value = $command->ask("What should the $key be named?");
+                            if (method_exists($command, 'promptForMissingArgumentsUsing')) {
+                                $res = $command->promptForMissingArgumentsUsing();
+                                $res = $res[$key];
+                            }
+                            if ($res) {
+                                $question = is_array($res) ? $res[0] : $res;
+                                $placeholder = is_array($res) ? $res[1] : "";
+                                $value = text($question, $placeholder, "", true);
+                            } else {
+                                $value = text("What is the $key?");
+                            }
                             $exec_class->setArgument($key, $value);
                         }
                     }    

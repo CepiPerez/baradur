@@ -6,11 +6,17 @@ Class MysqliConnector extends Connector
     public $status;
     protected $inTransaction = false;
 
-    public function __construct($host, $user, $password, $database, $port=3306)
+    public function __construct($config)
     {
+        $host = $config['host'];
+        $username = $config['username'];
+        $password = $config['password'];
+        $database = $config['database'];
+        $port = $config['port'] ? $config['port'] : 3306;
+        
         $this->database = $database;
 
-        $this->connection = new mysqli($host, $user, $password, $database, $port);
+        $this->connection = new mysqli($host, $username, $password, $database, $port);
         $this->connection->set_charset("utf8");
         mysqli_query($this->connection, "SET NAMES 'utf8'");
         //mysqli_report(MYSQLI_REPORT_OFF);
@@ -35,15 +41,15 @@ Class MysqliConnector extends Connector
 
     public function commit()
     {
-        $this->inTransaction = true;
         $this->connection->query('COMMIT');
+        $this->inTransaction = false;
         //throw new Exception('Transactions not supported');
     }
     
     public function rollBack()
     {
-        $this->inTransaction = true;
         $this->connection->query('ROLLBACK');
+        $this->inTransaction = false;
         //throw new Exception('Transactions not supported');
     }
 
@@ -191,6 +197,11 @@ Class MysqliConnector extends Connector
         }
 
         return $sets;
+    }
+
+    protected function isUniqueConstraintError($exception)
+    {
+        return preg_match('#Integrity constraint violation: 1062#i', $exception->getMessage());
     }
 
 }

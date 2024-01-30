@@ -228,7 +228,7 @@ class Auth extends Controller
     
         Mail::to($request->email)
 			->subject(__('login.register_confirmation'))
-			->plain($message);
+			->send($message);
 
         $model = $guard->getProvider()->getModel();
         $user = new $model;
@@ -344,7 +344,7 @@ class Auth extends Controller
 
         Mail::to($user->email)
 			->subject(__('login.reset_confirmation'))
-			->plain($message);
+			->send($message);
 
         $reg_message = __('login.message_sent').'<br><br>'.
             __('login.follow_reset').'<br><br>'.

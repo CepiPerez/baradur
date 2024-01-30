@@ -494,7 +494,7 @@ Class Relations
                 $results = $results->first();
             }
             
-            elseif ((in_array($relationship, array('hasMany', 'hasManyThrough'))))
+            elseif ((in_array($relationship, array('hasMany', 'morphMany', 'hasManyThrough'))))
             {
                 $results = $columns!='*'
                     ? $result->where($key, $current->$primary)->keys($columns) 

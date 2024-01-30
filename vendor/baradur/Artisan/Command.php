@@ -2,6 +2,10 @@
 
 class Command
 {
+    const SUCCESS = 0;
+    const FAILURE = 1;
+    const INVALID = 2;
+
     protected $signature;
     protected $description;
     protected $callback;
@@ -195,6 +199,11 @@ class Command
     public function choice($question, $values, $defaultIndex = null)
     {
         return Artisan::choice($question, $values, $defaultIndex);
+    }
+
+    public function confirm($question, $default = false)
+    {
+        return Artisan::confirm($question, $default);
     }
 
     public function withProgressBar($collection, $callback)

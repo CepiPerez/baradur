@@ -5,11 +5,11 @@ class AuthorizationException extends Exception
     protected $response;
     protected $status;
 
-    public function __construct($message = null, $code = null, Throwable $previous = null)
+    public function __construct($message = null, $code = null, $previous = null)
     {
-        parent::__construct($message ? $message : 'This action is unauthorized.', 0, $previous);
+        parent::__construct($message ? $message : 'This action is unauthorized.', 0);
 
-        $this->code = $code ?: 0;
+        $this->code = $code ? $code : 0;
     }
 
     public function response()

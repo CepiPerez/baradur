@@ -8,6 +8,8 @@ class Route
     protected $_currentRoute;
     protected $_redirections = array();
 
+    protected static $_fallback = null;
+
     public $_controller = null;
     public $_middleware = array();
     public $_domain = '';
@@ -49,6 +51,11 @@ class Route
         return self::$_instance;
     }
 
+
+    public static function fallback($callback)
+    {
+        self::$_fallback = $callback;
+    }
 
     public static function getVerbName($verb)
     {
@@ -608,10 +615,10 @@ class Route
             $val = preg_replace('/:[0-9]*/', '', $val);
         }
         
-        $records = self::getRoutes()->where('method', $method)->where('url', '==', $val);
-        
-        if ($records->count() == 1) {
-            return $records->first();
+        $records = self::getRoutes()->where('method', $method)->where('url', '==', $val)->first();
+
+        if ($records) {
+            return $records;
         }
 
         $records = self::getRoutes()->where('method', $method)->where('url', '!==', '');
@@ -659,8 +666,11 @@ class Route
             }
         }
 
-        //dd("FIN");
-        //dump($record);
+        if (isset(self::$_fallback)) {
+            list($class, $method, $params) = getCallbackFromString(self::$_fallback);
+            //dd($class, $method, $params);
+            return executeCallback($class, $method, array(request()));
+        }
         
         return null;
 
@@ -731,6 +741,8 @@ class Route
         if (is_string($params)) $params = array($params);
         
         $name = array_shift($params);
+
+        //dd(self::getInstance()->_collection->where('name', $name), $name, Route::getRoutes());
 
         $res = self::getInstance()->_collection->where('name', $name)->first();
  
@@ -868,10 +880,22 @@ class Route
             $_SERVER['REQUEST_METHOD'] = strtoupper($method);
         }
 
+
+        # Construct Request
+        $request = app('request');
+        $request->generate();
+
         # Filter requested url
         $ruta = self::findRoute($_SERVER['REQUEST_METHOD'], $current);
 
-        //dd($ruta);
+        # Folio support
+        # if $ruta is not a Route then return it
+        /* if ($ruta instanceof FinalView) {
+            return response($ruta->__toString(), 200);
+        } elseif ($ruta instanceof Response) {
+            return $ruta;
+        } */
+
         # Return 404 if route doesn't exists
         # If App is in maintenance mode check secret
         if (!isset($ruta->controller) && !isset($ruta->view)) {
@@ -910,11 +934,9 @@ class Route
                 abort(404);
             }
         }
-        
-        # Constructing Request
-        $request = app('request');
-        $request->generate($ruta);
 
+        # Set the current route
+        $request->route = $ruta;
         self::setCurrentRoute($ruta);
 
         # Send request through route middleware list
@@ -924,12 +946,11 @@ class Route
             ->through($list)
             ->thenReturn();
         
-
         if ($res instanceof Request) {
             # Save URL history
             self::saveHistory();
 
-            # Callback - Calls the assigned function in assigned controller
+            # Callback - Calls the controller's method with parameters
             if (is_string($res->route->controller) && isset($res->route->func)) {
                 $res = CoreLoader::invokeClassMethod(
                     $res->route->controller,
@@ -943,11 +964,13 @@ class Route
             elseif (isset($res->route->view)) {
                 $res = CoreLoader::invokeView($res->route);
             }
+
         }
 
         if (!$res) {
             __exit();
         }
+
 
         # Make the Response based on current result
         if ($res instanceof ResourceCollection) {

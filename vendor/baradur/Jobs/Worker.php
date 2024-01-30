@@ -8,7 +8,8 @@ Class Worker
     {
         /* printf("Checking queue... "); */
 
-        $res = DB::select('SELECT * from baradur_queue where status = 0')->first();
+        $res = DB::select('SELECT * from baradur_queue where status = 0');
+        $res = count($res) > 0 ? $res[0] : null;
 
         if ($res)
         {
@@ -21,7 +22,7 @@ Class Worker
             if (self::send($mail))
             {
                 $result = 'DONE';
-                DB::update('UPDATE baradur_queue set status=1 where id='.$res->id);
+                DB::unprepared('UPDATE baradur_queue set status=1 where id='.$res->id);
             }
             else
             {

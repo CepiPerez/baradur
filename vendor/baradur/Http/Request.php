@@ -20,7 +20,7 @@ Class Request
 
     protected $validated = array();
 
-    public function generate($route)
+    public function generate($route=null)
     {
         $this->clear();
 
@@ -284,7 +284,13 @@ Class Request
         $this->validated = $result->validated();
 
         if (!$result->passes()) {
-            $res = back()->withErrors($result->errors());
+
+            if ($this->expectsJson()) {
+                $res = response(array('Error' => "Validation error"), 403);
+            } else {
+                $res = back()->withErrors($result->errors());
+            }
+
             CoreLoader::processResponse($res);
         }
 
@@ -332,6 +338,7 @@ Class Request
         }
 
         $res = $this->url();
+        
         if (count($result)> 0) {
             $res .= '?' . http_build_query($result);
         }

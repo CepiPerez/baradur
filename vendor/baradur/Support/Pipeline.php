@@ -95,6 +95,7 @@ class PipelineHandler
         foreach ($this->pipes() as $pipe) {
 
             list($class, $params) = $this->parsePipeString($pipe);
+            //dump($class);
             
             $controller = new $class;
             $params = array_merge(array($result, null), $params);

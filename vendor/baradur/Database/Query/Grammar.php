@@ -34,6 +34,48 @@ class Grammar
         return $this->wrapSegments(explode('.', $value));
     }
 
+    protected function wrapJsonPathSegment($segment)
+    {
+        if (preg_match('/(\[[^\]]+\])+$/', $segment, $parts)) {
+            $key = Str::beforeLast($segment, $parts[0]);
+
+            if (! empty($key)) {
+                return '"'.$key.'"'.$parts[0];
+            }
+
+            return $parts[0];
+        }
+        return '"'.$segment.'"';
+    }
+
+    protected function wrapJsonPath($value, $delimiter = '->')
+    {
+        $value = preg_replace("/([\\\\]+)?\\'/", "''", $value);
+
+        $jsonPath = explode($delimiter, $value);
+
+        $result = array();
+
+        foreach ($jsonPath as $segment) {
+            $result[] = $this->wrapJsonPathSegment($segment);
+        }
+
+        $result = Arr::join($result, '.');
+
+        return "'$".(str_starts_with($result, '[') ? '' : '.').$result."'";
+    }
+
+    public function wrapJsonFieldAndPath($column)
+    {
+        $parts = explode('->', $column, 2);
+
+        $field = $this->wrap($parts[0]);
+
+        $path = count($parts) > 1 ? ', '.$this->wrapJsonPath($parts[1], '->') : '';
+
+        return array($field, $path);
+    }
+
     protected function wrapAliasedValue($value, $prefixAlias = false)
     {
         $segments = preg_split('/\s+as\s+/i', $value);

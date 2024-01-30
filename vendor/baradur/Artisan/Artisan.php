@@ -7,7 +7,6 @@ class Artisan
         return ConsoleKernel::__addCommand($command, $callback);
     }
 
-
     public static function info($message)
     {
         self::showLog(44, 'INFO', $message);
@@ -23,12 +22,23 @@ class Artisan
         self::showLog(43, 'WARN', $message);
     }
 
+    public static function halt($message)
+    {
+        global $artisan;
+
+        if ($artisan) {
+            printf("\n\033[41m" . str_repeat(" ", strlen($message)+4) . "\n");
+            printf("  %s  \n", $message);
+            printf("\033[41m" . str_repeat(" ", strlen($message)+4) . "\033[m\n\n"); 
+        }
+    }
+
     public static function exception($exception, $message)
     {
         self::showLog(41, $exception, $message);
     }
 
-    public static function input($message, $secret = false)
+    public static function input($message, $placeholder = '', $secret = false)
     {
         printf("\n\033[32;1m  %s\n\033[m", $message);
 
@@ -80,16 +90,40 @@ class Artisan
         return $result;
     }
 
+    public static function confirm($message, $default = false)
+    {
+        printf("\n\033[32;1m  %s \033[m [\033[33m%s\033[m]\n", $message, $default? 'yes':'no');
+
+        $result = readline("  > ");
+
+        if (blank($result)) {
+            $result = $default;
+        }
+
+        if (is_bool($result)) {
+            $result = $result ? 'yes' : 'no';
+        }
+        
+        $result = strtolower($result);
+
+        printf("\n");
+
+        return $result=='y' || $result=='yes';
+    }
+
     private static function showLog($color, $type, $message)
     {
         global $artisan;
 
         if ($artisan) {
-            $message = preg_replace('/(\[.*\])/x', "\033[1m$1\033[m", $message);
+
+            Prompts::show_line_message($color, $type, $message);
+
+            /* $message = preg_replace('/(\[.*\])/x', "\033[1m$1\033[m", $message);
 
             printf("\n  ");
             printf("\033[".$color."m%s", " $type ");
-            printf("\033[m %s\n\n", $message);            
+            printf("\033[m %s\n\n", $message);   */          
         }
     }
 
@@ -136,7 +170,7 @@ class Artisan
         if ($status=='DONE') {
             printf("\033[32;1m%s\033[m", strtoupper($status));
         } else {
-            printf("\033[33;1m%s\033[m", strtoupper($status));
+            printf("\033[331m%s\033[m", strtoupper($status));
         }
 
         printf("\n");
@@ -172,6 +206,50 @@ class Artisan
 
         printf("\033[38;5;240m".str_repeat('.', $spaces)."\033[m");
         printf(" $status");
+        printf("\n");
+    }
+
+    public static function lineInfoDotted($message, $status)
+    {
+        $screen_cols = (exec('tput cols'));
+
+        $space = (int)$screen_cols>80? $screen_cols : 90;
+        $pre = '';
+
+        if (str_contains($message, '.')) {
+            $post = end(explode('.', $message));
+            $message = str_replace($post, '', $message);
+        } else {
+            $post = $message;
+            $message = '';
+        }
+
+        $message = str_replace('.', ' ⇁  ', $message);
+
+        printf("\033[38;5;240m  ".$message."\033[m");
+
+        $len = strlen($message) - substr_count($message, '⇁')*2;
+        $space = $space - $len;
+        $spaces = $space - 18 + (is_string($status) ? 0 : 6);
+
+        if ($post!=="") {
+            printf("$post ");
+            $spaces = $spaces - strlen($post);
+        } else {
+            printf(" ");
+            $spaces = $spaces +1;
+        }
+
+        $spaces = $spaces - (is_string($status) ? strlen($status) : strlen($status) + 6);
+
+        printf("\033[38;5;240m".str_repeat('.', $spaces)."\033[m");
+
+        if (is_string($status)) {
+            printf(" %s\033[m", $status);
+        } else {
+            printf("\033[38;5;172;1m %s\033[m", $status);
+        }
+
         printf("\n");
     }
 
@@ -256,6 +334,27 @@ class Artisan
             printf("\033[38;5;172;1m %s\033[m", $cast);
         }
 
+        printf("\n");
+    }
+
+    public static function scheduleInfo($cron, $description, $time)
+    {
+        $screen_cols = (exec('tput cols'));
+
+        $space = (int)$screen_cols>80? $screen_cols : 90;
+
+        $len = 15 - strlen($cron);
+        printf("\033[38;5;172m  $cron \033[m");
+        printf(str_repeat(" ", $len));
+
+        $len = strlen($description);
+        $spaces = $space - strlen($time) - strlen($description) - 25;
+
+        printf($description);
+        printf("\033[38;5;240m ".str_repeat('.', $spaces)."\033[m");
+
+        printf("\033[38;5;240m %s\033[m", $time);
+       
         printf("\n");
     }
 
@@ -372,7 +471,6 @@ class Artisan
         return file_get_contents(_DIR_.'/vendor/baradur/Artisan/Stubs/'.$class.'.stub');
     }
 
-
     public static function makeEvent($event, $info=true)
     {
         global $artisan;
@@ -411,6 +509,5 @@ class Artisan
             Artisan::info("Listener [$listener] created successfully.");
         }
     }
-
 
 }

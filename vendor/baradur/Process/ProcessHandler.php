@@ -30,6 +30,8 @@ class ProcessHandler
     protected $_pipes;
     protected $_status;
 
+    protected $outputDisabled = false;
+
     public function __construct($options = null)
     {
         if (is_array($options)) {
@@ -151,9 +153,43 @@ class ProcessHandler
         return $this;
     }
 
-    private function getOutput($trim = true)
+    public function isStarted()
+    {
+        return $this->_status != 'ready';
+    }
+
+    private function requireProcessIsStarted($functionName)
+    {
+        if (!$this->isStarted()) {
+            throw new LogicException(sprintf('Process must be started before calling "%s()".', $functionName));
+        }
+    }
+
+    private function readPipesForOutput($caller, $blocking = false)
+    {
+        if ($this->outputDisabled) {
+            throw new LogicException('Output has been disabled.');
+        }
+
+        $this->requireProcessIsStarted($caller);
+
+        $this->updateStatus($blocking);
+    }
+
+    public function getOutput($trim = true)
     {
         return $trim ? trim($this->_stdOut) : $this->_stdOut;
+    }
+
+    public function getErrorOutput()
+    {
+        $this->readPipesForOutput(__FUNCTION__);
+
+        if (false === $ret = stream_get_contents($this->_stdErr, -1, 0)) {
+            return '';
+        }
+
+        return $ret;
     }
 
     private function getError($trim = true)
@@ -343,7 +379,7 @@ class ProcessHandler
                 proc_close($process);
             }
 
-            dump($this);
+            //dump($this);
             if ($this->_exitCode !== 0) {
                 $this->_error = $this->_stdErr ?
                     $this->_stdErr :
@@ -521,6 +557,15 @@ class ProcessHandler
         //return $this->_exitCode;
     } */
 
+    public function __throw()
+    {
+        if ($this->_exitCode != 0) {
+            throw new ProcessFailedException($this);
+        }
+
+        return $this;
+    }
+
 
     public function getIsWindows()
     {
@@ -625,6 +670,43 @@ class ProcessHandler
         }
 
         return file_get_contents($this->_pipes['err']);
+    }
+
+    public function getCommandLine()
+    {
+        return $this->getCommand() . ' ' . $this->getArgs();
+    }
+
+    public function getExitCode()
+    {
+        $this->updateStatus();
+
+        return $this->_exitCode;
+    }
+
+    public function getExitCodeText()
+    {
+        if (null === $exitcode = $this->getExitCode()) {
+            return null;
+        }
+
+        return $this->_stdErr ? $this->_stdErr : 'Unknown error';
+    }
+
+    public function getWorkingDirectory()
+    {
+        if (null === $this->procCwd) {
+            // getcwd() will return false if any one of the parent directories does not have
+            // the readable or search mode set, even if the current directory does
+            return getcwd() ? getcwd() : null;
+        }
+
+        return $this->procCwd;
+    }
+
+    public function isOutputDisabled()
+    {
+        return $this->outputDisabled;
     }
 
 }

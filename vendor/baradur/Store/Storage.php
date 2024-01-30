@@ -103,6 +103,17 @@ Class Storage
         return self::disk($default)->put($file, $contents);
     }
 
+    public static function append($file, $contents)
+    {
+        if (is_object($contents) && get_class($contents)=='UploadedFile')
+        {
+            throw new Exception("Append method only available for text files.");
+        }
+
+        $default = config('filesystems.default');
+        return self::disk($default)->append($file, $contents);
+    }
+
     public static function copy($source, $dest)
     {
         $default = config('filesystems.default');

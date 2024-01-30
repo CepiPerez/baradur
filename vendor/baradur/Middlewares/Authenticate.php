@@ -9,6 +9,10 @@ class Authenticate
             return $this->handleApi($request, $next);
         }
 
+        if ($param=='sanctum') {
+            return $this->handleSanctum($request, $next);
+        }
+
         if (!Auth::check() && $request->route->controller!='Auth') {
 
             $history = isset($_SESSION['url_history']) ? $_SESSION['url_history'] : array();
@@ -27,18 +31,6 @@ class Authenticate
 
 
     private function handleApi($request, $next)
-    {
-        $this->checkToken($request);
-
-        return $request;
-    }
-
-    private function deny($reason)
-    {
-        abort(403, $reason);
-    }
-
-    private function checkToken(Request $request)
     {
         $token = $request->bearerToken();
 
@@ -61,8 +53,42 @@ class Authenticate
             $this->deny("Access denied. Token expired");
         }
 
-        return true;
+        return $request;
+    }
 
+    private function handleSanctum($request, $next)
+    {
+        $token = $request->bearerToken();
+
+        if (!$token) {
+            $this->deny("Access denied. Missing token in request");
+        }
+
+        $key = PersonalAccessToken::findToken($token);
+
+        if (!$key) {
+            $this->deny("Access denied. Unexistent token");
+        }
+
+        $date1 = Carbon::parse($key->expires_at)->getTimestamp();
+        $date2 = Carbon::now()->getTimestamp();
+
+        if ($date1 < $date2) {
+            $this->deny("Access denied. Token expired");
+        }
+
+        if (!Auth::user() || Auth::user()->id!=$key->tokenable_id) {
+            Auth::loginUsingId($key->tokenable_id);
+        }
+
+        Auth::user()->withAccessToken($key);
+
+        return $request;
+    }
+
+    private function deny($reason)
+    {
+        abort(403, $reason);
     }
 
 }

@@ -1324,6 +1324,16 @@ class Carbon
         return $this->setTime($this->hour, $this->minute, self::SECONDS_PER_MINUTE - 1);
     }
 
+    public function startOfSecond()
+    {
+        return $this->setTime($this->hour, $this->minute, 0);
+    }
+
+    public function endOfSecond()
+    {
+        return $this->setTime($this->hour, $this->minute, 59);
+    }
+
     public function toDateString()
     {
         return $this->rawFormat('Y-m-d');

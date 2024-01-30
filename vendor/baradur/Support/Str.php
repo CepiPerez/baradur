@@ -167,6 +167,12 @@ class Str
         return false;
     }
 
+    public static function convertCase($string, $mode = MB_CASE_FOLD, $encoding = 'UTF-8')
+    {
+        return mb_convert_case($string, $mode, $encoding);
+    }
+
+
     public static function camel($value)
     {
         return lcfirst(self::studly($value));
@@ -264,8 +270,25 @@ class Str
         return $subject;
     }
 
+    public static function replaceStart($search, $replace, $subject)
+    {
+        $search = (string) $search;
+
+        if ($search === '') {
+            return $subject;
+        }
+
+        if (self::startsWith($subject, $search)) {
+            return self::replaceFirst($search, $replace, $subject);
+        }
+
+        return $subject;
+    }
+
     public static function replaceLast($search, $replace, $subject)
     {
+        $search = (string) $search;
+        
         if ($search === '') {
             return $subject;
         }
@@ -274,6 +297,21 @@ class Str
 
         if ($position !== false) {
             return substr_replace($subject, $replace, $position, strlen($search));
+        }
+
+        return $subject;
+    }
+
+    public static function replaceEnd($search, $replace, $subject)
+    {
+        $search = (string) $search;
+
+        if ($search === '') {
+            return $subject;
+        }
+
+        if (self::endsWith($subject, $search)) {
+            return self::replaceLast($search, $replace, $subject);
         }
 
         return $subject;
@@ -563,6 +601,16 @@ class Str
         }
 
         return collect($matches[1] ? $matches[1] : $matches[0]);
+    }
+
+    public static function wordWrap($string, $characters = 75, $break = "\n", $cutLongWords = false)
+    {
+        return wordwrap($string, $characters, $break, $cutLongWords);
+    }
+
+    public static function position($haystack, $needle, $offset = 0, $encoding = 'utf-8')
+    {
+        return mb_strpos($haystack, $needle, $offset, $encoding);
     }
 
 }

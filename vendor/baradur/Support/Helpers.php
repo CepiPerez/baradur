@@ -252,9 +252,9 @@ class Helpers
         }
     } */
 
-    public static function config($val)
+    public static function config($val, $default = null)
     {
-        global $config;
+        global $config, $artisan;
 
         /* if (empty($config)) {
             self::getBoostrapConfig();
@@ -269,7 +269,12 @@ class Helpers
         $file = array_shift($array);
 
         if (!file_exists(_DIR_.'config/'.$file.'.php')) {
-            throw new Exception("File not found: $file.php");
+            if ($artisan) {
+                return $default;
+            } else {
+                return $default;
+                //throw new Exception("File not found: $file.php");
+            }
         }
 
         CoreLoader::loadConfigFile(_DIR_.'config/'.$file.'.php');
@@ -303,6 +308,8 @@ class Helpers
 
     public static function toArray($object)
     {
+        ini_set('xdebug.max_nesting_level', 200);
+        
         $arr = array();
         
         foreach ($object as $key => $val) {

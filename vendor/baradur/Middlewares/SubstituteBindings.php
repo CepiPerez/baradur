@@ -141,6 +141,7 @@ class SubstituteBindings
                     array_shift($route_params);
                 }
 
+
                 elseif (is_subclass_of($class_name, 'Model') && $param_value!=='baradur_null_parameter')
                 {
                     if(!$parametro) {
@@ -161,6 +162,8 @@ class SubstituteBindings
                             }
                         }
                     }
+
+                    //dump($class_name, $param_value, $parametro);
 
                     if (count($scope_bindings)==0 || !$bindings)
                     {

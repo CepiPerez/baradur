@@ -17,6 +17,8 @@ Class HttpKernel
 
         $temp = file_get_contents(_DIR_.'app/http/Kernel.php');
 
+        $temp = str_replace("ThrottleRequests::class.':api'", "'ThrottleRequests:api'", $temp);
+
         $temp = $phpConverter->replaceNewPHPFunctions($temp, 'App_Http_Kernel', _DIR_);
 
         Cache::store('file')->plainPut(_DIR_.'storage/framework/classes/App_Http_Kernel.php', $temp);
@@ -89,6 +91,7 @@ Class HttpKernel
     {        
         $list = array();
 
+        //var_dump($this->middlewareGroups);die();
         if (isset($this->middlewareGroups[$middleware])) {
             $items = $this->middlewareGroups[$middleware];
             

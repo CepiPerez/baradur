@@ -44,7 +44,7 @@ Class Builder
 
     public $_eagerLoad = array();
 
-    public $_connector;
+    public $_connector = null;
     public $_extraquery = null;
     public $_original = null;
 
@@ -62,10 +62,19 @@ Class Builder
     public $_hasConstraints = null;
 
     public $_toBase = false;
-
+    
+    public $distinct = false;
+    
     protected $sql_connector = null;
 
-    public $distinct = false;
+    public $operators = array(
+        '=', '<', '>', '<=', '>=', '<>', '!=', '<=>',
+        'like', 'like binary', 'not like', 'ilike',
+        '&', '|', '^', '<<', '>>', '&~', 'is', 'is not',
+        'rlike', 'not rlike', 'regexp', 'not regexp',
+        '~', '~*', '!~', '!~*', 'similar to',
+        'not similar to', 'not ilike', '~~*', '!~~*',
+    );
 
 
     public function __construct($model, $table = null, $as = null)
@@ -209,66 +218,20 @@ Class Builder
         $this->_bindings = array();
     }
 
-    protected function setConnectorDriver($driver, $host, $user, $password, $database, $port=3306)
-    {
-        global $artisan;
-
-        if (isset($_SERVER['USERNAME']) || isset($_SERVER['SHELL'])) {
-            $host = "127.0.0.1";
-        }
-    
-        if ($driver=='mysql') {
-            return new PdoConnector($host, $user, $password, $database, $port);
-        }
-
-        if ($driver=='mysqli') {
-            return new MysqliConnector($host, $user, $password, $database, $port);
-        }
-
-        if ($driver=='oracle') {
-            return new OracleConnector($host, $user, $password, $database, $port);
-        }
-
-        throw new RuntimeException("Driver [$driver] not supported.");
-    }
     
     /**
-     * @return PdoConnector|MysqliConnector|OracleConnector
+     * @return PdoConnector|MysqliConnector|OracleConnector|SqliteConnector
      */
     public function connector()
     {
         if (!$this->sql_connector) {
-
-            if ($this->_connector) {
-                $config = config('database.connections.'.$this->_connector);
-                $this->sql_connector = $this->setConnectorDriver(
-                    $config['driver'],
-                    $config['host'],
-                    $config['username'], 
-                    $config['password'], 
-                    $config['database'],
-                    $config['port']
-                );
-            } else {
-                global $database;
-
-                if (!isset($database)) {
-                    $default = config('database.default');
-                    $config = config('database.connections.'.$default);
-                    $database = $this->setConnectorDriver(
-                        $config['driver'],
-                        $config['host'],
-                        $config['username'], 
-                        $config['password'], 
-                        $config['database'],
-                        $config['port']
-                    );
-                }
-
-                $this->sql_connector = $database;
+            if (!$this->_connector) {
+                $this->_connector = config('database.default');
             }
+
+            $this->sql_connector = $this->_model->__getConnector($this->_connector);
         }
-        
+
         return $this->sql_connector;
     }
 
@@ -1366,6 +1329,201 @@ Class Builder
     public function orWhereRowValues($columns, $operator, $values)
     {
         return $this->whereRowValues($columns, $operator, $values, 'or');
+    }
+
+
+    protected function invalidOperatorAndValue($operator, $value)
+    {
+        return is_null($value) && in_array($operator, $this->operators) &&
+             ! in_array($operator, array('=', '<>', '!='));
+    }
+
+    /**
+     * Prepare the value and operator for a where clause.
+     *
+     * @param  string  $value
+     * @param  string  $operator
+     * @param  bool  $useDefault
+     * @return array
+     *
+     * @throws InvalidArgumentException
+     */
+    public function prepareValueAndOperator($value, $operator, $useDefault = false)
+    {
+        if ($useDefault) {
+            return array($operator, '=');
+        } elseif ($this->invalidOperatorAndValue($operator, $value)) {
+            throw new InvalidArgumentException('Illegal operator and value combination.');
+        }
+
+        return array($value, $operator);
+    }
+
+    /**
+     * Add a "where JSON contains" clause to the query.
+     *
+     * @param  string  $column
+     * @param  mixed  $value
+     * @param  string  $boolean
+     * @param  bool  $not
+     * @return $this
+     */
+    public function whereJsonContains($column, $value, $boolean = 'AND', $not = false)
+    {
+        $result = ($not? 'NOT ' : '') . 'JSON_CONTAINS(' . $this->grammar->wrap($column) . ', ?)';
+
+        $this->_bindings['where'][] = $value;
+
+        if ($this->_where == '') {
+            $this->_where = 'WHERE ' . $result; 
+        } else {
+            $this->_where .= " $boolean " . $result; 
+        }
+
+        return $this;
+    }
+
+    /**
+     * Add an "or where JSON contains" clause to the query.
+     *
+     * @param  string  $column
+     * @param  mixed  $value
+     * @return $this
+     */
+    public function orWhereJsonContains($column, $value)
+    {
+        return $this->whereJsonContains($column, $value, 'OR');
+    }
+
+    /**
+     * Add a "where JSON not contains" clause to the query.
+     *
+     * @param  string  $column
+     * @param  mixed  $value
+     * @param  string  $boolean
+     * @return $this
+     */
+    public function whereJsonDoesntContain($column, $value, $boolean = 'AND')
+    {
+        return $this->whereJsonContains($column, $value, $boolean, true);
+    }
+
+    /**
+     * Add an "or where JSON not contains" clause to the query.
+     *
+     * @param  string  $column
+     * @param  mixed  $value
+     * @return $this
+     */
+    public function orWhereJsonDoesntContain($column, $value)
+    {
+        return $this->whereJsonDoesntContain($column, $value, 'OR');
+    }
+
+    /**
+     * Add a clause that determines if a JSON path exists to the query.
+     *
+     * @param  string  $column
+     * @param  string  $boolean
+     * @param  bool  $not
+     * @return $this
+     */
+    public function whereJsonContainsKey($column, $boolean = 'AND', $not = false)
+    {
+        list($field, $path) = $this->grammar->wrapJsonFieldAndPath($column);
+
+        $result = ($not? 'NOT ' : '') . 'IFNULL(JSON_CONTAINS_PATH(' . $field . ", 'one'" . $path . '), 0)';
+
+        if ($this->_where == '') {
+            $this->_where = 'WHERE ' . $result; 
+        } else {
+            $this->_where .= " $boolean " . $result; 
+        }
+
+        return $this;
+    }
+
+    /**
+     * Add an "or" clause that determines if a JSON path exists to the query.
+     *
+     * @param  string  $column
+     * @return $this
+     */
+    public function orWhereJsonContainsKey($column)
+    {
+        return $this->whereJsonContainsKey($column, 'OR');
+    }
+
+    /**
+     * Add a clause that determines if a JSON path does not exist to the query.
+     *
+     * @param  string  $column
+     * @param  string  $boolean
+     * @return $this
+     */
+    public function whereJsonDoesntContainKey($column, $boolean = 'AND')
+    {
+        return $this->whereJsonContainsKey($column, $boolean, true);
+    }
+
+    /**
+     * Add an "or" clause that determines if a JSON path does not exist to the query.
+     *
+     * @param  string  $column
+     * @return $this
+     */
+    public function orWhereJsonDoesntContainKey($column)
+    {
+        return $this->whereJsonDoesntContainKey($column, 'OR');
+    }
+
+    /**
+     * Add a "where JSON length" clause to the query.
+     *
+     * @param  string  $column
+     * @param  mixed  $operator
+     * @param  mixed  $value
+     * @param  string  $boolean
+     * @return $this
+     */
+    public function whereJsonLength($column, $operator, $value = null, $boolean = 'and')
+    {
+        $boolean = func_num_args() === 2;
+
+        list($value, $operator) = $this->prepareValueAndOperator(
+            $value, $operator, $boolean
+        );
+
+        list($field, $path) = $this->grammar->wrapJsonFieldAndPath($column);
+
+        $result = 'JSON_LENGTH(' . $field . $path . ') ' . $operator . ' ?';
+
+        if ($this->_where == '') {
+            $this->_where = 'WHERE ' . $result; 
+        } else {
+            $this->_where .= " $boolean " . $result; 
+        }
+
+        $this->_bindings['where'][] = $value;
+
+        return $this;
+    }
+
+    /**
+     * Add an "or where JSON length" clause to the query.
+     *
+     * @param  string  $column
+     * @param  mixed  $operator
+     * @param  mixed  $value
+     * @return $this
+     */
+    public function orWhereJsonLength($column, $operator, $value = null)
+    {
+        list($value, $operator) = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        return $this->whereJsonLength($column, $operator, $value, 'or');
     }
 
     /**
@@ -2542,8 +2700,9 @@ Class Builder
      */
     public function create($record = null)
     {
+        //dd($record, $this);
         if (isset($this->_relationVars) 
-            && $this->_relationVars['relationship']=='morphOne'
+            && ($this->_relationVars['relationship']=='morphOne'||$this->_relationVars['relationship']=='morphMany')
             && isset($this->_relationVars['current_id']))
         {
             $record[$this->_relationVars['foreign']] = $this->_relationVars['current_id'];
@@ -2556,11 +2715,18 @@ Class Builder
             }
         }
 
-        $new = new $this->_parent;
-
-        foreach ($record as $key => $val) {
-            $new->$key = $val;
+        if (!($record instanceof $this->_parent)) {
+            $new = new $this->_parent;
+    
+            foreach ($record as $key => $val) {
+                $new->$key = $val;
+            }
+        } else {
+            $new = $record;
         }
+
+        $prev = $this->_fillableOff;
+        $this->_fillableOff = true;
 
         $this->_model->checkObserver('creating', $new);
 
@@ -2568,9 +2734,11 @@ Class Builder
             $item = $this->insertNewItem();
             $item->_setRecentlyCreated(true);
             $this->_model->checkObserver('created', $item);
+            $this->_fillableOff = $prev;
             return $item;
         }
         
+        $this->_fillableOff = $prev;
         return null;
 
     }
@@ -3037,6 +3205,12 @@ Class Builder
         }
 
         $sql .= implode(', ', $sets);
+        
+        if ($this->_where != '') {
+            $sql .= ' ' . $this->_where . ' ';
+        }
+
+        $bindings = array_merge($bindings, $this->_bindings);
 
         $query = $this->connector()->execSql($sql, $bindings);
 
@@ -3287,7 +3461,7 @@ Class Builder
      */
     public function firstOrCreate($attributes, $values=array())
     {
-        $this->clear();
+        /* $this->clear();
 
         foreach ($attributes as $key => $val) {
             $this->where($key, $val);
@@ -3310,8 +3484,31 @@ Class Builder
             $item->_setRecentlyCreated(true);
         }
 
-        return $item;
+        return $item; */
+
+        if (! is_null($instance = $this->where($attributes)->first())) {
+            return $instance;
+        }
+
+        return $this->createOrFirst($attributes, $values);
     }
+
+    /**
+     * Attempt to create the record. If a unique constraint violation occurs, attempt to find the matching record.
+     *
+     * @param  array $attributes
+     * @param  array $values
+     * @return Model
+     */
+    public function createOrFirst($attributes = array(), $values = array())
+    {
+        try {
+            return $this->create(array_merge($attributes, $values));
+        } catch (UniqueConstraintViolationException $exception) {
+            return $this->where($attributes)->first();
+        }
+    }
+
 
     /**
      * Find a record or an array of records based on primary key
@@ -3379,7 +3576,7 @@ Class Builder
         $item->_setOriginalRelations($this->_eagerLoad);
 
         $item->__setGlobalScopes();
-        unset($item->timestamps);
+        //unset($item->timestamps);
 
         if ($this->_softDelete) {
             $item->unsetAttribute('deleted_at');
@@ -3403,8 +3600,8 @@ Class Builder
 
     private function addGlobalScopes()
     {
-        if (method_exists($this->_model, 'booted')) 
-            $this->_model->booted();
+        //if (method_exists($this->_model, 'booted')) 
+        $this->_model->bootIfNotBooted($this->_parent);
 
         foreach($this->_model->__getGlobalScopes() as $scope => $callback)
         {
@@ -3744,7 +3941,7 @@ Class Builder
         );
     }
 
-    public function _as($pivot_name)
+    public function __as($pivot_name)
     {
         if ($this->_relationVars && isset($this->_relationVars['relationship'])) {
             if ($this->isManyRelation($this->_relationVars['relationship'])) {
@@ -3780,7 +3977,7 @@ Class Builder
     private function addRelation(&$eager_load, $relation, $constraints=null)
     {
         $keys = explode('.', $relation);
-
+        
         $last_key = array_pop($keys);
 
         while ($arr_key = array_shift($keys)) {
@@ -3805,8 +4002,6 @@ Class Builder
     public function with($relations)
     {
         $relations = is_string($relations) ? array($relations) : $relations;
-
-        //dd($relations);
         
         foreach ($relations as $relation => $values) {
 
@@ -3921,6 +4116,7 @@ Class Builder
 
             Relations::insertRelation($q, $res, $key);
         }
+
 
         /* if (!$this->_toBase)
         {

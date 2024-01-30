@@ -20,12 +20,22 @@ return [
     | - "oracle"
     | - "mysqli" (uses mysqli)
     | - "mysql"  (uses PDO)
+    | - "sqlite" (uses sqlite3)
+    | - "sqlite2" (uses sqlite2)
     */
 
     'connections' => [
 
+        'sqlite' => [
+            'driver' => 'sqlite2',
+            'url' => env('DATABASE_URL'),
+            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            'prefix' => '',
+            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+        ],
+
         'mysql' => [
-            'driver' => 'mysqli',
+            'driver' => 'mysql',
             'url' => env('DATABASE_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
@@ -39,6 +49,7 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            'options'   => [PDO::ATTR_EMULATE_PREPARES => true]
         ],
 
         'oracle' => [
