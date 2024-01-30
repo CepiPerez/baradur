@@ -23,9 +23,9 @@ class Stringable
         return (string)$this->value;
     }
 
-    public function toInteger()
+    public function toInteger($base = 10)
     {
-        return intval($this->value);
+        return intval($this->value, $base);
     }
 
     public function toFloat()
@@ -328,4 +328,15 @@ class Stringable
     {
         return Str::position($this->value, $needle, $offset, $encoding);
     }
+
+    public function take($limit)
+    {
+        return Str::take($this->value, $limit);
+    }
+
+    public function unwrap($before, $after = null)
+    {
+        return Str::unwrap($this->value, $before, $after);
+    }
+
 }

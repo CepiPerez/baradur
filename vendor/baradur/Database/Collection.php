@@ -1978,26 +1978,43 @@ Class Collection implements ArrayAccess, Iterator
     /**
      * Ensure that every item in the collection is of the expected type.
      *
-     * @param  class|string  $type
+     * @param  class|string|array  $type
      * @return $this
      *
      * @throws UnexpectedValueException
      */
     public function ensure($type)
     {
-        if ($type=='int') $type = 'integer';
-        if ($type=='bool') $type = 'boolean';
-        if ($type=='float') $type = 'double';
+        $array_types = is_array($type) ? $type : array($type);
+
+        $allowedTypes = array();
+
+        foreach ($array_types as $item) {
+            if ($item=='int') $item = 'integer';
+            if ($item=='bool') $item = 'boolean';
+            if ($item=='float') $item = 'double';
+
+            $allowedTypes[] = $item;
+        }
+
 
         foreach ($this->items as $item) {
             $itemType = gettype($item);
 
-            
-            if ($itemType !== $type && ! $item instanceof $type) {
-                if ($itemType=='object') $itemType = get_class($item);
+            $allowed = false;
 
+            foreach ($allowedTypes as $allowedType) {
+                if ($itemType==$allowedType || $item instanceof $allowedType) {
+                    $allowed = true;
+                    break;
+                }
+            }   
+
+            if (!$allowed) {
+                if ($itemType=='object') $itemType = get_class($item);
+        
                 throw new UnexpectedValueException(
-                    sprintf("Collection should only include '%s' items, but '%s' found.", $type, $itemType)
+                    sprintf("Collection should only include '%s' items, but '%s' found.", implode(', ', $array_types), $itemType)
                 );
             }
         }

@@ -56,6 +56,16 @@ class RequestSession
         return isset($this->data[$key]);
     }
 
+    public function only($keys)
+    {
+        return Arr::only($this->data, $keys);
+    }
+
+    public function except($keys)
+    {
+        return Arr::except($this->data, $keys);
+    }
+
     public function push($key, $value)
     {
         $arr = $this->data;

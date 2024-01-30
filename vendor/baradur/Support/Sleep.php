@@ -45,6 +45,10 @@ class Sleep
             $timestamp = $timestamp->getTimestamp();
         }
 
+        if (is_numeric($timestamp)) {
+            $timestamp = (int) $timestamp;
+        }
+
         if (!is_int($timestamp)) {
             throw new Exception('Error! Given timestamp must be integer or Carbon instance.');
         }

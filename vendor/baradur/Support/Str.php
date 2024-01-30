@@ -613,4 +613,28 @@ class Str
         return mb_strpos($haystack, $needle, $offset, $encoding);
     }
 
+    public static function take($string, $limit)
+    {
+        if ($limit < 0) {
+            return substr($string, $limit);
+        }
+
+        return substr($string, 0, $limit);
+    }
+
+    public static function unwrap($value, $before, $after = null)
+    {
+        if (self::startsWith($value, $before)) {
+            $value = self::substr($value, self::length($before));
+        }
+
+        $after = $after ? $after : $before;
+
+        if (self::endsWith($value, $after)) {
+            $value = self::substr($value, 0, -self::length($after));
+        }
+
+        return $value;
+    }
+
 }

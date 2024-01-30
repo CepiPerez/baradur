@@ -1151,6 +1151,34 @@ class BladeOne
         return $this->phpTag.'$this->stopPush(); ?>';
     }
 
+    protected function compilePushIf($expression)
+    {
+        $parts = explode(',', $this->stripParentheses($expression));
+        $part0 = $parts[0];
+        $part1 = $parts[1];
+
+        return "<?php if({$part0}): \$this->startPush({$part1}); ?>";
+    }
+
+    protected function compilePushElseIf($expression)
+    {
+        $parts = explode(',', $this->stripParentheses($expression));
+        $part0 = $parts[0];
+        $part1 = $parts[1];
+
+        return "<?php elseif({$part0}): \$this->startPush({$part1}); ?>";
+    }
+
+    protected function compilePushElse($expression)
+    {
+        return "<?php else: \$this->startPush{$expression}; ?>";
+    }
+
+    protected function compileEndPushIf()
+    {
+        return '<?php $this->stopPush(); endif; ?>';
+    }
+
     protected function compilePrepend($expression)
     {
         return $this->phpTag."\$this->startPrepend{$expression}; ?>";
@@ -1169,6 +1197,25 @@ class BladeOne
     protected function compileEndonce()
     {
         return $this->phpTag.'$this->stopPushOnce(); ?>';
+    }
+
+    protected function compileSession($expression)
+    {
+        $expression = $this->stripParentheses($expression);
+
+        return '<?php $__sessionArgs = array('.$expression.');
+            if (session()->has($__sessionArgs[0])) :
+            if (isset($value)) { $__sessionPrevious[] = $value; }
+            $value = session()->get($__sessionArgs[0]); ?>';
+    }
+    
+    protected function compileEndsession($expression)
+    {
+        return '<?php unset($value);
+            if (isset($__sessionPrevious) && !empty($__sessionPrevious)) { $value = array_pop($__sessionPrevious); }
+            if (isset($__sessionPrevious) && empty($__sessionPrevious)) { unset($__sessionPrevious); }
+            endif;
+            unset($__sessionArgs); ?>';
     }
 
     protected function compileJson($expression)
