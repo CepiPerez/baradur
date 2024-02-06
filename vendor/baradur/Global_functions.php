@@ -505,6 +505,10 @@ function is_closure($closure)
 		return false;
 	}
 
+	if (!is_string($closure[0])) {
+		return false;
+	}
+
 	//return count(explode('|', $closure))>=4;
 	//return count(explode('|', $closure))>=3;
 

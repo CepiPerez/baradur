@@ -194,10 +194,10 @@ class Hash
 
 	private function hashPassword($password)
 	{
-		$random = config('app.key');;
+		$random = config('app.key');
 
 		if (CRYPT_BLOWFISH === 1 && !$this->portable_hashes) {
-			$random = $this->get_random_bytes(16);
+			$random = $random ? $random : $this->get_random_bytes(16);
 			$hash = crypt($password, $this->gensalt_blowfish($random));
 
 			if (strlen($hash) === 60) {

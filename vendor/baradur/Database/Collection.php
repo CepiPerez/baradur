@@ -1,6 +1,6 @@
 <?php
 
-Class Collection implements ArrayAccess, Iterator
+Class Collection implements ArrayAccess, Iterator, Countable
 {
     protected static $_macros = array();
 

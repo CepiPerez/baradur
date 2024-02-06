@@ -44,22 +44,22 @@ Class PdoConnector extends Connector
     
     public function beginTransaction()
     {
-        //$this->inTransaction = true;
+        $this->inTransaction = true;
         $this->connection->query('START TRANSACTION');
-        $this->connection->beginTransaction();
+        //$this->connection->beginTransaction();
     }
 
     public function commit()
     {
-        //$this->connection->commit();
         $this->connection->query('COMMIT');
+        //$this->connection->commit();
         $this->inTransaction = false;
     }
     
     public function rollBack()
     {
-        //$this->connection->rollBack();
         $this->connection->query('ROLLBACK');
+        //$this->connection->rollBack();
         $this->inTransaction = false;
     }
 

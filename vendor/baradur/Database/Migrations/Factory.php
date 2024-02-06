@@ -24,6 +24,8 @@ abstract Class Factory
 
         $model->fillableOff();
 
+        $values = is_array($values) ? $values : array();
+
         while ($i++ < $count) {
             $item = $this->definition();
 

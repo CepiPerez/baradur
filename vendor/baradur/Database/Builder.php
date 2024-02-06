@@ -777,6 +777,7 @@ Class Builder
 
     private function addWhere($column, $cond=null, $val=null, $boolean='AND')
     {
+        
         if (is_closure($column)) {
             $prev_where = $this->_where;
             $this->_where = '';

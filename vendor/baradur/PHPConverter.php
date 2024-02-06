@@ -70,13 +70,23 @@ Class PHPConverter
         //$params[] = '$_baradur_send='.(count($defparms) + count($params));
         $to_send = count($defparms) + count($params);
     
+        $count_builder_macros = isset($this->_builder_macros[$this->_current_classname[0]]) 
+            ? count($this->_builder_macros[$this->_current_classname[0]]) : 0;
+        $count_collection_macros = isset($this->_collection_macros[$this->_current_classname[0]]) 
+            ? count($this->_collection_macros[$this->_current_classname[0]]) : 0;
+        $count_arrow_functions = isset($this->_arrow_functions) 
+            ? count($this->_arrow_functions) : 0;
+
         $counter = array();
+
         if ($this->_for_macro == 'Builder')
-            $counter = count($this->_builder_macros[$this->_current_classname[0]]);
+            $counter = $count_builder_macros;
         elseif ($this->_for_macro == 'Collection')
-            $counter = count($this->_collection_macros[$this->_current_classname[0]]);
+            $counter = $count_collection_macros;
         else
-            $counter = count($this->_arrow_functions);
+            $counter = $count_arrow_functions;
+
+            //die("ACA");
         
 
         // working
