@@ -235,7 +235,7 @@ function baradur_class_loader($class, $require = true)
 {
     if (strpos($class, 'PHPExcel_') !== false) return;
 
-    #if ($require) echo "Loading Baradur class: ".$class."\n";
+    #if ($require) echo "Loading Baradur class: " . $class . "<br>";
 
     $newclass = null;
 
@@ -250,7 +250,11 @@ function baradur_class_loader($class, $require = true)
     }
 
 
-    if (file_exists(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . '' . $class . '.php') && $newclass) {
+
+    if (
+        file_exists(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . '' . $class . '.php')
+        && $newclass && strpos($newclass, '' . DIRECTORY_SEPARATOR . 'vendor') === false
+    ) {
         $date = filemtime($newclass);
         $cachedate = filemtime(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . '' . $class . '.php');
         #echo($class.":::".$date ."::".$cachedate."<br>");
@@ -279,6 +283,7 @@ function baradur_class_loader($class, $require = true)
             @unlink(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . '' . $class . '.php');
         }
     }
+
 
     if ($newclass) # && $version=='OLD')
     {

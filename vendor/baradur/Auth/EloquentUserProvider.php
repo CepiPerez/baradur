@@ -15,8 +15,8 @@ class EloquentUserProvider implements UserProvider
         $model = $this->createModel();
 
         return $this->newModelQuery($model)
-                    ->where($model->getAuthIdentifierName(), $identifier)
-                    ->first();
+            ->where($model->getAuthIdentifierName(), $identifier)
+            ->first();
     }
 
     public function retrieveByToken($identifier, $token)
@@ -56,7 +56,6 @@ class EloquentUserProvider implements UserProvider
             ARRAY_FILTER_USE_KEY
         ); */
 
-
         if (!is_array($credentials) || empty($credentials)) {
             return;
         }
@@ -75,21 +74,21 @@ class EloquentUserProvider implements UserProvider
         return $query->first();
     }
 
-    
+
     public function validateCredentials($user, $credentials)
     {
         if (!$user || !isset($credentials['password'])) {
             return false;
         }
 
-        return strcmp($user->getAuthPassword(), Hash::make($credentials['password']))===0;
+        return strcmp($user->getAuthPassword(), Hash::make($credentials['password'])) === 0;
     }
 
     protected function newModelQuery($model = null)
     {
         $query = is_null($model)
-                ? $this->createModel()->newQuery()
-                : $model->newQuery();
+            ? $this->createModel()->newQuery()
+            : $model->newQuery();
 
         //with($query, $this->queryCallback);
 

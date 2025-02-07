@@ -119,6 +119,8 @@ class LengthAwarePaginator extends Collection
      */
     public function url($page)
     {
+        //return $this->meta['path'] . '?' . $this->query;
+
         if ($page <= 0) {
             $page = 1;
         }
@@ -146,7 +148,7 @@ class LengthAwarePaginator extends Collection
      */
     public static function resolveCurrentPath($default = '/')
     {
-        if (isset(static::$currentPathResolver)) {
+        if (isset(self::$currentPathResolver)) {
             return call_user_func(self::$currentPathResolver);
         }
 
@@ -231,7 +233,7 @@ class LengthAwarePaginator extends Collection
      */
     protected function setCurrentPage($currentPage, $pageName)
     {
-        $currentPage = $currentPage ?: self::resolveCurrentPage($pageName);
+        $currentPage = $currentPage ? $currentPage : self::resolveCurrentPage($pageName);
 
         return $this->isValidPageNumber($currentPage) ? (int) $currentPage : 1;
     }
@@ -261,27 +263,7 @@ class LengthAwarePaginator extends Collection
      */
     public function linkCollection()
     {
-        return (new Collection($this->elements()))->flatMap(function ($item) {
-            if (! is_array($item)) {
-                return [['url' => null, 'label' => '...', 'active' => false]];
-            }
-
-            return (new Collection($item))->map(function ($url, $page) {
-                return [
-                    'url' => $url,
-                    'label' => (string) $page,
-                    'active' => $this->currentPage() === $page,
-                ];
-            });
-        })->prepend([
-            'url' => $this->previousPageUrl(),
-            'label' => function_exists('__') ? __('pagination.previous') : 'Previous',
-            'active' => false,
-        ])->push([
-            'url' => $this->nextPageUrl(),
-            'label' => function_exists('__') ? __('pagination.next') : 'Next',
-            'active' => false,
-        ]);
+        return collect($this->meta);
     }
 
 
@@ -356,6 +338,10 @@ class LengthAwarePaginator extends Collection
      */
     public function appends($params = array())
     {
+        if ($params instanceof Request) {
+            $params = $params->all();
+        }
+
         unset($params['ruta']);
         unset($params[$this->pageName]);
 

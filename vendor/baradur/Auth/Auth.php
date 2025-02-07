@@ -12,14 +12,14 @@ class Auth extends Controller
     public static $guards = array();
 
     /** @return SessionGuard */
-    private static function getGuard($guard=null)
+    private static function getGuard($guard = null)
     {
         if (isset($_SESSION['guard'])) {
 
             $stored = $_SESSION['guard'];
             self::$guards[$stored->name] = $stored;
 
-            if ($stored->name==$guard || !$guard) {
+            if ($stored->name == $guard || !$guard) {
                 return $stored;
             }
         }
@@ -32,15 +32,15 @@ class Auth extends Controller
             return self::$guards[$guard];
         }
 
-        $config = config('auth.guards.'.$guard);
+        $config = config('auth.guards.' . $guard);
 
-        if ($config===null) {
+        if ($config === null) {
             throw new RuntimeException("Guard [$guard] not defined.");
         }
 
-        $provider = config('auth.providers.'.$config['provider']);
+        $provider = config('auth.providers.' . $config['provider']);
 
-        if ($provider===null || !is_array($provider) || !isset($provider['model'])) {
+        if ($provider === null || !is_array($provider) || !isset($provider['model'])) {
             throw new RuntimeException("Provider [" . $config['provider'] . "] not defined correctly.");
         }
 
@@ -59,7 +59,7 @@ class Auth extends Controller
     }
 
     /** @return SessionGuard */
-    public static function guard($guard=null)
+    public static function guard($guard = null)
     {
         return self::getGuard($guard);
     }
@@ -89,29 +89,28 @@ class Auth extends Controller
     public static function api_login($username, $password)
     {
         $user = Model::instance('User')->where('email', $username)
-                    ->orWhere('username', $username)->first();
+            ->orWhere('username', $username)->first();
 
         if (!$user || strcmp($user->password, md5($password))) {
             header('HTTP/1.1 401 Unauthorized');
             header('Content-Type: application/json');
-            echo json_encode(array("error"=>"Access denied. Bad credentials"));
+            echo json_encode(array("error" => "Access denied. Bad credentials"));
             __exit();
         }
 
         if (!$user->token) {
             header('HTTP/1.1 401 Unauthorized');
             header('Content-Type: application/json');
-            echo json_encode(array("error"=>"Access denied. User validation required!"));
+            echo json_encode(array("error" => "Access denied. User validation required!"));
             __exit();
         }
 
-        $token = md5($user->username.'_'.$user->password.'_'.Carbon::now()->getTimestamp());
+        $token = md5($user->username . '_' . $user->password . '_' . Carbon::now()->getTimestamp());
         $user->token = $token;
         $user->token_timestamp = Carbon::now()->getTimestamp();
         $user->save();
 
         return $token;
-
     }
 
 
@@ -133,8 +132,10 @@ class Auth extends Controller
 
     public function confirm_login(Request $request)
     {
+        //dd(Hash::make($request->password));
+
         $guard = self::getGuard(config('auth.defaults.guard'));
-        
+
         $result = $guard->attempt(
             array('username' => $request->username, 'password' => $request->password),
             $request->remember
@@ -221,14 +222,14 @@ class Auth extends Controller
 
         $random = substr(md5(rand()), 0, 20);
 
-        $message = __('login.content_registration')."\n".
-            __('login.follow_finish')."\n\n"
-            .rtrim(config('app.url'), '/') . "/email_confirm" . "/".
-            $request->email . "/" . $random . "\n\n".__('login.thanks'); 
-    
+        $message = __('login.content_registration') . "\n" .
+            __('login.follow_finish') . "\n\n"
+            . rtrim(config('app.url'), '/') . "/email_confirm" . "/" .
+            $request->email . "/" . $random . "\n\n" . __('login.thanks');
+
         Mail::to($request->email)
-			->subject(__('login.register_confirmation'))
-			->send($message);
+            ->subject(__('login.register_confirmation'))
+            ->send($message);
 
         $model = $guard->getProvider()->getModel();
         $user = new $model;
@@ -244,9 +245,9 @@ class Auth extends Controller
             __('login.registration') => '#'
         );
 
-        $reg_message = __('login.message_sent').'<br><br>'.
-            __('login.follow_registration').'<br><br>'.
-            __('login.thanks').'<br>';
+        $reg_message = __('login.message_sent') . '<br><br>' .
+            __('login.follow_registration') . '<br><br>' .
+            __('login.thanks') . '<br>';
 
         return view('auth/message', compact('title', 'breadcrumb', 'reg_message'));
     }
@@ -273,7 +274,7 @@ class Auth extends Controller
             abort(403);
         }
 
-        $token = md5($user->username.'_'.$user->password.'_'.Carbon::now()->getTimestamp());
+        $token = md5($user->username . '_' . $user->password . '_' . Carbon::now()->getTimestamp());
 
         $user->validation = null;
         $user->token = $token;
@@ -316,7 +317,7 @@ class Auth extends Controller
         ));
 
         $title = __('login.message_sent');
-        
+
         $breadcrumb = array(
             __('login.home') => '/',
             __('login.registration') => '#'
@@ -327,8 +328,7 @@ class Auth extends Controller
             ->orWhere('email', $request->username)
             ->first();
 
-        if (!$user)
-        {
+        if (!$user) {
             return back()->with("error", __('login.no_user'));
         }
 
@@ -337,18 +337,18 @@ class Auth extends Controller
         $user->validation = $random;
         $user->save();
 
-        $message = __('login.content_reset')."\n".
-            __('login.follow_finish')."\n\n"
-            .rtrim(config('app.url'), '/') . "/restore" . "/".
-            $user->email . "/" . $random . "\n\n".__('login.thanks'); 
+        $message = __('login.content_reset') . "\n" .
+            __('login.follow_finish') . "\n\n"
+            . rtrim(config('app.url'), '/') . "/restore" . "/" .
+            $user->email . "/" . $random . "\n\n" . __('login.thanks');
 
         Mail::to($user->email)
-			->subject(__('login.reset_confirmation'))
-			->send($message);
+            ->subject(__('login.reset_confirmation'))
+            ->send($message);
 
-        $reg_message = __('login.message_sent').'<br><br>'.
-            __('login.follow_reset').'<br><br>'.
-            __('login.thanks').'<br>';
+        $reg_message = __('login.message_sent') . '<br><br>' .
+            __('login.follow_reset') . '<br><br>' .
+            __('login.thanks') . '<br>';
 
         return view('auth/message', compact('title', 'breadcrumb', 'reg_message'));
     }
@@ -399,7 +399,7 @@ class Auth extends Controller
             abort(403);
         }
 
-        $token = md5($user->username.'_'.$user->password.'_'.Carbon::now()->getTimestamp());
+        $token = md5($user->username . '_' . $user->password . '_' . Carbon::now()->getTimestamp());
 
         $user->password = md5($request->password);
         $user->token = $token;
@@ -426,37 +426,31 @@ class Auth extends Controller
     /**
      * Creates Auth routes
      */
-    public static function routes($routes=array())
+    public static function routes($routes = array())
     {
-        $register = isset($routes['register'])? $routes['register'] : true;
-        $reset = isset($routes['reset'])? $routes['reset'] : true;
+        $register = isset($routes['register']) ? $routes['register'] : true;
+        $reset = isset($routes['reset']) ? $routes['reset'] : true;
 
         Route::get('login', 'Auth@start_login')->name('login')->withoutMiddleware('auth')->middleware('guest');
         Route::post('login', 'Auth@confirm_login')->name('confirm_login')->withoutMiddleware('auth')->middleware('guest');
 
-        if ($register)
-        {
+        if ($register) {
             Route::get('register', 'Auth@register')->name('registration')->withoutMiddleware('auth')->middleware('guest');
             Route::post('register', 'Auth@send_register')->name('confirm_registration')->withoutMiddleware('auth')->middleware('guest');
         }
 
-        if ($reset)
-        {
+        if ($reset) {
             Route::get('reset', 'Auth@reset')->name('reset_password')->withoutMiddleware('auth')->middleware('guest');
             Route::post('reset', 'Auth@restore')->name('send_reset_password')->withoutMiddleware('auth')->middleware('guest');
             Route::get('restore/{email}/{token}', 'Auth@restore_confirm')->name('restore_password')->withoutMiddleware('auth')->middleware('guest');
             Route::post('restore', 'Auth@restore_confirmed')->name('confirm_restore_password')->withoutMiddleware('auth')->middleware('guest');
         }
 
-        if ($register || $reset)
-        {
+        if ($register || $reset) {
             Route::get('email_confirm/{email}/{token}', 'Auth@confirm')->name('email_confirm')->withoutMiddleware('auth')->middleware('guest');
             Route::get('email_verify', 'Auth@verify')->name('email_verify')->withoutMiddleware('auth')->middleware('guest');
         }
 
         Route::get('logout', 'Auth@logout')->name('logout');
     }
-
 }
-
-?>

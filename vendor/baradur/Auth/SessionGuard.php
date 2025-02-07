@@ -54,7 +54,7 @@ class SessionGuard
 
     public function login($user, $remember = false)
     {
-        $token = md5($user->username.'_'.$user->password.'_'.strtotime('now'));
+        $token = md5($user->username . '_' . $user->password . '_' . strtotime('now'));
 
         $token_key = $user->getRememberTokenName();
 
@@ -64,7 +64,7 @@ class SessionGuard
 
         if ($remember) {
             $domain = $_SERVER["HTTP_HOST"];
-            setcookie(config('app.name').'_token', $token, time()+$this->rememberDuration, '/', $domain, false, true);
+            setcookie(config('app.name') . '_token', $token, time() + $this->rememberDuration, '/', $domain, false, true);
         }
 
         $user->unsetAttribute('password');
@@ -73,11 +73,11 @@ class SessionGuard
 
         session()->regenerate(false);
 
-        $_SESSION['guard'] = $this; 
+        $_SESSION['guard'] = $this;
         //$_SESSION['user'] = $user;
-        
+
         return true;
-    } 
+    }
 
     public function logout()
     {
@@ -88,7 +88,7 @@ class SessionGuard
         }
 
         $domain = $_SERVER["HTTP_HOST"];
-        setcookie(config('app.name').'_token', '', time() - 3600, '/', $domain);
+        setcookie(config('app.name') . '_token', '', time() - 3600, '/', $domain);
 
         $this->user = null;
         $this->loggedOut = true;
@@ -157,6 +157,4 @@ class SessionGuard
             ? $this->user()->getAuthIdentifier()
             : null; //$this->session->get($this->getName());
     }
-
-
 }
