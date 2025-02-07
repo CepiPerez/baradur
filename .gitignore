@@ -2,3 +2,4 @@ storage/framework/*
 mysql/
 redis/
 minio/
+vendor/baradur_bak

@@ -319,18 +319,154 @@ Class Collection implements ArrayAccess, Iterator, Countable
         return count($this->items);
     } 
 
-    /**
-     * Removes and returns the first item from the collection
-     * 
-     * @return Model|null
-     */
-    public function shift()
+
+    private function __array_search($value, $haystack, $strict = false)
     {
-        if ($this->count()==0) {
+        if (is_assoc($haystack)) {
+            foreach ($haystack as $key => $val) {
+                if ($strict) {
+                    if ((string)$value===(string)$val && gettype($value)==gettype($val)) {
+                        return $key;
+                    }
+                } else {
+                    if ((string)$value===(string)$val) {
+                        return $key;
+                    }
+                }
+            }
+        } else {
+            $pos = 0;
+            foreach ($haystack as $val) {
+                if ($strict) {
+                    if ((string)$value===(string)$val && gettype($value)==gettype($val)) {
+                        return $pos;
+                    }
+                } else {
+                    if ((string)$value===(string)$val) {
+                        return $pos;
+                    }
+                }
+                $pos++;
+            }
+        }
+
+        return false;
+    }
+
+
+    /**
+     * Search the collection for a given value and return the corresponding key if successful.
+     *
+     * @param  $value
+     * @param  $strict
+     */
+    public function search($value, $strict = false)
+    {
+        if (!is_closure($value)) {
+            return $this->__array_search($value, $this->items, $strict);
+        }
+
+        foreach ($this->items as $key => $item) {
+
+            list($class, $method) = getCallbackFromString($value);
+
+            if (executeCallback($class, $method, array($item, $key) )) {
+                return $key;
+            }
+
+            /* if ($value($item, $key)) {
+                return $key;
+            } */
+        }
+
+        return false;
+    }
+
+    /**
+     * Get the item before the given item.
+     *
+     * @param  $value
+     * @param  $strict
+     */
+    public function before($value, $strict = false)
+    {
+        $key = $this->search($value, $strict);
+
+        if ($key === false) {
             return null;
         }
 
-        return array_shift($this->items);
+        $keys = new Collection(array_keys($this->items));
+        
+        $position = $keys->search($key);
+
+        if ($position === 0) {
+            return null;
+        }
+
+        return $this->get($keys->get($position - 1));
+    }
+
+    /**
+     * Get the item after the given item.
+     *
+     * @param  $value
+     * @param  $strict
+     */
+    public function after($value, $strict = false)
+    {
+        $key = $this->search($value, $strict);
+
+        if ($key === false) {
+            return null;
+        }
+
+        $keys = new Collection(array_keys($this->items));
+
+        $position = $keys->search($key);
+
+        if ($position === $keys->count() - 1) {
+            return null;
+        }
+
+        return $this->get($keys->get($position + 1));
+    }
+
+     /**
+     * Get and remove the first N items from the collection.
+     *
+     * @param  int  $count
+     * @return static<int, TValue>|TValue|null
+     *
+     * @throws InvalidArgumentException
+     */
+    public function shift($count = 1)
+    {
+        if ($count < 0) {
+            throw new InvalidArgumentException('Number of shifted items may not be less than zero.');
+        }
+
+        if ($this->isEmpty()) {
+            return null;
+        }
+
+        if ($count === 0) {
+            return new Collection;
+        }
+
+        if ($count === 1) {
+            return array_shift($this->items);
+        }
+
+        $results = array();
+
+        $collectionCount = $this->count();
+
+        foreach (range(1, min($count, $collectionCount)) as $item) {
+            array_push($results, array_shift($this->items));
+        }
+
+        return new Collection($results);
     }
     
     /**
@@ -454,6 +590,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
      */
     public function collect($data)
     {
+        //çdump($data, is_array($data), is_assoc($data));
         $data = is_array($data) ? $data : array($data);
 
         $this->items = $data;
@@ -629,6 +766,44 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function some($key, $operator = null, $value = null)
     {
         return $this->contains($key, $operator, $value);
+    }
+
+    /**
+     * Collapse the collection of items into a single array.
+     *
+     * @return Collection
+     */
+    public function collapse()
+    {
+        return new Collection(Arr::collapse($this->items));
+    }
+
+    /**
+     * Collapse the collection of items into a single array while preserving its keys.
+     *
+     * @return Collection
+     */
+    public function collapseWithKeys()
+    {
+        $results = array();
+
+        foreach ($this->items as $key => $values) {
+            if ($values instanceof Collection) {
+                $values = $values->all();
+            } elseif (! is_array($values)) {
+                continue;
+            }
+
+            if (is_array($values)) {
+                foreach ($values as $key => $val) {
+                    $results[$key] = $val;
+                }
+            } else {
+                $results[$key] = $values;
+            }
+        }
+
+        return new Collection(array_replace(array(), $results));
     }
 
     /**
@@ -975,7 +1150,8 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function get($key, $default = null)
     {
         if (array_key_exists($key, $this->items)) {
-            return new Collection($this->items[$key]);
+            //return new Collection($this->items[$key]);
+            return $this->items[$key];
         }
 
         return value($default);
@@ -1431,19 +1607,69 @@ Class Collection implements ArrayAccess, Iterator, Countable
     }
 
     /**
-     * Returns an element by its key/value pair
-     * 
-     * @return mixed
+     * Find a model in the collection by key.
+     *
+     * @param  $key
+     * @param  $default
+     * @return Collection|Model
      */
-    public function find($key, $value)
+    public function find($key, $default = null)
     {
-        foreach ($this->items as $record) {
-            if ($record->getAttribute($key) && $record->getAttribute($key)==$value) {
-                return $record;
+        if ($key instanceof Model) {
+            $key = $key->getKey();
+        }
+
+        if ($key instanceof Collection) {
+            $key = $key->toArray();
+        }
+
+        if (is_array($key)) {
+            if ($this->isEmpty()) {
+                return new Collection;
+            }
+
+            return $this->whereIn($this->first()->getKeyName(), $key);
+        }
+
+        //return Arr::first($this->items, fn ($model) => $model->getKey() == $key, $default);
+        foreach ($this->items as $model) {
+            if ($model->getKey() == $key) {
+                return $model;
             }
         }
 
-        return null;
+        return value($default);
+    }
+
+    /**
+     * Find a model in the collection by key or throw an exception.
+     *
+     * @param  $key
+     * @return Model
+     *
+     * @throws ModelNotFoundException
+     */
+    public function findOrFail($key)
+    {
+        $result = $this->find($key);
+
+        if (is_array($key) && count($result) === count(array_unique($key))) {
+            return $result;
+        } elseif (!is_array($key) && !is_null($result)) {
+            return $result;
+        }
+
+        $exception = new ModelNotFoundException;
+
+        if (!$model = head($this->items)) {
+            throw $exception;
+        }
+
+        $ids = is_array($key) ? array_diff($key, $result->modelKeys()) : $key;
+
+        $exception->setModel(get_class($model), $ids);
+
+        throw $exception;
     }
 
     /**

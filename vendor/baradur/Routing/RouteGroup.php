@@ -1,6 +1,6 @@
 <?php
 
-Class RouteGroup 
+class RouteGroup
 {
     public $domain = null;
     public $prefix = '';
@@ -33,7 +33,7 @@ Class RouteGroup
         return $this;
     }
 
-    
+
     public function only($only)
     {
         foreach ($this->added as $route) {
@@ -62,7 +62,7 @@ Class RouteGroup
     public static function applyRouteOptions($route, $options)
     {
         if (is_array($options['middleware'])) {
-            foreach($options['middleware'] as $m) {
+            foreach ($options['middleware'] as $m) {
                 if (!in_array($m, $route->_middleware)) {
                     $route->_middleware[] = $m;
                 }
@@ -99,11 +99,10 @@ Class RouteGroup
         $route->_prefix = $source->prefix;
         $route->_name = $source->name;
         $route->_scope_bindings = $source->scope_bindings;
-
     }
 
     public function group($routes)
-    {        
+    {
         $instance = Route::getInstance();
 
         //$backup = self::backupRouteOptions($instance);
@@ -124,7 +123,7 @@ Class RouteGroup
         //self::applyRouteOptions($instance, $backup);
 
         return $this;
-    } 
+    }
 
     public function prefix($prefix)
     {
@@ -159,5 +158,4 @@ Class RouteGroup
 
         return $this;
     }
-
 }

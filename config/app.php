@@ -11,6 +11,7 @@ return [
     'dumper_theme' => env('DUMPER_THEME', 'dark'),
     'debug_info' => env('DEBUG_INFO', false),
     'api_tokens' => env('API_TOKENS', 60),
+    'http_tokens' => env('HTTP_TOKENS', 60),
     'cache_driver' => env('CACHE_DRIVER', 'file'),
 
     /*
@@ -129,7 +130,7 @@ return [
     | this array to grant expanded functionality to your applications.
     |
     */
-    
+
     'providers' => [
 
         app\providers\AppServiceProvider::class,

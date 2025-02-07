@@ -43,7 +43,7 @@ class JsonResource
         foreach ($collection as $key => $item) {
             $item = new $class($item);
 
-            $item = $this::$wrap? $item->{$this::$wrap} : $item;
+            $item = self::$wrap? $item->{self::$wrap} : $item;
 
             if ($this->preserveKeys) {
                 $res[$key] = $item;
@@ -52,8 +52,8 @@ class JsonResource
             }
         }
         
-        if ($this::$wrap) {
-            $result = collect(array($this::$wrap => $res));
+        if (self::$wrap) {
+            $result = collect(array(self::$wrap => $res));
         } else {
             $result = collect($res);
 
@@ -92,10 +92,10 @@ class JsonResource
                 }
             }
 
-            if (!$this::$wrap) {
+            if (!self::$wrap) {
                 $res = $data;
             } else {
-                $res = array($this::$wrap => $data);
+                $res = array(self::$wrap => $data);
             }
 
             foreach ($this as $key => $val) {

@@ -1,6 +1,6 @@
 <?php
 
-Class HttpKernel
+class HttpKernel
 {
     protected $middleware = array();
     protected $middlewareAliases = array();
@@ -11,19 +11,19 @@ Class HttpKernel
     {
         global $phpConverter;
 
-        if (!file_exists(_DIR_.'app/http/Kernel.php')) {
+        if (!file_exists(_DIR_ . 'app/http/Kernel.php')) {
             throw new RuntimeException("Error trying to book Http kernel");
         }
 
-        $temp = file_get_contents(_DIR_.'app/http/Kernel.php');
+        $temp = file_get_contents(_DIR_ . 'app/http/Kernel.php');
 
         $temp = str_replace("ThrottleRequests::class.':api'", "'ThrottleRequests:api'", $temp);
 
         $temp = $phpConverter->replaceNewPHPFunctions($temp, 'App_Http_Kernel', _DIR_);
 
-        Cache::store('file')->plainPut(_DIR_.'storage/framework/classes/App_Http_Kernel.php', $temp);
-        require_once(_DIR_.'storage/framework/classes/App_Http_Kernel.php');
-        
+        Cache::store('file')->plainPut(_DIR_ . 'storage/framework/classes/App_Http_Kernel.php', $temp);
+        require_once(_DIR_ . 'storage/framework/classes/App_Http_Kernel.php');
+
         self::$kernel = new Kernel;
     }
 
@@ -43,18 +43,17 @@ Class HttpKernel
 
         $list = $kernel->getMiddlewareFromValue($middleware);
 
-        if (count($list)!=1) {
+        if (count($list) != 1) {
             throw new RuntimeException("Error trying to load [$middleware] middleware.");
         }
 
         return reset($list);
-
     }
 
-    public static function getMiddlewareList($values=array())
+    public static function getMiddlewareList($values = array())
     {
         $kernel = self::getKernel();
-        
+
         $values = array_merge($kernel->middleware, $values);
 
         $final_list = array();
@@ -65,7 +64,6 @@ Class HttpKernel
         }
 
         return $final_list;
-
     }
 
     private function getMiddlewareFromValue($value)
@@ -74,8 +72,8 @@ Class HttpKernel
 
         list($midd, $params) = explode(':', $value);
 
-        if (isset($_class_list[$midd])) {
-            return array( $midd . ($params? ':'.$params : '') );
+        if (isset($_class_list[$midd]) && !isset($this->middlewareGroups[$midd])) {
+            return array($midd . ($params ? ':' . $params : ''));
         }
 
         $list = array();
@@ -84,17 +82,17 @@ Class HttpKernel
 
         $list = array_merge($list, $items);
 
-        return $list;    
+        return $list;
     }
 
     private function getMiddlewareListFromGroups($middleware)
-    {        
+    {
         $list = array();
 
         //var_dump($this->middlewareGroups);die();
         if (isset($this->middlewareGroups[$middleware])) {
             $items = $this->middlewareGroups[$middleware];
-            
+
             foreach ($items as $item) {
                 $result = $this->getMiddlewareListFromRouteGroup($item);
 
@@ -105,7 +103,7 @@ Class HttpKernel
         } else {
             $list[] = $this->getMiddlewareListFromRouteGroup($middleware);
         }
-        
+
         return $list;
     }
 
@@ -114,17 +112,15 @@ Class HttpKernel
         global $_class_list;
 
         list($item, $params) = explode(':', $value);
-        
+
         if (isset($_class_list[$item])) {
-            return $item . ($params? ':'.$params : '');
+            return $item . ($params ? ':' . $params : '');
         }
 
-        if (isset($this->middlewareAliases[$item])) {   
-            return $this->middlewareAliases[$item] . ($params? ':'.$params : '');
+        if (isset($this->middlewareAliases[$item])) {
+            return $this->middlewareAliases[$item] . ($params ? ':' . $params : '');
         }
 
         return null;
     }
-
-
 }

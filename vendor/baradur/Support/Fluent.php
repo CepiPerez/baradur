@@ -2,7 +2,7 @@
 
 class Fluent
 {
-    protected $attributes = [];
+    protected $attributes = array();
 
     public function __construct($attributes = array())
     {
@@ -13,13 +13,31 @@ class Fluent
 
     public function get($key, $default = null)
     {
+        /* if (array_key_exists($key, $this->attributes)) {
+            return $this->attributes[$key];
+        }
+
+        return $default; */
+
+        return data_get($this->attributes, $key, $default);
+    }
+
+    public function value($key, $default = null)
+    {
         if (array_key_exists($key, $this->attributes)) {
             return $this->attributes[$key];
         }
 
-        return $default;
+        return value($default);
     }
 
+    public function scope($key, $default = null)
+    {
+        return new Fluent(
+            (array) $this->get($key, $default)
+        );
+    }
+    
     public function getAttributes()
     {
         return $this->attributes;
@@ -28,6 +46,11 @@ class Fluent
     public function toArray()
     {
         return $this->attributes;
+    }
+
+    public function collect($key = null)
+    {
+        return new Collection($this->get($key));
     }
 
     public function jsonSerialize()

@@ -47,11 +47,18 @@ class Arr
                 continue;
             }
 
-            $results[] = $values;
+            if (is_assoc($values)) {
+                foreach ($values as $key => $val) {
+                    $results[] = $val;
+                }
+            } elseif (is_array($values)) {
+                $results = array_merge($results, $values);
+            } else {
+                $results[] = $values;
+            }
         }
 
         return $results;
-        //return array_merge([], ...$results);
     }
 
     /**
@@ -609,7 +616,7 @@ class Arr
      */
     public static function query($array)
     {
-        return http_build_query($array, '', '&', PHP_QUERY_RFC3986);
+        return http_build_query($array, '', '&'/* , PHP_QUERY_RFC3986 */);
     }
 
     /**

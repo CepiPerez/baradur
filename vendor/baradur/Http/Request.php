@@ -1,6 +1,6 @@
 <?php
 
-Class Request
+class Request
 {
     //private $get = array();
     //private $post = array();
@@ -16,17 +16,17 @@ Class Request
     private $query = null;
     private $input = null;
     private $headers = array();
-    private $server = array();
+    public $server = array();
 
     protected $validated = array();
 
-    public function generate($route=null)
+    public function generate($route = null)
     {
         $this->clear();
 
         $this->route = $route;
         $this->method = $_SERVER['REQUEST_METHOD'];
-        $this->uri = config('app.url').$_SERVER['REQUEST_URI'];
+        $this->uri = config('app.url') . $_SERVER['REQUEST_URI'];
         $this->ip = $_SERVER['REMOTE_ADDR'];
         $this->host = $_SERVER['HTTP_HOST'];
         //$this->input = $_REQUEST;
@@ -42,7 +42,7 @@ Class Request
         # Adding GET values into Request
         if (isset($_GET)) {
             foreach ($_GET as $key => $val) {
-                if ($key!='_method' && $key!='_token' && $key!='ruta') {
+                if ($key != '_method' && $key != '_token' && $key != 'ruta') {
                     $this->query[$key] = $val;
                     $this->input[$key] = $val;
                 }
@@ -52,18 +52,18 @@ Class Request
         # Adding POST values into Request
         if (isset($_POST)) {
             foreach ($_POST as $key => $val) {
-                if ($key!='_method' && $key!='_token' && $key!='ruta') {
+                if ($key != '_method' && $key != '_token' && $key != 'ruta') {
                     $this->input[$key] = $val;
                 }
             }
         }
 
         # Adding PUT values into Request
-        if ($_SERVER['REQUEST_METHOD']=='PUT' || $_SERVER['REQUEST_METHOD']=='PATCH') {
+        if ($_SERVER['REQUEST_METHOD'] == 'PUT' || $_SERVER['REQUEST_METHOD'] == 'PATCH') {
             parse_str(file_get_contents("php://input"), $data);
 
             foreach ($data as $key => $val) {
-                if ($key!='_method' && $key!='_token' && $key!='ruta') {
+                if ($key != '_method' && $key != '_token' && $key != 'ruta') {
                     $this->input[$key] = $val;
                 }
             }
@@ -75,7 +75,7 @@ Class Request
             foreach ($_FILES as $key => $val) {
 
                 if (is_array($val['name'])) {
-                    for ($i=0; $i<count($val['name']); ++$i) {
+                    for ($i = 0; $i < count($val['name']); ++$i) {
                         $fileinfo = array();
                         $fileinfo['name'] = $val['name'][$i];
                         $fileinfo['type'] = $val['type'][$i];
@@ -83,7 +83,7 @@ Class Request
                         $fileinfo['error'] = $val['error'][$i];
                         $fileinfo['size'] = $val['size'][$i];
 
-                        if ($fileinfo['name'] && $fileinfo['type'] && $fileinfo['error']==0) {
+                        if ($fileinfo['name'] && $fileinfo['type'] && $fileinfo['error'] == 0) {
                             $this->files[$fileinfo['name']] = new UploadedFile($fileinfo);
                         }
                     }
@@ -96,13 +96,12 @@ Class Request
                     $fileinfo['error'] = $val['error'];
                     $fileinfo['size'] = $val['size'];
 
-                    if ($fileinfo['name'] && $fileinfo['type'] && $fileinfo['error']==0) {
+                    if ($fileinfo['name'] && $fileinfo['type'] && $fileinfo['error'] == 0) {
                         $this->files[$key] = new UploadedFile($fileinfo);
                     }
                 }
             }
         }
-
     }
 
     public function setUri($val)
@@ -149,15 +148,58 @@ Class Request
         return Str::contains($acceptable, array($content_type));
     }
 
+    public function getScheme()
+    {
+        $arr = parse_url($this->uri);
+
+        return $arr['scheme'];
+    }
+
+    public function getSchemeAndHttpHost()
+    {
+        return $this->getScheme() . '://' . $this->getHttpHost();
+    }
+
+    public function getHttpHost()
+    {
+        $scheme = $this->getScheme();
+        $port = $this->getPort();
+
+        if (('http' === $scheme && 80 == $port) || ('https' === $scheme && 443 == $port)) {
+            return $this->getHost();
+        }
+
+        return $this->getHost() . ':' . $port;
+    }
+
+    public function getHost()
+    {
+        $arr = parse_url($this->uri);
+
+        return $arr['host'];
+    }
+
+    public function getBaseUrl()
+    {
+        $arr = parse_url($this->uri);
+
+        return $arr['path'];
+    }
+
+    public function getPort()
+    {
+        return 'https' === $this->getScheme() ? 443 : 80;
+    }
+
     public function getAcceptableContentTypes()
     {
-        $acceptable = array(); 
+        $acceptable = array();
 
         foreach ($this->headers as $key => $val) {
-            if ($key=='Accept') {
+            if ($key == 'Accept') {
                 $acceptable[] = $val;
             }
-        } 
+        }
 
         return implode(', ', $acceptable);
     }
@@ -179,7 +221,7 @@ Class Request
     {
         $acceptable = $this->getAcceptableContentTypes();
 
-        return strlen($acceptable)===0 || Str::contains($acceptable, array('*/*', '*'));
+        return strlen($acceptable) === 0 || Str::contains($acceptable, array('*/*', '*'));
     }
 
     public function ajax()
@@ -194,17 +236,17 @@ Class Request
 
     public function isXmlHttpRequest()
     {
-        return isset($this->headers['X-Requested-With']) && $this->headers['X-Requested-With']=='XMLHttpRequest';
+        return isset($this->headers['X-Requested-With']) && $this->headers['X-Requested-With'] == 'XMLHttpRequest';
     }
 
     public function bearerToken()
     {
         $token = $this->header('Authorization');
-        
+
         if (!$token) {
             return null;
         }
-        
+
         return str_replace('Bearer ', '', $token);
     }
 
@@ -216,7 +258,7 @@ Class Request
     public function is($pattern)
     {
         $path = $this->decodedPath();
-        
+
         foreach (func_get_args() as $pattern) {
             if (Str::is($pattern, $path)) {
                 return true;
@@ -258,7 +300,7 @@ Class Request
 
         return $this->session;
     }
-    
+
     public function attributes()
     {
         return array();
@@ -315,14 +357,14 @@ Class Request
     public function fullUrlWithQuery($query = array())
     {
         parse_str($this->query, $result);
-        
+
         foreach ($query as $key => $value) {
             $result[$key] = $value;
         }
 
         $res = $this->url();
 
-        if (count($result)> 0) {
+        if (count($result) > 0) {
             $res .= '?' . http_build_query($result);
         }
 
@@ -332,14 +374,14 @@ Class Request
     public function fullUrlWithoutQuery($query = array())
     {
         parse_str($this->query, $result);
-        
+
         foreach ($query as $key) {
             unset($result[$key]);
         }
 
         $res = $this->url();
-        
-        if (count($result)> 0) {
+
+        if (count($result) > 0) {
             $res .= '?' . http_build_query($result);
         }
 
@@ -349,6 +391,11 @@ Class Request
     public function method()
     {
         return $this->method;
+    }
+
+    public function root()
+    {
+        return rtrim($this->getSchemeAndHttpHost() . $this->getBaseUrl(), '/');
     }
 
     public function host()
@@ -419,7 +466,7 @@ Class Request
                 $array[$key] = $val;
             }
         }
-        
+
         return $array;
     }
 
@@ -434,15 +481,15 @@ Class Request
                 $array[$key] = $val;
             }
         }
-        
+
         return $array;
     }
-    
-    public function query($key=null, $default=null)
+
+    public function query($key = null, $default = null)
     {
         if ($key) {
-            return array_key_exists($key, $this->query) 
-                ? $this->query[$key] 
+            return array_key_exists($key, $this->query)
+                ? $this->query[$key]
                 : $default;
         }
 
@@ -531,7 +578,7 @@ Class Request
     {
         $value = $this->input($key);
 
-        return !is_bool($value) && !is_array($value) && trim((string) $value)==='';
+        return !is_bool($value) && !is_array($value) && trim((string) $value) === '';
     }
 
 
@@ -566,7 +613,7 @@ Class Request
         return $this->files[$key];
     }
 
-    public function input($key=null, $default=null)
+    public function input($key = null, $default = null)
     {
         $array = $this->input; //array_merge($this->get, $this->post, $this->files);
 
@@ -643,7 +690,7 @@ Class Request
     {
         $value = $this->input($name);
 
-        return isset($value)? Str::of($value)->toBoolean() : null;
+        return isset($value) ? Str::of($value)->toBoolean() : null;
     }
 
     /** @return Stringable|null */
@@ -662,8 +709,8 @@ Class Request
     public function date($name)
     {
         $value = $this->input($name);
-        
-        return $value? Carbon::parse($value) : null;
+
+        return $value ? Carbon::parse($value) : null;
     }
 
     /** @return int|null */

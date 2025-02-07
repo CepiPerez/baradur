@@ -16,7 +16,7 @@ class Route
     public $_prefix = '';
     public $_name = '';
     public $_scope_bindings = true;
-    
+
     public $_collection;
     public $current;
     public $GET;
@@ -80,12 +80,12 @@ class Route
      * @param string $redirect_from
      * @param string $redirect_to
      */
-    public static function redirect($redirect_from, $redirect_to, $code=302)
+    public static function redirect($redirect_from, $redirect_to, $code = 302)
     {
         $res = self::getInstance();
         $res->_redirections[$redirect_from] = array('to' => $redirect_to, 'code' => $code);
     }
-    
+
     /**
      * Redirects to specific route
      * 
@@ -264,7 +264,7 @@ class Route
     {
         $instance = self::getInstance();
         $res = new RouteGroup($instance);
-        $res->prefix = ($instance->_prefix? $instance->_prefix.'/' : '') . $prefix;
+        $res->prefix = ($instance->_prefix ? $instance->_prefix . '/' : '') . $prefix;
         return $res;
     }
 
@@ -278,7 +278,7 @@ class Route
     {
         $instance = self::getInstance();
         $res = new RouteGroup($instance);
-        $res->domain = ($instance->_domain? $instance->_domain.'.' : null) . $domain;
+        $res->domain = ($instance->_domain ? $instance->_domain . '.' : null) . $domain;
         return $res;
     }
 
@@ -297,7 +297,7 @@ class Route
         }
 
         RouteGroup::restoreRouteOptions($instance, $backup);
-    } 
+    }
 
     /**
      * Route a resource to a controller.
@@ -314,13 +314,13 @@ class Route
         $group = new RouteGroup($instance);
         $group->added = array();
 
-        $group->added[] = self::addRoute('GET', $url, $controller, 'index')->name($url.'.index');
-        $group->added[] = self::addRoute('GET', $url.'/'.Route::getVerbName('create'), $controller, 'create')->name($url.'.create');
-        $group->added[] = self::addRoute('POST', $url, $controller, 'store')->name($url.'.store');
-        $group->added[] = self::addRoute('GET', $url.'/{'.$item.'}', $controller, 'show')->name($url.'.show');
-        $group->added[] = self::addRoute('GET', $url.'/{'.$item.'}/'.Route::getVerbName('edit'), $controller, 'edit')->name($url.'.edit');
-        $group->added[] = self::addRoute('PUT', $url.'/{'.$item.'}', $controller, 'update')->name($url.'.update');
-        $group->added[] = self::addRoute('DELETE', $url.'/{'.$item.'}', $controller, 'destroy')->name($url.'.destroy');
+        $group->added[] = self::addRoute('GET', $url, $controller, 'index')->name($url . '.index');
+        $group->added[] = self::addRoute('GET', $url . '/' . Route::getVerbName('create'), $controller, 'create')->name($url . '.create');
+        $group->added[] = self::addRoute('POST', $url, $controller, 'store')->name($url . '.store');
+        $group->added[] = self::addRoute('GET', $url . '/{' . $item . '}', $controller, 'show')->name($url . '.show');
+        $group->added[] = self::addRoute('GET', $url . '/{' . $item . '}/' . Route::getVerbName('edit'), $controller, 'edit')->name($url . '.edit');
+        $group->added[] = self::addRoute('PUT', $url . '/{' . $item . '}', $controller, 'update')->name($url . '.update');
+        $group->added[] = self::addRoute('DELETE', $url . '/{' . $item . '}', $controller, 'destroy')->name($url . '.destroy');
 
         return $group;
     }
@@ -352,11 +352,11 @@ class Route
         $group = new RouteGroup($instance);
         $group->added = array();
 
-        $group->added[] =  self::addRoute('GET', $name, $controller, 'index')->name($name.'.index');
-        $group->added[] =  self::addRoute('GET', $name.'/{'.$item.'}', $controller, 'show')->name($name.'.show');
-        $group->added[] =  self::addRoute('POST', $name, $controller, 'store')->name($name.'.store');
-        $group->added[] =  self::addRoute('PUT', $name.'/{'.$item.'}', $controller, 'update')->name($name.'.update');
-        $group->added[] =  self::addRoute('DELETE', $name.'/{'.$item.'}', $controller, 'destroy')->name($name.'.destroy');
+        $group->added[] =  self::addRoute('GET', $name, $controller, 'index')->name($name . '.index');
+        $group->added[] =  self::addRoute('GET', $name . '/{' . $item . '}', $controller, 'show')->name($name . '.show');
+        $group->added[] =  self::addRoute('POST', $name, $controller, 'store')->name($name . '.store');
+        $group->added[] =  self::addRoute('PUT', $name . '/{' . $item . '}', $controller, 'update')->name($name . '.update');
+        $group->added[] =  self::addRoute('DELETE', $name . '/{' . $item . '}', $controller, 'destroy')->name($name . '.destroy');
 
         return $group;
     }
@@ -387,25 +387,25 @@ class Route
         $group = new RouteGroup($instance);
         $group->added = array();
 
-        if (strpos($name, '.')!==false) {
+        if (strpos($name, '.') !== false) {
 
             $array = explode('.', $name);
             $parent = array_shift($array);
             $name = array_pop($array);
             $item = Helpers::getSingular($parent);
 
-            $group->added[] = self::addRoute('GET', $parent.'/{'.$item.'}/'.$name, $controller, 'show')->name($parent.'.'.$name.'.show');
-            $group->added[] = self::addRoute('GET', $parent.'/{'.$item.'}/'.$name.'/'.Route::getVerbName('edit'), $controller, 'edit')->name($parent.'.'.$name.'.edit');
-            $group->added[] = self::addRoute('PUT', $parent.'/{'.$item.'}/'.$name, $controller, 'update')->name($parent.'.'.$name.'.update');
-            $group->added[] = self::addRoute('DELETE', $parent.'/{'.$item.'}/'.$name, $controller, 'destroy')->name($parent.'.'.$name.'.destroy');
-    
+            $group->added[] = self::addRoute('GET', $parent . '/{' . $item . '}/' . $name, $controller, 'show')->name($parent . '.' . $name . '.show');
+            $group->added[] = self::addRoute('GET', $parent . '/{' . $item . '}/' . $name . '/' . Route::getVerbName('edit'), $controller, 'edit')->name($parent . '.' . $name . '.edit');
+            $group->added[] = self::addRoute('PUT', $parent . '/{' . $item . '}/' . $name, $controller, 'update')->name($parent . '.' . $name . '.update');
+            $group->added[] = self::addRoute('DELETE', $parent . '/{' . $item . '}/' . $name, $controller, 'destroy')->name($parent . '.' . $name . '.destroy');
+
             return $group;
         }
 
-        $group->added[] = self::addRoute('GET', $name, $controller, 'show')->name($name.'.show');
-        $group->added[] = self::addRoute('GET', $name.'/'.Route::getVerbName('edit'), $controller, 'edit')->name($name.'.edit');
-        $group->added[] = self::addRoute('PUT', $name, $controller, 'update')->name($name.'.update');
-        $group->added[] = self::addRoute('DELETE', $name, $controller, 'destroy')->name($name.'.destroy');
+        $group->added[] = self::addRoute('GET', $name, $controller, 'show')->name($name . '.show');
+        $group->added[] = self::addRoute('GET', $name . '/' . Route::getVerbName('edit'), $controller, 'edit')->name($name . '.edit');
+        $group->added[] = self::addRoute('PUT', $name, $controller, 'update')->name($name . '.update');
+        $group->added[] = self::addRoute('DELETE', $name, $controller, 'destroy')->name($name . '.destroy');
 
         return $group;
     }
@@ -432,7 +432,7 @@ class Route
      * @param string $view
      * @param array $parameters
      */
-    public static function view($url, $view, $parameters=array())
+    public static function view($url, $view, $parameters = array())
     {
         return self::addRoute('GET', $url, null, null, $view, $parameters);
     }
@@ -449,7 +449,7 @@ class Route
         if (is_closure($callback)) {
             $arr = explode('|', $callback[0]);
             $callback = array($arr[0], $arr[1]);
-        } elseif (is_string($callback) && strpos($callback, '@')!==false) {
+        } elseif (is_string($callback) && strpos($callback, '@') !== false) {
             $callback = explode('@', $callback);
         } elseif (is_string($callback) && isset($_class_list[$callback])) {
             $callback = array($callback, '__invoke');
@@ -457,12 +457,12 @@ class Route
             $callback = array('', $callback);
         }
 
-        return self::addRoute($method, $url, $callback[0], $callback[1]);        
+        return self::addRoute($method, $url, $callback[0], $callback[1]);
     }
 
     # Adds a route
     # Private - Creates the routes list (array)
-    private static function addRoute($method, $url, $controller, $func, $view=false, $viewparams=null)
+    private static function addRoute($method, $url, $controller, $func, $view = false, $viewparams = null)
     {
         $res = self::getInstance();
 
@@ -478,7 +478,7 @@ class Route
 
         $method = strtoupper($method);
         $url = ltrim($url, "/");
-        $url = /* $domain . '/' . */ ($res->_prefix? $res->_prefix.'/' : '') . ($url=='/' ? '' : $url);
+        $url = /* $domain . '/' . */ ($res->_prefix ? $res->_prefix . '/' : '') . ($url == '/' ? '' : $url);
 
         if ($url == '') {
             $url = '/';
@@ -488,7 +488,7 @@ class Route
             $url = $domain;
         } */
 
-        if ($func==null) {
+        if ($func == null) {
             $func = '';
         }
 
@@ -498,18 +498,18 @@ class Route
         $route->url = $url;
         //$route->full_url = str_replace('//', '/', $domain . '/' . $url);
         $route->middleware = $res->_middleware;
-        $route->name = $res->_name!=''? $res->_name : null ;
+        $route->name = $res->_name != '' ? $res->_name : null;
         $route->scope_bindings = $res->_scope_bindings;
         $route->controller = $res->_controller ? $res->_controller : $controller;
-        $route->func = strpos($func, '(')===false? $func : substr($func, 0, strpos($func, '('));
+        $route->func = strpos($func, '(') === false ? $func : substr($func, 0, strpos($func, '('));
         $route->view = $view;
         $route->viewparams = $viewparams;
-        
+
         $regex = $url;
         $regex = preg_replace('/(\/\{\w+\?\})/', '(?:/(\w+[^/]*))?', $regex);
         $regex = preg_replace('/\{([^\}]*)\}/', '(\w+[^/]*)', $regex);
         $route->regex = '/^' . str_replace('/', '\\/', $regex) . '$/Du';
-        
+
         $params = preg_replace('/\{(\w+?)\?\}/', '{$1}', $url);
         preg_match_all('/\{.*?\}/x', $params, $matches);
         if (count($matches[0]) > 0) {
@@ -531,7 +531,7 @@ class Route
     {
         $records = self::getInstance()->_collection->where('method', $method);
 
-        if ($val=='*') {
+        if ($val == '*') {
             return $records;
         }
 
@@ -545,23 +545,23 @@ class Route
             return true;
         }
 
-        if (strpos($route->domain, '{')===false) {
+        if (strpos($route->domain, '{') === false) {
             return $route->domain == $_SERVER['HTTP_HOST'];
         }
 
-        if (strpos($route->domain, '{')!==false) {
+        if (strpos($route->domain, '{') !== false) {
 
             $regex = $route->domain;
             //$regex = preg_replace('/(\{\w+\?\})/', '(?:(\w+))?', $regex);
             $regex = '/' . preg_replace('/\{(\w+)\}/', '(\w+)', $regex) . '$/Du';
-    
+
             preg_match($regex, rawurldecode($_SERVER['HTTP_HOST']), $values);
-    
-            if (count($values)>0) {
+
+            if (count($values) > 0) {
                 array_shift($values);
-                
+
                 preg_match_all('/\{.*?\}/x', $route->domain, $matches);
-                
+
                 $dparams = array();
 
                 foreach ($matches[0] as $m) {
@@ -575,11 +575,29 @@ class Route
             }
 
             return false;
-
-        }    
-
+        }
     }
 
+    public static function __testFindRoute($url)
+    {
+        $url = ltrim($url, '/');
+        $current = (empty($_SERVER['HTTPS']) ? 'http' : 'https') . "://$_SERVER[HTTP_HOST]/$url";
+        $parse = parse_url($current);
+        $current = $parse['path'];
+
+        $current = self::removeSubFoldersFromMainUrl($current);
+
+        # Check redirections first
+        self::checkRedirections($current);
+
+        # Convert GET/POST into PUT/DELETE if necessary
+        if (isset($_GET['_method']) || isset($_POST['_method'])) {
+            $method = isset($_GET['_method']) ? $_GET['_method'] : $_POST['_method'];
+            $_SERVER['REQUEST_METHOD'] = strtoupper($method);
+        }
+
+        return self::findRoute($_SERVER['REQUEST_METHOD'], $current);
+    }
 
     # Route finder
     # This function also check variables between '{}' in routes
@@ -600,21 +618,21 @@ class Route
             $domain = preg_replace('/:[0-9]*/', '', $domain);
         }
 
-        if ($domain!=="") {
+        if ($domain !== "") {
             $val = str_replace($domain . '.' . $parsed_domain, '', $val);
         } else {
             $val = str_replace($parsed_domain, '', $val);
         }
 
         //$val = $domain . '/' . $parsed_domain . $val;
-        $val = ltrim($val, '/');
-        
-        if ($val=='') $val = '/';
+        $val = rtrim(ltrim($val, '/'), '/');
+
+        if ($val == '') $val = '/';
 
         if (substr($val, 0, 1) == ':') {
             $val = preg_replace('/:[0-9]*/', '', $val);
         }
-        
+
         $records = self::getRoutes()->where('method', $method)->where('url', '==', $val)->first();
 
         if ($records) {
@@ -626,8 +644,7 @@ class Route
         //dd(rawurldecode($val), $records->toArray());
         //$dictionary = $records->getDictionary();
 
-        foreach ($records as $item)
-        {
+        foreach ($records as $item) {
             if (preg_match($item->regex, rawurldecode($val), $matches)) {
 
                 if (self::checkDomain($item)) {
@@ -656,13 +673,13 @@ class Route
                     //unset($item->domain_parametros);
 
                     foreach ($item->parametros as $key => $val) {
-                        if ($val===null) {
+                        if ($val === null) {
                             $item->parametros[$key] = 'baradur_null_parameter';
                         }
                     }
 
                     return $item;
-                }                
+                }
             }
         }
 
@@ -671,37 +688,36 @@ class Route
             //dd($class, $method, $params);
             return executeCallback($class, $method, array(request()));
         }
-        
-        return null;
 
+        return null;
     }
 
     private static function saveHistory()
     {
         global $home;
 
-        if ($_SERVER['REQUEST_METHOD']=='GET') {
+        if ($_SERVER['REQUEST_METHOD'] == 'GET') {
 
             $current = ltrim($_SERVER['REDIRECT_URL'], '/');
 
-            if (count($_GET)>0) {
-                $ruta = $current.'?'.http_build_query($_GET,'','&');
+            if (count($_GET) > 0) {
+                $ruta = $current . '?' . http_build_query($_GET, '', '&');
             } else {
                 $ruta = $current;
             }
 
             $history = isset($_SESSION['url_history']) ? $_SESSION['url_history'] : array();
 
-            $newurl = rtrim($home, '/') .'/'. ltrim($ruta, '/');
-            
-            if ($history[0]!=$newurl) {
+            $newurl = rtrim($home, '/') . '/' . ltrim($ruta, '/');
+
+            if ($history[0] != $newurl) {
                 array_unshift($history, $newurl);
             }
-            
-            while (count($history)>10) {
+
+            while (count($history) > 10) {
                 array_pop($history);
             }
-            
+
             $_SESSION['url_history'] = $history;
         }
     }
@@ -739,13 +755,13 @@ class Route
     public static function getRoute($params)
     {
         if (is_string($params)) $params = array($params);
-        
+
         $name = array_shift($params);
 
         //dd(self::getInstance()->_collection->where('name', $name), $name, Route::getRoutes());
 
         $res = self::getInstance()->_collection->where('name', $name)->first();
- 
+
         $route = $res->url;
 
         $parse = parse_url(config('app.url'));
@@ -768,7 +784,7 @@ class Route
                 return preg_replace('/\{[^}]*\}/', $value->$val, $route, 1);
             } else {
                 $route = preg_replace('/\{[^}]*\}/', $value, $route, 1);
-                if (strpos($route, "{")==false) {
+                if (strpos($route, "{") == false) {
                     break;
                 }
             }
@@ -777,7 +793,7 @@ class Route
         return rtrim(preg_replace('/\{[^}]*\}/', '', $route), '/');
     }
 
-    
+
     /**
      * Get the current route
      * 
@@ -821,11 +837,11 @@ class Route
         $parse = parse_url(config('app.url'));
         $domain = $parse['host'];
         $path = $parse['path'];
-        
-        $route = str_replace($domain.$path, '', $route);
+
+        $route = str_replace($domain . $path, '', $route);
         $route = ltrim($route, '/');
-        
-        if ($route=='') {
+
+        if ($route == '') {
             $route = '/';
         }
 
@@ -835,10 +851,9 @@ class Route
 
             $reason = HttpResponse::$reason_phrases[$code];
             header("HTTP/1.1 $code $reason");
-            echo header('Location: '.$to);
+            echo header('Location: ' . $to);
             __exit();
         }
-
     }
 
     private static function removeSubFoldersFromMainUrl($url)
@@ -853,7 +868,7 @@ class Route
         if (str_starts_with($url, $subfolder)) {
             $url = substr($url, strlen($subfolder));
         }
-        
+
         return $url;
     }
 
@@ -876,7 +891,7 @@ class Route
 
         # Convert GET/POST into PUT/DELETE if necessary
         if (isset($_GET['_method']) || isset($_POST['_method'])) {
-            $method = isset($_GET['_method'])? $_GET['_method'] : $_POST['_method'];
+            $method = isset($_GET['_method']) ? $_GET['_method'] : $_POST['_method'];
             $_SERVER['REQUEST_METHOD'] = strtoupper($method);
         }
 
@@ -901,26 +916,28 @@ class Route
         if (!isset($ruta->controller) && !isset($ruta->view)) {
 
             global $app;
-            
+
             if ($app->isDownForMaintenance()) {
-                $secret = str_replace($_SERVER['HTTP_HOST'].'/', '', $current);
+                $secret = str_replace($_SERVER['HTTP_HOST'] . '/', '', $current);
 
                 if (filled($secret)) {
                     MaintenanceMiddleware::checkSecret($secret);
 
-                    if ($_SESSION['bypass']['stored']==$_SESSION['bypass']['secret'] && 
-                        $_SESSION['bypass']['stored']!==null) {
+                    if (
+                        $_SESSION['bypass']['stored'] == $_SESSION['bypass']['secret'] &&
+                        $_SESSION['bypass']['stored'] !== null
+                    ) {
                         return redirect('/');
                     }
                 }
             }
 
             throw new RouteNotFoundException(
-                'Missing route ['.$_SERVER['REQUEST_METHOD'].'] /' . $current .'.', 
+                'Missing route [' . $_SERVER['REQUEST_METHOD'] . '] /' . $current . '.',
                 404
             );
         }
-        
+
         # Check if route has where constraint
         foreach ($ruta->wheres as $key => $constraint) {
 
@@ -928,9 +945,9 @@ class Route
                 abort(404);
             }
 
-            preg_match("/".$constraint."/x", $ruta->parametros[$key]['value'], $matches);
-            
-            if(count($matches)==0) {
+            preg_match("/" . $constraint . "/x", $ruta->parametros[$key]['value'], $matches);
+
+            if (count($matches) == 0) {
                 abort(404);
             }
         }
@@ -941,11 +958,11 @@ class Route
 
         # Send request through route middleware list
         $list = HttpKernel::getMiddlewareList($request->route->middleware);
-        
+
         $res = Pipeline::send($request)
             ->through($list)
             ->thenReturn();
-        
+
         if ($res instanceof Request) {
             # Save URL history
             self::saveHistory();
@@ -954,17 +971,16 @@ class Route
             if (is_string($res->route->controller) && isset($res->route->func)) {
                 $res = CoreLoader::invokeClassMethod(
                     $res->route->controller,
-                    $res->route->func, 
-                    $res->route->parametros, 
+                    $res->route->func,
+                    $res->route->parametros,
                     $res->route->instance
                 );
             }
-            
+
             # Route returns a view directly
             elseif (isset($res->route->view)) {
                 $res = CoreLoader::invokeView($res->route);
             }
-
         }
 
         if (!$res) {
@@ -975,17 +991,13 @@ class Route
         # Make the Response based on current result
         if ($res instanceof ResourceCollection) {
             $res = response($res->getResult(), 200);
-        }
-        elseif ($res instanceof JsonResource) {
+        } elseif ($res instanceof JsonResource) {
             $res = response((array)$res, 200);
-        }
-        elseif ($res instanceof Model || $res instanceof Collection) {
+        } elseif ($res instanceof Model || $res instanceof Collection) {
             $res = response($res->toArray(), 200);
-        }
-        elseif ($res instanceof FinalView) {
+        } elseif ($res instanceof FinalView) {
             $res = response($res->__toString(), 200);
-        }
-        elseif (!($res instanceof Response) && is_string($res)) {
+        } elseif (!($res instanceof Response) && is_string($res)) {
             $res = response($res, 200);
         }
 
@@ -993,8 +1005,6 @@ class Route
             return $res;
         }
 
-        throw new RuntimeException("Invalid response [".get_class($res)."]");
-
+        throw new RuntimeException("Invalid response [" . get_class($res) . "]");
     }
-
 }

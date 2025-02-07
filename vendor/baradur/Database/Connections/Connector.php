@@ -1,6 +1,6 @@
 <?php
 
-Class Connector
+class Connector
 {
     /** @return int|bool */
     /* public function query($sql, $bindings=array())
@@ -22,8 +22,7 @@ Class Connector
     {
         try {
             return $this->_execUnpreparedSql($sql);
-        }
-        catch (Exception $e) {
+        } catch (Exception $e) {
             //dump($e->getMessage());
             if ($this->isUniqueConstraintError($e)) {
                 throw new UniqueConstraintViolationException($e->getMessage());
@@ -37,16 +36,15 @@ Class Connector
         }
     }
 
-    public function execSQL($sql, $parent, $fill=false)
+    public function execSQL($sql, $parent, $fill = false)
     {
-        if ($fill && $parent->_collection==null) {
+        if ($fill && $parent->_collection == null) {
             $parent->_collection = new Collection();
         }
-        
+
         try {
             return $this->_execSQL($sql, $parent, $fill);
-        }
-        catch (Exception $e) {
+        } catch (Exception $e) {
             if ($this->isUniqueConstraintError($e)) {
                 throw new UniqueConstraintViolationException($e->getMessage());
             }
@@ -58,7 +56,7 @@ Class Connector
             return false;
         }
     }
-    
+
     protected function objetToModel($data, $builder)
     {
         unset($data->BARADUR_ROWINDEX);
@@ -79,10 +77,12 @@ Class Connector
         /* foreach ($data as $key => $val) {
             $item->setAttribute($key, $val);
         } */
-        
+
         //$item->__parseAccessorAttributes();
 
         $item->_setOriginalRelations($builder->_eagerLoad);
+        $item->_setRecentlyCreated(false);
+        $item->setConnection($builder->_connector);
         $item->syncOriginal();
 
         //unset($item->_global_scopes);
@@ -95,5 +95,4 @@ Class Connector
     {
         return false;
     }
-
 }

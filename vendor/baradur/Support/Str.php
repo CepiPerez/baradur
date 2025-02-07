@@ -150,6 +150,32 @@ class Str
 
         return substr($subject, $position + strlen($search));
     }
+
+    public static function chopEnd($subject, $needle)
+    {
+        $needle = is_array($needle)? $needle : array($needle);
+        
+        foreach ($needle as $n) {
+            if (str_ends_with($subject, $n)) {
+                return substr($subject, 0, -strlen($n));
+            }
+        }
+
+        return $subject;
+    }
+
+    public static function chopStart($subject, $needle)
+    {
+        $needle = is_array($needle)? $needle : array($needle);
+        
+        foreach ($needle as $n) {
+            if (str_starts_with($subject, $n)) {
+                return substr($subject, strlen($n));
+            }
+        }
+
+        return $subject;
+    }
     
     public static function contains($haystack, $needles, $ignoreCase = false)
     {
@@ -165,6 +191,22 @@ class Str
         }
 
         return false;
+    }
+
+    public static function containsAll($haystack, $needles, $ignoreCase = false)
+    {
+        foreach ($needles as $needle) {
+            if (! self::contains($haystack, $needle, $ignoreCase)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public static function doesntContain($haystack, $needles, $ignoreCase = false)
+    {
+        return ! self::contains($haystack, $needles, $ignoreCase);
     }
 
     public static function convertCase($string, $mode = MB_CASE_FOLD, $encoding = 'UTF-8')
@@ -382,6 +424,12 @@ class Str
     {
         return preg_replace('~(\s|\x{3164})+~u', ' ', preg_replace('~^\s+|\s+$~u', '', $value));
     }
+
+    public static function deduplicate($string, $character = ' ')
+    {
+        return preg_replace('/'.preg_quote($character, '/').'+/u', $character, $string);
+    }
+
 
     public static function startsWith($haystack, $needles)
     {

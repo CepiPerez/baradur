@@ -14,8 +14,8 @@ return [
     |
     */
 
-    'restcountries' => [
-        'endpoint' => 'https://restcountries.com/v3.1/'
+    'apiexample' => [
+        'endpoint' => 'https://someendpoint/'
     ]
-    
+
 ];

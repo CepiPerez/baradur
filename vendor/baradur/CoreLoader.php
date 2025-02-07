@@ -3,24 +3,25 @@
 class CoreLoader
 {
 
-    public static function loadClass($file, $is_provider=true, $migration=null)
+    public static function loadClass($file, $is_provider = true, $migration = null)
     {
         global $artisan, $_class_list, $phpConverter;
         $cfname = Str::replace('.php', '', basename($file), false);
 
-        $dest_folder = str_replace('/vendor/baradur', '', dirname(__FILE__)).'/storage/framework/classes/';
+        $dest_folder = str_replace(
+            DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'baradur',
+            '',
+            dirname(__FILE__)
+        ) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR;
         $dest_file = basename($file);
 
-        if (file_exists($file))
-        {
-            if (!file_exists($dest_folder.$dest_file) || (filemtime($file) > filemtime($dest_folder.$dest_file)))
-            {
-                //echo "Recaching file:". $file."<br>";
+        if (file_exists($file)) {
+            if (!file_exists($dest_folder . $dest_file) || (filemtime($file) > filemtime($dest_folder . $dest_file))) {
 
                 $classFile = file_get_contents($file);
 
-                if (strpos($cfname, 'baradurClosures_')===false) {
-                    $classFile = $phpConverter->replaceNewPHPFunctions($classFile, $cfname, _DIR_, $migration!==null);
+                if (strpos($cfname, 'baradurClosures_') === false) {
+                    $classFile = $phpConverter->replaceNewPHPFunctions($classFile, $cfname, _DIR_, $migration !== null);
                 } else {
                     $classFile = $phpConverter->replaceStatics($classFile);
                 }
@@ -36,53 +37,56 @@ class CoreLoader
                     ini_set('display_errors', false);
                     error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_WARNING & ~E_NOTICE);
                 }
-                
-                if (strpos($cfname, 'baradurClosures_')===false && 
-                    strpos($cfname, 'baradurBuilderMacros_')===false && 
-                    strpos($cfname, 'baradurCollectionMacros_')===false) {
-                    Cache::store('file')->plainPut($dest_folder.$dest_file, $classFile);
+
+                if (
+                    strpos($cfname, 'baradurClosures_') === false &&
+                    strpos($cfname, 'baradurBuilderMacros_') === false &&
+                    strpos($cfname, 'baradurCollectionMacros_') === false
+                ) {
+                    Cache::store('file')->plainPut($dest_folder . $dest_file, $classFile);
                 } else {
-                    Cache::store('file')->plainPut($dest_folder.$dest_file, $classFile);
+                    Cache::store('file')->plainPut($dest_folder . $dest_file, $classFile);
                 }
-                
             }
 
             if ($artisan) {
                 ini_set('display_errors', false);
                 error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_WARNING & ~E_NOTICE);
             }
-            
-            if (file_exists($dest_folder.'baradurClosures_'.$dest_file)) {
+
+            if (file_exists($dest_folder . 'baradurClosures_' . $dest_file)) {
                 //echo "Requiring class: baradurClosures_$dest_file <br>";
-                require_once($dest_folder.'baradurClosures_'.$dest_file);
+                require_once($dest_folder . 'baradurClosures_' . $dest_file);
             }
 
-            if (file_exists($dest_folder.'baradurBuilderMacros_'.$dest_file)) {
+            if (file_exists($dest_folder . 'baradurBuilderMacros_' . $dest_file)) {
                 //echo "Requiring class: baradurBuilderMacros_$dest_file <br>";
-                require_once($dest_folder.'baradurBuilderMacros_'.$dest_file);
+                require_once($dest_folder . 'baradurBuilderMacros_' . $dest_file);
             }
 
-            if (file_exists($dest_folder.'baradurCollectionMacros_'.$dest_file)) {
+            if (file_exists($dest_folder . 'baradurCollectionMacros_' . $dest_file)) {
                 //echo "Requiring class: baradurCollectionMacros_$dest_file <br>";
-                require_once($dest_folder.'baradurCollectionMacros_'.$dest_file);
+                require_once($dest_folder . 'baradurCollectionMacros_' . $dest_file);
             }
 
-            require_once($dest_folder.$dest_file);
+            //dump($dest_folder . $dest_file, file_exists($dest_folder . $dest_file));
+
+            require_once($dest_folder . $dest_file);
 
 
             if ($is_provider) {
                 global $_service_providers;
                 $_service_providers[$cfname] = null;
             }
-                    
         }
     }
 
-    public static function loadConfigFile($file, $include=true)
+    public static function loadConfigFile($file, $include = true)
     {
         global $phpConverter, $config;
 
-        $dest_folder = dirname(__FILE__).'/../../storage/framework/config/';
+        $dest_folder = dirname(__FILE__) . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR
+            . '..' . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'config/';
         $path_parts = pathinfo($file);
 
         $filename = Str::replace('.php', '', $path_parts['basename'], false);
@@ -95,9 +99,9 @@ class CoreLoader
 
         $classFile = $phpConverter->replaceNewPHPFunctions($classFile);
 
-        Cache::store('file')->plainPut($dest_folder.$path_parts['basename'], $classFile);
+        Cache::store('file')->plainPut($dest_folder . $path_parts['basename'], $classFile);
 
-        $result = include($dest_folder.$path_parts['basename']);
+        $result = include($dest_folder . $path_parts['basename']);
 
         if ($include) {
             $config[$filename] = $result;
@@ -106,14 +110,13 @@ class CoreLoader
         $classFile = null;
 
         return $result;
-
     }
 
     public static function invokeView($route)
     {
         $controller = $route->view;
         if ($route->parametros) {
-            for ($i=0; $i < count($route->parametros); ++$i) {
+            for ($i = 0; $i < count($route->parametros); ++$i) {
                 $controller = str_replace($route->orig_parametros[$i], $route->parametros[$i], $controller);
             }
         }
@@ -121,8 +124,8 @@ class CoreLoader
         return view($controller, $route->viewparams);
     }
 
-    public static function invokeClassMethod($class, $method, $params=array(), $instance=null)
-    {        
+    public static function invokeClassMethod($class, $method, $params = array(), $instance = null)
+    {
         if (is_subclass_of($instance, 'BaseController')) {
 
             foreach ($instance->middleware as $midd) {
@@ -133,9 +136,9 @@ class CoreLoader
 
                 $res = request();
 
-                if (isset($midd->only) && $midd->only==$method) {
+                if (isset($midd->only) && $midd->only == $method) {
                     $res = $middelware->handle($res, null, $parameters);
-                } elseif (isset($midd->except) && $midd->except!=$method) {
+                } elseif (isset($midd->except) && $midd->except != $method) {
                     $res = $middelware->handle($res, null, $parameters);
                 } elseif (!isset($midd->except) && !isset($midd->only)) {
                     $res = $middelware->handle($res, null, $parameters);
@@ -149,26 +152,26 @@ class CoreLoader
 
         $reflectionMethod = new ReflectionMethod($class, $method);
         return $reflectionMethod->invokeArgs(
-            $instance? $instance : new $class(), 
-            $params? $params : array()
+            $instance ? $instance : new $class(),
+            $params ? $params : array()
         );
-
     }
 
     public static function processResponse($response)
     {
-        $status = 'HTTP/'.$response->protocol().' '.$response->status().' '.$response->reason();
+        //dump("RES", $response, $_SESSION);
+        $status = 'HTTP/' . $response->protocol() . ' ' . $response->status() . ' ' . $response->reason();
         header($status);
 
         foreach ($response->headers() as $key => $val) {
 
             $val = is_array($val) ? reset($val) : $val;
 
-            if ($key=='Location') {
-                echo header($key. ": ". $val); 
+            if ($key == 'Location') {
+                echo header($key . ": " . $val);
                 __exit();
             } else {
-                header($key. ": ". $val);
+                header($key . ": " . $val);
             }
         }
 
@@ -180,7 +183,8 @@ class CoreLoader
         echo config('app.debug_info')
             ? self::addDebugInfo($response->body())
             : $response->body();
-        
+
+
         __exit();
     }
 
@@ -198,9 +202,9 @@ class CoreLoader
 
         $start = $debuginfo['start'];
         $end = microtime(true) - $start;
-        $debuginfo['time'] = number_format($end, 2) ." seconds";
+        $debuginfo['time'] = number_format($end, 2) . " seconds";
 
-        $script = '<script>var debug_info = '."[".json_encode($debuginfo)."]"."\n".
+        $script = '<script>var debug_info = ' . "[" . json_encode($debuginfo) . "]" . "\n" .
             '$(document).ready(function(e) {
                 console.log("TIME: "+debug_info.map(a => a.time));
                 console.log("MEMORY USAGE: "+debug_info.map(a => a.memory_usage));
@@ -214,9 +218,6 @@ class CoreLoader
                 }
             });</script>';
 
-        return str_replace('</body>', $script."\n".'</body>', $html);
-
+        return str_replace('</body>', $script . "\n" . '</body>', $html);
     }
-
-
 }

@@ -23,7 +23,7 @@ class BladeOne
     protected $fileName;
     protected $sectionStack = array();
     protected $loopsStack = array();
-    protected $variables=array();
+    protected $variables = array();
     protected $pushStack = array();
     protected $pushes = array();
     protected $renderCount = 0;
@@ -31,8 +31,8 @@ class BladeOne
     protected $compiledPath;
     protected $customDirectives = array();
     protected $path;
-    protected $isForced=false;
-    protected $isRunFast=false;
+    protected $isForced = false;
+    protected $isRunFast = false;
     protected $rawTags = array('{!!', '!!}');
     protected $ukmethods = array();
     protected $contentTags = array('{{', '}}');
@@ -53,7 +53,7 @@ class BladeOne
         'Echos',
     );
 
-    public $phpTag='<?php ';
+    public $phpTag = '<?php ';
     public $phpTagEcho = '<?php echo ';
 
     protected $componentStack = array();
@@ -75,32 +75,33 @@ class BladeOne
         $this->templatePath = $templatePath;
         $this->compiledPath = $compiledPath;
     }
- 
-    public function runChild($view,$variables=array()) {
 
-        $newVariables=array_merge($variables,$this->variables);
-        return $this->runInternal($view,$newVariables,$this->isForced,false,$this->isRunFast);
+    public function runChild($view, $variables = array())
+    {
+
+        $newVariables = array_merge($variables, $this->variables);
+        return $this->runInternal($view, $newVariables, $this->isForced, false, $this->isRunFast);
     }
 
 
-    public function run($view,$variables=array())
+    public function run($view, $variables = array())
     {
         $mode = 0; // mode=0 automatic: not forced and not run fast.
         $forced = $mode & 1; // mode=1 forced:it recompiles no matter if the compiled file exists or not.
         $runFast = $mode & 2; // mode=2 runfast: the code is not compiled neither checked and it runs directly the compiled
 
-        if ($mode==3) {
-            $this->showError("run","we can't force and run fast at the same time",true);
+        if ($mode == 3) {
+            $this->showError("run", "we can't force and run fast at the same time", true);
         }
 
-        return $this->runInternal($view,$variables,$forced,true,$runFast);
+        return $this->runInternal($view, $variables, $forced, true, $runFast);
     }
 
 
-    public function runInternal($view,$variables=array(), $forced=false,$isParent=true,$runFast=false)
+    public function runInternal($view, $variables = array(), $forced = false, $isParent = true, $runFast = false)
     {
         if ($isParent) {
-            $this->variables=$variables;
+            $this->variables = $variables;
         }
         if (!$runFast) {
             // a) if the compile is forced then we compile the original file, then save the file.
@@ -113,8 +114,8 @@ class BladeOne
                 $this->fileName = $view;
             }
         }
-        $this->isForced=$forced;
-        $this->isRunFast=$runFast;
+        $this->isForced = $forced;
+        $this->isRunFast = $runFast;
 
         global $artisan;
         if (!$artisan)
@@ -124,7 +125,7 @@ class BladeOne
     }
 
 
-    public function compile($fileName = null,$forced=false)
+    public function compile($fileName = null, $forced = false)
     {
         if ($fileName) {
             $this->fileName = $fileName;
@@ -132,8 +133,8 @@ class BladeOne
         $compiled = $this->getCompiledFile();
         $template = $this->getTemplateFile();
         $template = str_replace('//', '/', $template);
-        
-        if ($this->isExpired() || $forced ) //|| substr($fileName, 0, 11)=='components/')
+
+        if ($this->isExpired() || $forced) //|| substr($fileName, 0, 11)=='components/')
         {
             //echo "Compiling $fileName<br>";
             $contents = $this->getFile($template);
@@ -144,8 +145,7 @@ class BladeOne
             # compile the original file
             $contents = $this->compileString($contents);
 
-            if (!is_null($this->compiledPath))
-            {
+            if (!is_null($this->compiledPath)) {
                 Cache::store('file')->plainPut($compiled, $contents);
                 //file_put_contents($compiled, $contents);
             }
@@ -159,7 +159,7 @@ class BladeOne
 
         // Folio support - Remove exclusive PHP syntax
         if (rtrim($this->templatePath, '/') == rtrim(resource_path('views/pages'), '/')) {
-            preg_match( '/<\?[=|php]?[\s\S]*?\?>/is', $value, $blocks);
+            preg_match('/<\?[=|php]?[\s\S]*?\?>/is', $value, $blocks);
 
             foreach ($blocks as $block) {
                 $value = str_replace($block, '', $value);
@@ -185,7 +185,7 @@ class BladeOne
         $value = str_replace('  }}', ' }}', $value);
         $value = str_replace('{{ --', '{{--', $value);
         $value = str_replace('-- }}', '--}}', $value);
-    
+
         # Replace new PHP version functions
         global $phpConverter;
         $value = $phpConverter->replaceForView($value);
@@ -202,7 +202,7 @@ class BladeOne
         foreach ($this->compilers as $type) {
             $value = $this->{"compile{$type}"}($value);
         }
-        $result = '<?php global $errors; ?>'.$value;
+        $result = '<?php global $errors; ?>' . $value;
 
         if (! empty($this->scriptBlocks)) {
             $result = $this->restoreScriptBlocks($result);
@@ -212,14 +212,14 @@ class BladeOne
             $result = $this->restoreVerbatimBlocks($result);
         }
 
-       
+
 
         // If there are any footer lines that need to get added to a template we will
         // add them here at the end of the template. This gets used mainly for the
         // template inheritance via the extends keyword that should be appended.
         if (count($this->footer) > 0) {
             $result = ltrim($result, PHP_EOL)
-                .PHP_EOL.implode(PHP_EOL, array_reverse($this->footer));
+                . PHP_EOL . implode(PHP_EOL, array_reverse($this->footer));
         }
 
         return $result;
@@ -239,7 +239,7 @@ class BladeOne
     {
         $pattern = sprintf('/%s--(.*?)--%s/s', $this->contentTags[0], $this->contentTags[1]);
 
-        return preg_replace($pattern, $this->phpTag.'/*$1*/ ?>', $value);
+        return preg_replace($pattern, $this->phpTag . '/*$1*/ ?>', $value);
     }
 
 
@@ -255,16 +255,15 @@ class BladeOne
     protected function compileMethod($expression)
     {
         $v = $this->stripParentheses($expression);
-        return $this->phpTag."echo method_field($v); ?>";
-
+        return $this->phpTag . "echo method_field($v); ?>";
     }
 
     protected function compileError($expression)
     {
-        return $this->phpTag.' $__errorMsg = App::getError('.$expression.');
+        return $this->phpTag . ' $__errorMsg = App::getError(' . $expression . ');
         if ($__errorMsg) :
         if (isset($message)) $__messageOriginal = $message;
-        $message = $__errorMsg; ?>';    
+        $message = $__errorMsg; ?>';
     }
 
     protected function compileEnderror()
@@ -277,7 +276,7 @@ class BladeOne
 
     protected function compileCsrf()
     {
-        return $this->phpTag.'echo csrf_field(); ?>';
+        return $this->phpTag . 'echo csrf_field(); ?>';
     }
 
     protected function compileClass($expression)
@@ -326,22 +325,21 @@ class BladeOne
     private function getArrayAttributesFromAttributeString($attributeString)
     {
         $attributeString = $this->getAttributesFromAttributeString($attributeString);
-        
+
         preg_match_all("/(?P<keys>\w+)=(?P<values>\"[^\"]*+\")/", $attributeString, $m);
-    
+
         $values = array();
         foreach ($m["values"] as $val) {
             $val = str_replace("'", '', str_replace('"', '', $val));
-            if (substr($val, 0, 1)=='$')
-                $val = '{{'.$val.'}}';
+            if (substr($val, 0, 1) == '$')
+                $val = '{{' . $val . '}}';
             $values[] = $val;
         }
 
-        if (count($m)>0 && count($values)>0)
+        if (count($m) > 0 && count($values) > 0)
             return array_combine($m["keys"], $values);
-        
-        return null;
 
+        return null;
     }
 
     protected $component_slots = array();
@@ -352,21 +350,19 @@ class BladeOne
         preg_match('/<\s*x-([^ ]*)/x', $match[0], $matches);
         $component = $matches[1];
 
-        $attributes = $this->getArrayAttributesFromAttributeString(trim($match[1]));        
+        $attributes = $this->getArrayAttributesFromAttributeString(trim($match[1]));
 
         $this->compileSlots($match[0]);
-        
-        $content = isset($match[2])? $match[2] : null;
 
-        foreach ($this->component_slots as $slot)
-        {
+        $content = isset($match[2]) ? $match[2] : null;
+
+        foreach ($this->component_slots as $slot) {
             $content = str_replace($slot[1], '', $content);
         }
-        
-        return $component=='dynamic-component' ? 
+
+        return $component == 'dynamic-component' ?
             $this->createDynamicComponent($component, $attributes, $content) :
             $this->createComponent($component, $attributes, $content);
-
     }
 
     protected function createDynamicComponent($component, $attributes, $content)
@@ -380,9 +376,9 @@ class BladeOne
             $attr .= " $key='$val'";
         }
 
-        $result = '{{ Blade::render("<x-$'.$component.$attr.'>'.$content.'</x-$'.$component.'>", array()) }}';
-        
-        return $result; 
+        $result = '{{ Blade::render("<x-$' . $component . $attr . '>' . $content . '</x-$' . $component . '>", array()) }}';
+
+        return $result;
     }
 
     protected function createDynamicSelfClosingComponent($component, $attributes)
@@ -392,11 +388,11 @@ class BladeOne
             $attr .= " $key='$val'";
         }
 
-        $result = '{{ Blade::render("<x-$'.$component.' '.$attr.'/>", array()) }}';
-        return $result; 
+        $result = '{{ Blade::render("<x-$' . $component . ' ' . $attr . '/>", array()) }}';
+        return $result;
     }
 
-    protected function createComponent($component, $attributes, $content=null)
+    protected function createComponent($component, $attributes, $content = null)
     {
         global $_class_list;
 
@@ -404,14 +400,12 @@ class BladeOne
         $instance = null;
         $reflect = null;
 
-        if (isset($_class_list[$c]))
-        {
+        if (isset($_class_list[$c])) {
             $ReflectionMethod = new \ReflectionMethod($c, '__construct');
             $params = $ReflectionMethod->getParameters();
 
             $params_to_send = array();
-            foreach ($params as $param)
-            {
+            foreach ($params as $param) {
                 if (isset($attributes) && isset($attributes[$param->name]))
                     $params_to_send[] = $attributes[$param->name]; /* "<?php echo (".$attributes[$param->name]."); ?>"; */
                 unset($attributes[$param->name]);
@@ -419,10 +413,7 @@ class BladeOne
             $reflect  = new ReflectionClass($c);
             $instance = $reflect->newInstanceArgs($params_to_send);
             $instance->slot = $content;
-
-        }
-        else
-        {
+        } else {
             /* $reflect  = new ReflectionClass('Component');
             $instance = $reflect->newInstance(); */
             $instance = new Component;
@@ -431,33 +422,29 @@ class BladeOne
             $instance->slot = $content;
             //dd($instance);
         }
-        
+
 
         global $app, $temp_params;
 
         $temp_params = array();
-        if (isset($_class_list[$c]))
-        {
+        if (isset($_class_list[$c])) {
             $instance->attributes = $attributes;
 
             foreach ($instance as $key => $val)
                 $temp_params[$key] = $val;
 
-            if (count($attributes)>0)
+            if (count($attributes) > 0)
                 $temp_params['__instance'] = $instance;
             //$temp_params = $instance;
 
-        }
-        else
-        {
+        } else {
             $temp_params = $attributes;
 
             foreach ($instance as $key => $val)
                 $temp_params[$key] = $val;
         }
 
-        foreach ($this->component_slots as $slot)
-        {
+        foreach ($this->component_slots as $slot) {
             foreach ($slot[0] as $key => $val)
                 $temp_params[$key] = $val;
         }
@@ -467,8 +454,7 @@ class BladeOne
         $back_action = $app->action;
         $result = $instance->render();
 
-        if (is_object($result)) 
-        {
+        if (is_object($result)) {
             View::$autoremove = true;
             $result = $result->__toString();
         }
@@ -476,18 +462,20 @@ class BladeOne
 
         $temp_params = null;
         return $result;
-
     }
 
     function compileIndividualComponent($match, $value)
     {
         //echo "Compiling $match<br>";
-        $value = str_replace($match.'>', $match.' >', $value);
-        $pattern = '/<x-'.$match.' (.*?)>([\s\S]*?)<\/x-'.$match.'[\ ]*>/';
+        $value = str_replace($match . '>', $match . ' >', $value);
+        $pattern = '/<x-' . $match . ' (.*?)>([\s\S]*?)<\/x-' . $match . '[\ ]*>/';
 
-        return preg_replace_callback($pattern, 
+        return preg_replace_callback(
+            $pattern,
             array($this, 'callbackCompileComponents'),
-            $value, 1);
+            $value,
+            1
+        );
     }
 
     function callbackCompileSlots($match)
@@ -512,71 +500,71 @@ class BladeOne
 
         preg_match_all('/<\s*x-[^ |>]*/x', $value, $matches);
 
-        if (count($matches)>0) {
+        if (count($matches) > 0) {
             foreach ($matches[0] as $match) {
                 $match = str_replace('<x-', '', $match);
-                if ($match != 'slot')
-                {
+                if ($match != 'slot') {
                     $value = $this->compileIndividualComponent($match, $value);
                 }
             }
         }
-        
+
         return $value;
     }
 
-    function callbackCompileSelfClosingComponents($match) {
-        
+    function callbackCompileSelfClosingComponents($match)
+    {
+
         $component = $match[1];
 
         $attributes = $this->getArrayAttributesFromAttributeString(trim($match[2]));
-        
+
         $dynamic = false;
 
-        if ($component=='dynamic-component' && isset($attributes['component']))
-        {
+        if ($component == 'dynamic-component' && isset($attributes['component'])) {
             $dynamic = true;
             $component = $attributes['component'];
             $component = ltrim(str_replace('{{', '', str_replace('}}', '', $component)), '$');
             //$component = $this->variables[$val];
             unset($attributes['component']);
         }
-                
-        return $dynamic ? 
+
+        return $dynamic ?
             $this->createDynamicSelfClosingComponent($component, $attributes) :
             $this->createComponent($component, $attributes);
-
     }
 
     public function compileSelfClosingComponents($value)
     {
- 
+
         $pattern = '/<\s*x-([^ ]*)([\s\S]([^>])*?)\/>/x';
 
-        return preg_replace_callback($pattern, 
+        return preg_replace_callback(
+            $pattern,
             array($this, 'callbackCompileSelfClosingComponents'),
-            $value);
-
+            $value
+        );
     }
 
-    function callbackCompileStatements($match) {
+    function callbackCompileStatements($match)
+    {
         //echo "REPLACING: ";var_dump($match);echo "<br>";
         if ($this->contains($match[1], '@')) {
-            $match[0] = isset($match[3]) ? $match[1].$match[3] : $match[1];
+            $match[0] = isset($match[3]) ? $match[1] . $match[3] : $match[1];
         } elseif (isset($this->customDirectives[$match[1]])) {
             $match[0] = call_user_func($this->customDirectives[$match[1]], $this->get($match, 3));
-        } elseif (method_exists($this, $method = 'compile'.ucfirst($match[1]))) {
+        } elseif (method_exists($this, $method = 'compile' . ucfirst($match[1]))) {
             $match[0] = $this->$method($this->get($match, 3));
         } else {
             $compiler = $match[1];
             $end = false;
             $else = false;
 
-            if (substr($compiler, 0, 3)=='end') {
+            if (substr($compiler, 0, 3) == 'end') {
                 $end = true;
                 $compiler = str_replace('end', '', $compiler);
             }
-            if (substr($compiler, 0, 4)=='else') {
+            if (substr($compiler, 0, 4) == 'else') {
                 $else = true;
                 $compiler = str_replace('else', '', $compiler);
             }
@@ -585,15 +573,14 @@ class BladeOne
 
             $custom = Blade::__findCompiler($compiler);
 
-            if ($custom)
-            {
+            if ($custom) {
                 if ($end) {
                     return $this->compileEndif();
                 }
 
                 list($class, $method) = getCallbackFromString($custom);
 
-                $expression = $class.'::'.$method.'(';
+                $expression = $class . '::' . $method . '(';
 
                 if ($match[4]) {
                     $expression .= $match[4];
@@ -602,32 +589,34 @@ class BladeOne
                 $expression .= ')';
 
                 if ($else) {
-                    return $this->phpTag."elseif ({$expression}): ?>";
+                    return $this->phpTag . "elseif ({$expression}): ?>";
                 }
 
-                return $this->phpTag."if ({$expression}): ?>";
-
+                return $this->phpTag . "if ({$expression}): ?>";
             }
-            
-            $this->showError("@compile","Operation not defined:@".$match[1],true);
+
+            $this->showError("@compile", "Operation not defined:@" . $match[1], true);
         }
 
-        return isset($match[3]) ? $match[0] : $match[0].$match[2];
+        return isset($match[3]) ? $match[0] : $match[0] . $match[2];
     }
 
     protected function compileStatements($value)
     {
         //echo "STATEMENT: ".$value."<br>";
-        return preg_replace_callback('/\B@(@?\w+(?:::\w+)?)([ \t]*)(\( ( (?>[^()]+) | (?3) )* \))?/x', 
+        return preg_replace_callback(
+            '/\B@(@?\w+(?:::\w+)?)([ \t]*)(\( ( (?>[^()]+) | (?3) )* \))?/x',
             array($this, 'callbackCompileStatements'),
-            $value);
+            $value
+        );
     }
 
-    function callbackCompileRawEchos($matches) {
+    function callbackCompileRawEchos($matches)
+    {
         //echo "REPLACING: ";var_dump($matches);echo "<br>";
-        $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];
+        $whitespace = empty($matches[3]) ? '' : $matches[3] . $matches[3];
 
-        return $matches[1] ? substr($matches[0], 1) : $this->phpTag.'echo '.$this->compileEchoDefaults($matches[2]).'; ?>'.$whitespace;
+        return $matches[1] ? substr($matches[0], 1) : $this->phpTag . 'echo ' . $this->compileEchoDefaults($matches[2]) . '; ?>' . $whitespace;
     }
 
     protected function compileRawEchos($value)
@@ -640,7 +629,7 @@ class BladeOne
     function replaceFromInstanceVars($item)
     {
         $val = $item[1];
-        return $this->phpTag.'echo $'.$val.'; ?>';
+        return $this->phpTag . 'echo $' . $val . '; ?>';
         return $this->variables['__instance']->$val;
     }
 
@@ -648,16 +637,13 @@ class BladeOne
     {
         //printf("Calling: $command\n");
         $command = trim($command);
-        if ($command == '$attributes')
-        {
+        if ($command == '$attributes') {
             return $this->variables['__instance']->attributes();
-        }
-        elseif (substr($command, 0, 11) == '$attributes')
-        {
+        } elseif (substr($command, 0, 11) == '$attributes') {
             $temp = str_replace('$attributes->', '', $command);
 
             $command = substr($temp, 0, strpos($temp, '('));
-            $params = substr($temp, strpos($temp, '(')+1, -1);
+            $params = substr($temp, strpos($temp, '(') + 1, -1);
             $params = str_replace('array(', '', $params);
             $params = str_replace(')', '', $params);
             $params = str_replace('[', '', $params);
@@ -667,34 +653,29 @@ class BladeOne
             //dump($command); dump($params); ddd($this->variables['__instance']);
 
             return $this->variables['__instance']->$command($params);
-        }
-        else
-        {
+        } else {
             return $this->variables['__instance']->$command;
         }
-
     }
 
 
-    function callbackCompileRegularEchos($matches) {
+    function callbackCompileRegularEchos($matches)
+    {
         //echo "REPLACING: ";var_dump($matches);echo "<br>";
 
-        $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];        
+        $whitespace = empty($matches[3]) ? '' : $matches[3] . $matches[3];
         $wrapped = sprintf($this->echoFormat, $this->compileEchoDefaults($matches[2]));
 
 
-        if ($matches[1])
-        {
+        if ($matches[1]) {
             return substr($matches[0], 1);
-        }
-        else
-        {
-            
-            if (substr($matches[2], 0, 11)=='$attributes' && isset($this->variables['__instance']))
+        } else {
+
+            if (substr($matches[2], 0, 11) == '$attributes' && isset($this->variables['__instance']))
                 return $this->callComponentAttribute($matches[2]);
 
-            
-    
+
+
             /* if (isset($matches[2]))
             {
                 $strval = $this->variables[str_replace('$', '', $matches[2])];
@@ -702,16 +683,15 @@ class BladeOne
                     return $strval;
             } */
 
-            if (isset($this->variables['__instance']) && strpos($matches[2], '()')>0)
-            {
+            if (isset($this->variables['__instance']) && strpos($matches[2], '()') > 0) {
                 //print_r($this->variables['__instance']);
                 $call = str_replace('()', '', str_replace('$', '', $matches[2]));
                 return $this->variables['__instance']->$call();
             }
         }
 
-        
-        return $this->phpTag.'echo '.$wrapped.'; ?>'.$whitespace;
+
+        return $this->phpTag . 'echo ' . $wrapped . '; ?>' . $whitespace;
     }
 
 
@@ -725,9 +705,9 @@ class BladeOne
 
     function callbackCompileEscapedEchos($matches)
     {
-        $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];
+        $whitespace = empty($matches[3]) ? '' : $matches[3] . $matches[3];
 
-        return $matches[1] ? $matches[0] :  $this->phpTag.'echo ('.$this->compileEchoDefaults($matches[2]).'); ?>'.$whitespace;
+        return $matches[1] ? $matches[0] :  $this->phpTag . 'echo (' . $this->compileEchoDefaults($matches[2]) . '); ?>' . $whitespace;
     }
 
     protected function compileEscapedEchos($value)
@@ -735,7 +715,7 @@ class BladeOne
         $pattern = sprintf('/(@)?%s\s*(.+?)\s*%s(\r?\n)?/s', $this->escapedTags[0], $this->escapedTags[1]);
 
         return preg_replace_callback($pattern, array($this, "callbackCompileEscapedEchos"), $value);
-    }    
+    }
 
     public function compileEchoDefaults($value)
     {
@@ -747,19 +727,19 @@ class BladeOne
 
     protected function compileEach($expression)
     {
-        return $this->phpTag."echo \$this->renderEach{$expression}; ?>";
+        return $this->phpTag . "echo \$this->renderEach{$expression}; ?>";
     }
 
     protected function compileInject($expression)
     {
         $segments = explode(',', preg_replace("/[\(\)\\\"\']/", '', $expression));
 
-        return $this->phpTag.'$'.trim($segments[0])." = app('".trim($segments[1])."'); ?>";
+        return $this->phpTag . '$' . trim($segments[0]) . " = app('" . trim($segments[1]) . "'); ?>";
     }
 
     protected function compileYield($expression)
     {
-        return $this->phpTag."echo \$this->yieldContent{$expression}; ?>";
+        return $this->phpTag . "echo \$this->yieldContent{$expression}; ?>";
     }
 
 
@@ -871,73 +851,73 @@ class BladeOne
 
     protected function compileShow()
     {
-        return $this->phpTag.'echo $this->yieldSection(); ?>';
+        return $this->phpTag . 'echo $this->yieldSection(); ?>';
     }
 
     protected function compileSection($expression)
     {
-        return $this->phpTag."\$this->startSection{$expression}; ?>";
+        return $this->phpTag . "\$this->startSection{$expression}; ?>";
     }
 
     protected function compileAppend()
     {
-        return $this->phpTag.'$this->appendSection(); ?>';
+        return $this->phpTag . '$this->appendSection(); ?>';
     }
 
     protected function compileEndsection()
     {
-        return $this->phpTag.'$this->stopSection(); ?>';
+        return $this->phpTag . '$this->stopSection(); ?>';
     }
 
     protected function compileStop()
     {
-        return $this->phpTag.'$this->stopSection(); ?>';
+        return $this->phpTag . '$this->stopSection(); ?>';
     }
 
     protected function compileOverwrite()
     {
-        return $this->phpTag.'$this->stopSection(true); ?>';
+        return $this->phpTag . '$this->stopSection(true); ?>';
     }
 
     protected function compileUnless($expression)
     {
-        return $this->phpTag."if ( ! $expression): ?>";
+        return $this->phpTag . "if ( ! $expression): ?>";
     }
 
     protected function compileEndunless()
     {
-        return $this->phpTag.'endif; ?>';
+        return $this->phpTag . 'endif; ?>';
     }
 
     protected function compileIsset($expression)
     {
-        return $this->phpTag."if ( isset$expression ): ?>";
+        return $this->phpTag . "if ( isset$expression ): ?>";
     }
 
     protected function compileEndisset()
     {
-        return $this->phpTag.'endif; ?>';
+        return $this->phpTag . 'endif; ?>';
     }
 
     protected function compileLang($expression)
     {
         /* return $this->phpTag."echo app('translator')->get$expression; ?>"; */
-        return $this->phpTag."echo Helpers::trans$expression; ?>";
+        return $this->phpTag . "echo Helpers::trans$expression; ?>";
     }
 
     protected function compileChoice($expression)
     {
-        return $this->phpTag."echo Helpers::trans_choice$expression; ?>";
+        return $this->phpTag . "echo Helpers::trans_choice$expression; ?>";
     }
 
     protected function compileElse()
     {
-        return $this->phpTag.'else: ?>';
+        return $this->phpTag . 'else: ?>';
     }
 
     protected function compileFor($expression)
     {
-        return $this->phpTag."for{$expression}: ?>";
+        return $this->phpTag . "for{$expression}: ?>";
     }
 
     protected function compileForeach($expression)
@@ -952,121 +932,121 @@ class BladeOne
 
         $iterateLoop = '$this->incrementLoopIndices(); $loop = $this->getFirstLoop();';
 
-        return $this->phpTag."{$initLoop} foreach(\$__currentLoopData as {$iteration}): {$iterateLoop} ?>";
+        return $this->phpTag . "{$initLoop} foreach(\$__currentLoopData as {$iteration}): {$iterateLoop} ?>";
     }
 
     protected function compileBreak($expression)
     {
-        return $expression ? $this->phpTag."if{$expression} break; ?>" : $this->phpTag.'break; ?>';
+        return $expression ? $this->phpTag . "if{$expression} break; ?>" : $this->phpTag . 'break; ?>';
     }
 
     protected function compileContinue($expression)
     {
-        return $expression ? $this->phpTag."if{$expression} continue; ?>" : $this->phpTag.'continue; ?>';
+        return $expression ? $this->phpTag . "if{$expression} continue; ?>" : $this->phpTag . 'continue; ?>';
     }
 
     protected function compileForelse($expression)
     {
-        $empty = '$__empty_'.++$this->forelseCounter;
+        $empty = '$__empty_' . ++$this->forelseCounter;
 
-        return $this->phpTag."{$empty} = true; foreach{$expression}: {$empty} = false; ?>";
+        return $this->phpTag . "{$empty} = true; foreach{$expression}: {$empty} = false; ?>";
     }
 
     protected function compileCan($expression)
     {
-        return $this->phpTag."if ( Gate::allows{$expression} ): ?>";
+        return $this->phpTag . "if ( Gate::allows{$expression} ): ?>";
     }
 
     protected function compileElsecan($expression)
     {
-        return $this->phpTag."elseif ( Gate::allows{$expression} ): ?>";
+        return $this->phpTag . "elseif ( Gate::allows{$expression} ): ?>";
     }
 
     protected function compileCanany($expression)
     {
-        return $this->phpTag."if ( Gate::any{$expression} ): ?>";
+        return $this->phpTag . "if ( Gate::any{$expression} ): ?>";
     }
 
     protected function compileElsecanany($expression)
     {
-        return $this->phpTag."elseif ( Gate::any{$expression} ): ?>";
+        return $this->phpTag . "elseif ( Gate::any{$expression} ): ?>";
     }
 
     protected function compileCannot($expression)
     {
-        return $this->phpTag."if ( Gate::denies{$expression} ): ?>";
+        return $this->phpTag . "if ( Gate::denies{$expression} ): ?>";
     }
 
     protected function compileElsecannot($expression)
     {
-        return $this->phpTag."elseif ( Gate::denies{$expression} ): ?>";
+        return $this->phpTag . "elseif ( Gate::denies{$expression} ): ?>";
     }
 
     protected function compileIf($expression)
     {
-        return $this->phpTag."if{$expression}: ?>";
+        return $this->phpTag . "if{$expression}: ?>";
     }
 
     protected function compileElseif($expression)
     {
-        return $this->phpTag."elseif{$expression}: ?>";
+        return $this->phpTag . "elseif{$expression}: ?>";
     }
 
     protected function compileEmpty()
     {
-        $empty = '$__empty_'.$this->forelseCounter--;
+        $empty = '$__empty_' . $this->forelseCounter--;
 
-        return $this->phpTag."endforeach; if ({$empty}): ?>";
+        return $this->phpTag . "endforeach; if ({$empty}): ?>";
     }
 
     protected function compileHasSection($expression)
     {
-        return $this->phpTag."if (! empty(trim(\$this->yieldContent{$expression}))): ?>";
+        return $this->phpTag . "if (! empty(trim(\$this->yieldContent{$expression}))): ?>";
     }
 
     protected function compileEndwhile()
     {
-        return $this->phpTag.'endwhile; ?>';
+        return $this->phpTag . 'endwhile; ?>';
     }
 
     protected function compileEndfor()
     {
-        return $this->phpTag.'endfor; ?>';
+        return $this->phpTag . 'endfor; ?>';
     }
 
     protected function compileEndforeach()
     {
-        return $this->phpTag.'endforeach; $this->popLoop(); $loop = $this->getFirstLoop(); ?>';
+        return $this->phpTag . 'endforeach; $this->popLoop(); $loop = $this->getFirstLoop(); ?>';
     }
 
     protected function compileEndcan()
     {
-        return $this->phpTag.'endif; ?>';
+        return $this->phpTag . 'endif; ?>';
     }
 
     protected function compileEndcanany()
     {
-        return $this->phpTag.'endif; ?>';
+        return $this->phpTag . 'endif; ?>';
     }
 
     protected function compileEndcannot()
     {
-        return $this->phpTag.'endif; ?>';
+        return $this->phpTag . 'endif; ?>';
     }
 
     protected function compileEndif()
     {
-        return $this->phpTag.'endif; ?>';
+        return $this->phpTag . 'endif; ?>';
     }
 
     protected function compileEndforelse()
     {
-        return $this->phpTag.'endif; ?>';
+        return $this->phpTag . 'endif; ?>';
     }
 
     protected function compilePhp($expression)
     {
-        return $expression ? $this->phpTag."{$expression}; ?>" : $this->phpTag.'';
+        return $expression ? $this->phpTag . "{$expression}; ?>" : $this->phpTag . '';
     }
 
     protected function compileEndphp()
@@ -1077,28 +1057,28 @@ class BladeOne
     protected function compileEnv($expression)
     {
         $expression = $this->stripParentheses($expression);
-        return $this->phpTag."if ( config('app.env')==$expression ): ?>";
+        return $this->phpTag . "if ( config('app.env')==$expression ): ?>";
     }
 
     protected function compileEndEnv()
     {
-        return $this->phpTag.'endif; ?>';
+        return $this->phpTag . 'endif; ?>';
     }
 
     protected function compileProduction()
     {
-        return $this->phpTag."if ( config('app.env')=='production' ): ?>";
+        return $this->phpTag . "if ( config('app.env')=='production' ): ?>";
     }
 
     protected function compileEndproduction()
     {
-        return $this->phpTag.'endif; ?>';
+        return $this->phpTag . 'endif; ?>';
     }
 
 
     protected function compileUnset($expression)
     {
-        return $this->phpTag."unset{$expression}; ?>";
+        return $this->phpTag . "unset{$expression}; ?>";
     }
 
     protected function compileExtends($expression)
@@ -1107,7 +1087,7 @@ class BladeOne
         /*
         $data = $this->phpTag."echo \$__env->make($expression, array_except(get_defined_vars(), array('__data', '__path')))->render(); ?>";
         */
-        $data= $this->phpTag.'echo $this->runChild('.$expression.'); ?>';
+        $data = $this->phpTag . 'echo $this->runChild(' . $expression . '); ?>';
         $this->footer[] = $data;
 
         return '';
@@ -1135,20 +1115,20 @@ class BladeOne
         $expression = $this->stripParentheses($expression);
         return $this->phpTagEcho . '$this->includeFirst(' . $expression . '); ?>';
     }
-    
+
     protected function compileStack($expression)
     {
-        return $this->phpTag."echo \$this->yieldPushContent{$expression}; ?>";
+        return $this->phpTag . "echo \$this->yieldPushContent{$expression}; ?>";
     }
 
     protected function compilePush($expression)
     {
-        return $this->phpTag."\$this->startPush{$expression}; ?>";
+        return $this->phpTag . "\$this->startPush{$expression}; ?>";
     }
 
     protected function compileEndpush()
     {
-        return $this->phpTag.'$this->stopPush(); ?>';
+        return $this->phpTag . '$this->stopPush(); ?>';
     }
 
     protected function compilePushIf($expression)
@@ -1181,34 +1161,34 @@ class BladeOne
 
     protected function compilePrepend($expression)
     {
-        return $this->phpTag."\$this->startPrepend{$expression}; ?>";
+        return $this->phpTag . "\$this->startPrepend{$expression}; ?>";
     }
 
     protected function compileEndprepend()
     {
-        return $this->phpTag.'$this->stopPrepend(); ?>';
+        return $this->phpTag . '$this->stopPrepend(); ?>';
     }
 
     protected function compileOnce()
     {
-        return $this->phpTag.'$this->startPushOnce(); ?>';
+        return $this->phpTag . '$this->startPushOnce(); ?>';
     }
 
     protected function compileEndonce()
     {
-        return $this->phpTag.'$this->stopPushOnce(); ?>';
+        return $this->phpTag . '$this->stopPushOnce(); ?>';
     }
 
     protected function compileSession($expression)
     {
         $expression = $this->stripParentheses($expression);
 
-        return '<?php $__sessionArgs = array('.$expression.');
+        return '<?php $__sessionArgs = array(' . $expression . ');
             if (session()->has($__sessionArgs[0])) :
             if (isset($value)) { $__sessionPrevious[] = $value; }
             $value = session()->get($__sessionArgs[0]); ?>';
     }
-    
+
     protected function compileEndsession($expression)
     {
         return '<?php unset($value);
@@ -1220,14 +1200,14 @@ class BladeOne
 
     protected function compileJson($expression)
     {
-        return $this->phpTag."echo json_encode{$expression}; ?>";
+        return $this->phpTag . "echo json_encode{$expression}; ?>";
     }
 
     protected function compileVite($expression)
     {
         $expression = $this->stripParentheses($expression);
         $expression = str_replace("'", '', str_replace('"', '', $expression));
-        return $this->phpTag.'echo vite_assets("' .  $expression . '"); ?>';
+        return $this->phpTag . 'echo vite_assets("' .  $expression . '"); ?>';
         /* return $this->phpTag.'echo \'<script type="module" src="'. asset('assets/app.js') . '"></script>\'; ?>'; */
     }
 
@@ -1272,7 +1252,7 @@ class BladeOne
     protected function compileEndAuth()
     {
         return '<?php endif; ?>';
-    }    
+    }
 
     protected function compileGuest($guard = null)
     {
@@ -1295,7 +1275,7 @@ class BladeOne
 
         return "<?php \$this->startFragment{$expression}; ?>";
     }
-    
+
     protected function compileEndfragment()
     {
         return '<?php echo $this->stopFragment(); ?>';
@@ -1326,7 +1306,7 @@ class BladeOne
         return isset($this->fragments[$name]) ? $this->fragments[$name] : $default;
     }
 
- 
+
     public function startPush($section, $content = '')
     {
         if ($content === '') {
@@ -1341,7 +1321,7 @@ class BladeOne
     public function stopPush()
     {
         if (empty($this->pushStack)) {
-            $this->showError('stopPush','Cannot end a section without first starting one',true);
+            $this->showError('stopPush', 'Cannot end a section without first starting one', true);
         }
 
         $last = array_pop($this->pushStack);
@@ -1363,7 +1343,7 @@ class BladeOne
     public function stopPrepend()
     {
         if (empty($this->pushStack)) {
-            $this->showError('stopPrepend','Cannot end a section without first starting one',true);
+            $this->showError('stopPrepend', 'Cannot end a section without first starting one', true);
         }
 
         $last = array_pop($this->pushStack);
@@ -1379,14 +1359,13 @@ class BladeOne
     public function stopPushOnce()
     {
         $result = ob_get_clean();
-        if (!in_array($result, $this->slotOnce))
-        {
+        if (!in_array($result, $this->slotOnce)) {
             $this->slotOnce[] = $result;
             echo $result;
         }
     }
 
-    protected function extendPush($section, $content, $prepend=false)
+    protected function extendPush($section, $content, $prepend = false)
     {
         if (! isset($this->pushes[$section])) {
             $this->pushes[$section] = array();
@@ -1395,7 +1374,7 @@ class BladeOne
             $this->pushes[$section][$this->renderCount] = $content;
         } else {
             //if (!$prepend)
-                $this->pushes[$section][$this->renderCount] .= $content;
+            $this->pushes[$section][$this->renderCount] .= $content;
             //else
             //    $this->pushes[$section][$this->renderCount] = $content . $this->pushes[$section][$this->renderCount];
         }
@@ -1411,7 +1390,8 @@ class BladeOne
     }
 
 
-    function callbackStoreVerbatimBlocks ($matches) {
+    function callbackStoreVerbatimBlocks($matches)
+    {
         $this->verbatimBlocks[] = $matches[1];
 
         return $this->verbatimPlaceholder;
@@ -1422,8 +1402,9 @@ class BladeOne
         return preg_replace_callback('/(?<!@)@verbatim(.*?)@endverbatim/s', array($this, "callbackStoreVerbatimBlocks"), $value);
     }
 
-    function callbackStoreScriptBlocks ($matches) {
-        if (preg_match('/<script[\s]*src=/x', $matches[0])==1) {
+    function callbackStoreScriptBlocks($matches)
+    {
+        if (preg_match('/<script[\s]*src=/x', $matches[0]) == 1) {
             return $matches[0];
         }
 
@@ -1435,7 +1416,7 @@ class BladeOne
         }
 
         $this->scriptBlocks[] = $value;
-        
+
         return $this->scriptPlaceholder;
     }
 
@@ -1444,49 +1425,58 @@ class BladeOne
         return preg_replace_callback('/(<script[\s\S]*?>[\s\S]*?<\/script[\s\S]*?>)/x', array($this, "callbackStoreScriptBlocks"), $value);
     }
 
-    protected function convertArg($array,$merge=null) {
+    protected function convertArg($array, $merge = null)
+    {
         if (!is_array($array)) {
-            if ($array=='') {
+            if ($array == '') {
                 return '';
             }
             // if its text then its converted to an array ['index'=>value,'index2'=>value]..
             $regexp = "@(\S+)=(\"|'| |)(.*)(\"|'| |>)@isU";
-            preg_match_all($regexp, "<TAG ".$array, $p);
-            $array=array_combine($p[1],$p[3]);
+            preg_match_all($regexp, "<TAG " . $array, $p);
+            $array = array_combine($p[1], $p[3]);
             // $array=array_change_key_case(array_combine($p[1],$p[3]),CASE_LOWER);
         }
-        if ($merge!=null) {
-            $array=array_merge($array,$merge);
+        if ($merge != null) {
+            $array = array_merge($array, $merge);
         }
-        return implode(' ',array_map( 'convertArgCallBack', array_keys($array), $array));
-
+        return implode(' ', array_map('convertArgCallBack', array_keys($array), $array));
     }
-    function convertArgCallBack($k, $v) {
-        return $k."='{$v}' ";
+    function convertArgCallBack($k, $v)
+    {
+        return $k . "='{$v}' ";
     }
 
-    function callbackRestoreVerbatimBlocks() {
+    function callbackRestoreVerbatimBlocks()
+    {
         return array_shift($this->verbatimBlocks);
     }
 
     protected function restoreVerbatimBlocks($result)
     {
-        $result = preg_replace_callback('/'.preg_quote($this->verbatimPlaceholder).'/', 
-                    array($this, "callbackRestoreVerbatimBlocks"), $result);
+        $result = preg_replace_callback(
+            '/' . preg_quote($this->verbatimPlaceholder) . '/',
+            array($this, "callbackRestoreVerbatimBlocks"),
+            $result
+        );
 
         $this->verbatimBlocks = array();
 
         return $result;
     }
 
-    function callbackRestoreScriptBlocks() {
+    function callbackRestoreScriptBlocks()
+    {
         return array_shift($this->scriptBlocks);
     }
 
     protected function restoreScriptBlocks($result)
     {
-        $result = preg_replace_callback('/'.preg_quote($this->scriptPlaceholder).'/', 
-                    array($this, "callbackRestoreScriptBlocks"), $result);
+        $result = preg_replace_callback(
+            '/' . preg_quote($this->scriptPlaceholder) . '/',
+            array($this, "callbackRestoreScriptBlocks"),
+            $result
+        );
 
         $this->scriptBlocks = array();
 
@@ -1511,7 +1501,8 @@ class BladeOne
         return $content;
     }
 
-    function _uksort($method1, $method2) {
+    function _uksort($method1, $method2)
+    {
         // Ensure the longest tags are processed first
 
 
@@ -1536,7 +1527,7 @@ class BladeOne
         if ($method2 === 'compileEscapedEchos') {
             return 1;
         }
-        
+
         //throw new Exception('Method not defined');
     }
 
@@ -1561,26 +1552,20 @@ class BladeOne
 
     public function startSection($section, $content = '')
     {
-        if ($content === '')
-        {
+        if ($content === '') {
             ob_start() && $this->sectionStack[] = $section;
-        }
-        else
-        {
+        } else {
             $this->extendSection($section, $content);
         }
     }
 
     protected function extendSection($section, $content)
     {
-        if (isset($this->sections[$section]))
-        {
+        if (isset($this->sections[$section])) {
             $content = str_replace('@parent', $content, $this->sections[$section]);
 
             $this->sections[$section] = $content;
-        }
-        else
-        {
+        } else {
             $this->sections[$section] = $content;
         }
     }
@@ -1589,12 +1574,9 @@ class BladeOne
     {
         $last = array_pop($this->sectionStack);
 
-        if ($overwrite)
-        {
+        if ($overwrite) {
             $this->sections[$last] = ob_get_clean();
-        }
-        else
-        {
+        } else {
             $this->extendSection($last, ob_get_clean());
         }
 
@@ -1608,7 +1590,7 @@ class BladeOne
 
     protected function compileWhile($expression)
     {
-        return $this->phpTag."while{$expression}: ?>";
+        return $this->phpTag . "while{$expression}: ?>";
     }
 
     protected function compileProps($expression)
@@ -1622,8 +1604,7 @@ class BladeOne
         $expression = str_replace("'", '', str_replace('"', '', $expression));
 
         //$array = array();
-        foreach (explode(',', $expression) as $exp)
-        {
+        foreach (explode(',', $expression) as $exp) {
             $expr = explode('=>', $exp);
             if (!isset($this->variables[trim($expr[0])]))
                 $this->variables[trim($expr[0])] = trim($expr[1]);
@@ -1698,24 +1679,26 @@ class BladeOne
         return array_map('stripcslashes', $tags);
     }
 
-    public function getCompiledFile() {
+    public function getCompiledFile()
+    {
         $file = str_replace(_DIR_, '', $this->getTemplateFile());
         $file = base64url_encode($file);
         return $this->compiledPath . '/' . $file;
     }
 
-    public function getTemplateFile($templateName=null) {
-        $templateName = $templateName? $templateName : $this->fileName;
-        $arr = explode('.' , $templateName);
+    public function getTemplateFile($templateName = null)
+    {
+        $templateName = $templateName ? $templateName : $this->fileName;
+        $arr = explode('.', $templateName);
         $c = count($arr);
-        if ($c==1) {
+        if ($c == 1) {
             $path = $this->templatePath . '/' . $templateName . '.blade.php';
             return str_replace('//', '/', $path);
         } else {
-            $file = $arr[$c-1];
-            array_splice($arr,$c-1,$c-1); // delete the last element
-            $path = implode('/',$arr);
-            $path = $this->templatePath . '/' .$path.'/'. $file . '.blade.php';
+            $file = $arr[$c - 1];
+            array_splice($arr, $c - 1, $c - 1); // delete the last element
+            $path = implode('/', $arr);
+            $path = $this->templatePath . '/' . $path . '/' . $file . '.blade.php';
             return str_replace('//', '/', $path);
         }
     }
@@ -1728,8 +1711,7 @@ class BladeOne
         // If the compiled file doesn't exist we will indicate that the view is expired
         // so that it can be re-compiled. Else, we will verify the last modification
         // of the views is less than the modification times of the compiled views.
-        if ( ! $this->compiledPath || ! file_exists($compiled))
-        {
+        if (! $this->compiledPath || ! file_exists($compiled)) {
             return true;
         }
         return filemtime($compiled) < filemtime($template);
@@ -1745,9 +1727,8 @@ class BladeOne
             $res = preg_replace('/(@cs[a-zA-Z0-9]+)/s', " $1 ", $res);
             return $res; */
             return file_get_contents($fileName);
-
         }
-        $this->showError('getFile',"File does not exist at path {$fileName}",true);
+        $this->showError('getFile', "File does not exist at path {$fileName}", true);
         return '';
     }
 
@@ -1760,13 +1741,10 @@ class BladeOne
         // We'll evaluate the contents of the view inside a try/catch block so we can
         // flush out any stray output that might get out before an error occurs or
         // an exception is thrown. This prevents any partial views from leaking.
-        try
-        {
+        try {
             /** @noinspection PhpIncludeInspection */
             include $compiledFile;
-        }
-        catch (\Exception $e)
-        {
+        } catch (\Exception $e) {
             $this->handleViewException($e);
         }
 
@@ -1775,14 +1753,15 @@ class BladeOne
 
 
     protected function handleViewException($e)
-    {  
-        ob_get_clean(); throw $e;
+    {
+        ob_get_clean();
+        throw $e;
     }
 
 
     public function get($array, $key, $default = null)
     {
-        $accesible=is_array($array) || $array instanceof ArrayAccess;
+        $accesible = is_array($array) || $array instanceof ArrayAccess;
         if (! $accesible) {
             return self::value($default);
         }
@@ -1812,7 +1791,7 @@ class BladeOne
         return is_file($file);
     }
 
-    public function includeWhen($bool=false, $view='', $value=array())
+    public function includeWhen($bool = false, $view = '', $value = array())
     {
         if ($bool) {
             return $this->runChild($view, $value);
@@ -1820,7 +1799,7 @@ class BladeOne
         return '';
     }
 
-    public function includeFirst($views=array(), $value=array())
+    public function includeFirst($views = array(), $value = array())
     {
         foreach ($views as $view) {
             if ($this->templateExist($view)) {
@@ -1894,11 +1873,11 @@ class BladeOne
     {
         return htmlentities($value, ENT_QUOTES, 'UTF-8', false);
     }
- 
+
     public function addLoop($data)
     {
-        $length = is_array($data) || $data instanceof Countable 
-            ? count($data) 
+        $length = is_array($data) || $data instanceof Countable
+            ? count($data)
             : ($data instanceof Collection ? $data->count() : null);
 
         $parent = $this->last($this->loopsStack);
@@ -1961,7 +1940,7 @@ class BladeOne
             foreach ($data as $key => $value) {
                 $data = array('key' => $key, $iterator => $value);
 
-                $result .= $this->runChild($view,$data);
+                $result .= $this->runChild($view, $data);
             }
         }
 
@@ -1973,14 +1952,15 @@ class BladeOne
             if ($this->startsWith($empty, 'raw|')) {
                 $result = substr($empty, 4);
             } else {
-                $result = $this->run($empty,array());
+                $result = $this->run($empty, array());
             }
         }
 
         return $result;
     }
 
-    public function showError($id,$text,$critic=false) {
+    public function showError($id, $text, $critic = false)
+    {
         ob_get_clean();
         echo "<div style='background-color: red; color: black; padding: 3px; border: solid 1px black;'>";
         echo "BladeOne Error [{$id}]:<br>";
@@ -1990,5 +1970,4 @@ class BladeOne
         }
         return "";
     }
-
 }

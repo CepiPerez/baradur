@@ -96,7 +96,7 @@ class PipelineHandler
 
             list($class, $params) = $this->parsePipeString($pipe);
             //dump($class);
-            
+
             $controller = new $class;
             $params = array_merge(array($result, null), $params);
 
@@ -122,7 +122,6 @@ class PipelineHandler
         list($class, $method, $params) = getCallbackFromString($destination);
         $params[0] = $result;
         return call_user_func_array(array($class, $method), $params);
-
     }
 
     /**
@@ -201,5 +200,4 @@ class PipelineHandler
     {
         return $carry;
     }
-
 }

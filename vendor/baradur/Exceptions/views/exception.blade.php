@@ -6,7 +6,7 @@
 
         <title>Exception Error</title>
 
-        <link rel="shortcut icon" href="{{asset('/assets/favicon.ico')}}" type="image/x-icon">
+        <link rel="shortcut icon" href="{{asset('assets/favicon.ico')}}" type="image/x-icon">
         <link href="{{ asset('assets/css/app.css') }}" rel="stylesheet">
 
         <script src="{{ asset('assets/js/jquery-3.5.1.min.js') }}"></script>
@@ -30,7 +30,8 @@
                         <div class="flex text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                             <div class="align-middle py-1 mr-3">PHP {{ phpversion() }}</div>
                             <div class="py-1 mr-1">
-                                <img class="grayscale brightness-75 dark:grayscale dark:brightness-100" style="padding-top:1px" height="14" width="14" src="{{asset('assets/logo.png')}}">
+                                <img class="grayscale brightness-75 dark:grayscale dark:brightness-100"
+                                    style="padding-top:1px" height="14" width="14" src="{{asset('assets/logo.png')}}">
                             </div>
                             <div class="align-middle py-1">{{Application::VERSION}}</div>
                         </div>
@@ -109,7 +110,7 @@
                                 id="tab_head_{{$loop->index}}" onclick="changeTab({{$loop->index}})" 
                                 vendor="{{$tr['vendor']}}"
                                 >
-                                {{ $tr['basename'] }}
+                                {{ ExceptionHandler::getClassBasenameForTab($tr['file']) }}
                             </div>
                             @endforeach
                         </div>

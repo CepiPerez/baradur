@@ -93,7 +93,7 @@ class Model
     protected $touches = array();
     protected $table = null;
     protected $appends = array();
-    protected $wasRecentlyCreated = false;
+    protected $wasRecentlyCreated = true;
     protected $connection = null;
     protected $connectionDriver = null;
     protected $_query;
@@ -101,6 +101,8 @@ class Model
     protected $_UPDATED_AT = 'updated_at';
     protected $_eagerLoad = null;
     protected $_global_scopes = array();
+
+    protected static $unguarded = false;
 
     protected static $modelsShouldPreventLazyLoading = false;
     protected static $modelsShouldPreventSilentlyDiscardingAttributes = false;
@@ -113,7 +115,7 @@ class Model
     //protected $attributeCastCache = array();
     protected static $castTypeCache = array();
     protected $classCastCache = array();
-    
+
     public static $snakeAttributes = true;
     //protected static $mutatorCache = array();
 
@@ -149,6 +151,21 @@ class Model
         'increment',
         'decrement'
     );
+
+    public static function unguard($state = true)
+    {
+        self::$unguarded = $state;
+    }
+
+    public static function reguard()
+    {
+        self::$unguarded = false;
+    }
+
+    public static function isUnguarded()
+    {
+        return self::$unguarded;
+    }
 
     public static function preventsLazyLoading()
     {
@@ -187,7 +204,7 @@ class Model
         self::$modelsShouldPreventAccessingMissingAttributes = $value;
     }
 
-    public function __construct($attributes=array())
+    public function __construct($attributes = array())
     {
         $this->bootIfNotBooted(get_class($this));
 
@@ -208,8 +225,8 @@ class Model
             $booted = array();
 
             foreach (class_uses_recursive($class) as $trait) {
-                $method = 'boot'. $trait;
-                
+                $method = 'boot' . $trait;
+
                 if (method_exists($class, $method) && ! in_array($method, $booted)) {
                     $c = new $class;
                     $c->{$method}();
@@ -261,7 +278,7 @@ class Model
         } */
     }
 
-    protected function addGlobalScope($scope, $callback=null)
+    protected function addGlobalScope($scope, $callback = null)
     {
         if (is_object($scope)) {
             $this->_global_scopes[get_class($scope)] = $scope;
@@ -285,7 +302,7 @@ class Model
     {
         return $this->getAttribute($this->getRouteKeyName());
     }
-    
+
     public function getRouteKeyName()
     {
         return $this->getKeyName();
@@ -293,7 +310,7 @@ class Model
 
     public function getForeignKey()
     {
-        return Str::snake(class_basename($this)).'_'.$this->getKeyName();
+        return Str::snake(class_basename($this)) . '_' . $this->getKeyName();
     }
 
     public function getFillable()
@@ -340,7 +357,7 @@ class Model
     {
         return $this->attributes;
     }
-    
+
 
     /* public function getAttribute($key)
     {
@@ -354,7 +371,7 @@ class Model
 
     public function getRelation($key)
     {
-        return array_key_exists($key, $this->relations)? $this->relations[$key] : null;
+        return array_key_exists($key, $this->relations) ? $this->relations[$key] : null;
     }
 
     public function getVisible()
@@ -367,7 +384,7 @@ class Model
         return $this->_global_scopes;
     }
 
-    public function __setGlobalScopes($scopes=array())
+    public function __setGlobalScopes($scopes = array())
     {
         $this->_global_scopes = $scopes;
     }
@@ -412,12 +429,13 @@ class Model
     public function makeHidden($attributes)
     {
         $this->hidden = array_merge(
-            $this->hidden, is_array($attributes) ? $attributes : func_get_args()
+            $this->hidden,
+            is_array($attributes) ? $attributes : func_get_args()
         );
 
         return $this;
     }
-    
+
     public function makeHiddenIf($condition, $attributes)
     {
         return value($condition, $this) ? $this->makeHidden($attributes) : $this;
@@ -425,7 +443,7 @@ class Model
 
     public function usesSoftDeletes()
     {
-        return isset($this->_useSoftDeletes) && $this->_useSoftDeletes==true;
+        return isset($this->_useSoftDeletes) && $this->_useSoftDeletes == true;
     }
 
     /* public function usesHasFactory()
@@ -435,19 +453,21 @@ class Model
 
 
     /** @return Builder */
-    public static function instance($parent, $table=null, $as=null)
+    public static function instance($parent, $table = null, $as = null)
     {
         return new Builder($parent, $table, $as);
     }
 
     /** @return Builder */
-    public function getQuery($query=null)
-    {            
+    public function getQuery($query = null)
+    {
         if (!isset($this->_query)) {
-            $this->_query = $query? $query : new Builder(get_class($this));       
+            $this->_query = $query ? $query : new Builder(get_class($this));
+            $this->_query->_connector = $this->getConnectionName();
+            $this->_query->_model->setConnection($this->getConnectionName());
         }
 
-        if ($this->_query->_collection->count()==0 && count($this->original)>0) {
+        if ($this->_query->_collection->count() == 0 && count($this->original) > 0) {
             $this->_query->_collection->put($this);
         }
 
@@ -485,7 +505,6 @@ class Model
         //$model->fill((array) $attributes);
 
         return $model;
-
     }
 
     public function setTable($table)
@@ -527,7 +546,7 @@ class Model
     }
 
 
-    public function __getConnector($connection=null)
+    public function __getConnector($connection = null)
     {
         if ($this->connectionDriver) {
             return $this->connectionDriver;
@@ -545,20 +564,20 @@ class Model
         if (isset($_SERVER['USERNAME']) || isset($_SERVER['SHELL'])) {
             $config['host'] = "127.0.0.1";
         }
-    
-        if ($config['driver']=='mysql') {
+
+        if ($config['driver'] == 'mysql') {
             return new PdoConnector($config);
         }
 
-        if ($config['driver']=='mysqli') {
+        if ($config['driver'] == 'mysqli') {
             return new MysqliConnector($config);
         }
 
-        if ($config['driver']=='oracle') {
+        if ($config['driver'] == 'oracle') {
             return new OracleConnector($config);
         }
 
-        if ($config['driver']=='sqlite' || $config['driver']=='sqlite2') {
+        if ($config['driver'] == 'sqlite' || $config['driver'] == 'sqlite2') {
             return new SqliteConnector($config);
         }
 
@@ -594,7 +613,7 @@ class Model
         $this->setAttribute($key, $value);
     }
 
-   
+
     /* public function __get($name)
     {
         if (array_key_exists($name, $this->attributes))
@@ -653,12 +672,11 @@ class Model
 
             if (in_array($method, self::$keepQueryMethods)) {
                 $calls = $calls->where($this->getRouteKeyName(), $this->getRouteKey());
-
             }
 
             return call_user_func_array(array($calls, $method), $arguments);
         }
-        
+
         if (Str::startsWith($method, 'through')) {
             $relationMethod = Str::of($method)->after('through')->lcfirst()->toString();
 
@@ -688,12 +706,13 @@ class Model
         // If the attribute exists in the attribute array or has a "get" mutator we will
         // get the attribute's value. Otherwise, we will proceed as if the developers
         // are asking for a relationship's value. This covers both types of values.
-        if (array_key_exists($key, $this->attributes) ||
+        if (
+            array_key_exists($key, $this->attributes) ||
             array_key_exists($key, $this->casts) ||
             $this->hasGetMutator($key) ||
             $this->hasAttributeMutator($key) ||
-            $this->isClassCastable($key))
-        {
+            $this->isClassCastable($key)
+        ) {
             return $this->getAttributeValue($key);
         }
 
@@ -705,8 +724,8 @@ class Model
         } */
 
         return $this->isRelation($key) || $this->relationLoaded($key)
-                    ? $this->getRelationValue($key)
-                    : $this->throwMissingAttributeExceptionIfApplicable($key);
+            ? $this->getRelationValue($key)
+            : $this->throwMissingAttributeExceptionIfApplicable($key);
     }
 
     protected function throwMissingAttributeExceptionIfApplicable($key)
@@ -761,7 +780,7 @@ class Model
             return call_user_func(static::$lazyLoadingViolationCallback, $this, $key);
         } */
 
-        if (/* ! $this->exists || */ $this->wasRecentlyCreated) {
+        if (/* ! $this->exists || */$this->wasRecentlyCreated) {
             return;
         }
 
@@ -771,19 +790,19 @@ class Model
     protected function getRelationshipFromMethod($method)
     {
         $this->load($method);
-            
+
         return $this->relations[$method];
     }
-    
+
     public function hasGetMutator($key)
     {
-        return method_exists($this, 'get'.Str::studly($key).'Attribute');
+        return method_exists($this, 'get' . Str::studly($key) . 'Attribute');
     }
 
     public function hasAttributeMutator($key)
     {
-        return method_exists($this, Str::studly($key).'Attribute');
-        
+        return method_exists($this, Str::studly($key) . 'Attribute');
+
         /* if (isset(self::$attributeMutatorCache[get_class($this)][$key])) {
             return self::$attributeMutatorCache[get_class($this)][$key];
         }
@@ -802,7 +821,7 @@ class Model
 
     public function hasAttributeSetMutator($key)
     {
-        return method_exists($this, Str::studly($key).'Attribute');
+        return method_exists($this, Str::studly($key) . 'Attribute');
 
         /* $class = get_class($this);
 
@@ -869,7 +888,9 @@ class Model
 
         if ($value === false) {
             throw JsonEncodingException::forAttribute(
-                $this, $key, 'Cannot cast attribute as JSON element'
+                $this,
+                $key,
+                'Cannot cast attribute as JSON element'
             );
         }
 
@@ -885,7 +906,8 @@ class Model
         return $this->fromJson(
             /* $this->isEncryptedCastable($key)
                 ? $this->fromEncryptedString($this->attributes[$key])
-                :  */ $this->attributes[$key]
+                :  */
+            $this->attributes[$key]
         );
     }
 
@@ -910,7 +932,9 @@ class Model
         list($key, $path) = explode('->', $key, 2);
 
         $value = $this->asJson($this->getArrayAttributeWithValue(
-            $path, $key, $value
+            $path,
+            $key,
+            $value
         ));
 
         $this->attributes[$key] = /* $this->isEncryptedCastable($key)
@@ -924,7 +948,7 @@ class Model
 
         return $this;
     }
-    
+
     protected function parseCasterClass($class)
     {
         return ! str_contains($class, ':')
@@ -961,8 +985,10 @@ class Model
         // If the attribute is listed as a date, we will convert it to a DateTime
         // instance on retrieval, which makes it quite convenient to work with
         // date fields without having to create a mutator for each property.
-        if ($value !== null
-            && in_array($key, $this->getDates(), false)) {
+        if (
+            $value !== null
+            && in_array($key, $this->getDates(), false)
+        ) {
             return $this->asDateTime($value);
         }
 
@@ -971,12 +997,12 @@ class Model
 
     protected function mutateAttribute($key, $value)
     {
-        return $this->{'get'.Str::studly($key).'Attribute'}($value);
+        return $this->{'get' . Str::studly($key) . 'Attribute'}($value);
     }
 
     public function hasAttributeGetMutator($key)
     {
-        return method_exists($this, Str::studly($key).'Attribute');
+        return method_exists($this, Str::studly($key) . 'Attribute');
 
         /* if (isset(self::$getAttributeMutatorCache[get_class($this)][$key])) {
             return self::$getAttributeMutatorCache[get_class($this)][$key];
@@ -1062,11 +1088,11 @@ class Model
 
     protected function mutateAttributeMarkedAttribute($key, $value)
     {
-        $method = Str::camel($key).'Attribute';
+        $method = Str::camel($key) . 'Attribute';
         $modelvalue = $this->$method($value, $this->attributes);
 
         return isset($modelvalue['get']) ? $modelvalue['get'] : $value;
-        
+
         /* if (array_key_exists($key, $this->attributeCastCache)) {
             return $this->attributeCastCache[$key];
         }
@@ -1121,13 +1147,13 @@ class Model
     protected function isCustomDateTimeCast($cast)
     {
         return str_starts_with($cast, 'date:') ||
-                str_starts_with($cast, 'datetime:');
+            str_starts_with($cast, 'datetime:');
     }
 
     protected function isImmutableCustomDateTimeCast($cast)
     {
         return str_starts_with($cast, 'immutable_date:') ||
-                str_starts_with($cast, 'immutable_datetime:');
+            str_starts_with($cast, 'immutable_datetime:');
     }
 
     protected function isDecimalCast($cast)
@@ -1184,18 +1210,18 @@ class Model
 
     public function hasSetMutator($key)
     {
-        return method_exists($this, 'set'.Str::studly($key).'Attribute');
+        return method_exists($this, 'set' . Str::studly($key) . 'Attribute');
     }
 
     protected function setMutatedAttributeValue($key, $value)
     {
-        $method = 'set'.Str::studly($key).'Attribute';
+        $method = 'set' . Str::studly($key) . 'Attribute';
         return $this->{$method}($value);
     }
 
     protected function setAttributeMarkedMutatedAttributeValue($key, $value)
     {
-        $method = Str::camel($key).'Attribute';
+        $method = Str::camel($key) . 'Attribute';
         $modelvalue = $this->$method($value, $this->attributes);
 
         return isset($modelvalue['set']) ? $modelvalue['set'] : $value;
@@ -1235,13 +1261,13 @@ class Model
 
     public function getDates()
     {
-        if ($this->usesTimestamps())  {
+        if ($this->usesTimestamps()) {
             return array(
                 $this->getCreatedAtColumn(),
                 $this->getUpdatedAtColumn(),
             );
         }
-        
+
         return array();
     }
 
@@ -1282,7 +1308,7 @@ class Model
             $this->attributes[$key] = $caster->$value->value;
         }
 
-        if (/* $caster instanceof CastsInboundAttributes || */ ! is_object($value)) {
+        if (/* $caster instanceof CastsInboundAttributes || */! is_object($value)) {
             unset($this->classCastCache[$key]);
         } else {
             $this->classCastCache[$key] = $value;
@@ -1477,12 +1503,12 @@ class Model
             } elseif ($this->hasAttributeGetMutator($key)) {
                 $attributes[$key] = $this->mutateAttributeMarkedAttribute($key, $value);
             }
-    
+
             /* if ($this->hasCast($key)) {
                 $attributes[$key] = $this->castAttribute($key, $value);
             } */
         }
-        
+
         return $attributes;
     }
 
@@ -1536,35 +1562,38 @@ class Model
             if (array_key_exists($key, $attributes)) {
 
                 $attributes[$key] = $this->castAttribute(
-                    $key, $attributes[$key]
+                    $key,
+                    $attributes[$key]
                 );
 
                 if (isset($attributes[$key]) && in_array($value, array('date', 'datetime', 'immutable_date', 'immutable_datetime'))) {
                     $attributes[$key] = $this->serializeDate($attributes[$key]);
                 }
-    
+
                 if (isset($attributes[$key]) && ($this->isCustomDateTimeCast($value) ||
                     $this->isImmutableCustomDateTimeCast($value))) {
                     $attributes[$key] = $attributes[$key]->format(end(explode(':', $value, 2)));
                 }
-    
-                if ($attributes[$key] instanceof Carbon &&
-                    $this->isClassCastable($key)) {
+
+                if (
+                    $attributes[$key] instanceof Carbon &&
+                    $this->isClassCastable($key)
+                ) {
                     $attributes[$key] = $this->serializeDate($attributes[$key]);
                 }
 
                 if ($attributes[$key] instanceof EnumHelper) {
                     $attributes[$key] = $attributes[$key]->value;
                 }
-    
+
                 /* if (isset($attributes[$key]) && $this->isClassSerializable($key)) {
                     $attributes[$key] = $this->serializeClassCastableAttribute($key, $attributes[$key]);
                 } */
-    
+
                 /* if ($this->isEnumCastable($key) && (! ($attributes[$key] ?? null) instanceof Arrayable)) {
                     $attributes[$key] = isset($attributes[$key]) ? $this->getStorableEnumValue($attributes[$key]) : null;
                 } */
-    
+
                 if ($attributes[$key] instanceof Collection || $attributes[$key] instanceof Model) {
                     $attributes[$key] = $attributes[$key]->toArray();
                 }
@@ -1626,7 +1655,7 @@ class Model
     protected function addMutatedAttributesToArray($attributes)
     {
         foreach ($attributes as $key => $value) {
-            
+
             if ($this->hasGetMutator($key)) {
                 $attributes[$key] = $this->mutateAttribute($key, $value);
             } elseif ($this->hasAttributeGetMutator($key)) {
@@ -1651,11 +1680,11 @@ class Model
             ? $this->serializeDate($value)
             : $value;
 
-        return $value instanceof Collection || $value instanceof Model 
-            ? $value->toArray() 
+        return $value instanceof Collection || $value instanceof Model
+            ? $value->toArray()
             : $value;
     }
-    
+
     protected function getClassCastableAttributeValue($key, $value)
     {
         if (isset($this->classCastCache[$key])) {
@@ -1668,7 +1697,7 @@ class Model
                 ? $caster->$value
                 : $caster->get($this, $key, $value, $this->attributes);
 
-            if (/* $caster instanceof CastsInboundAttributes || */ ! is_object($value)) {
+            if (/* $caster instanceof CastsInboundAttributes || */! is_object($value)) {
                 unset($this->classCastCache[$key]);
             } else {
                 $this->classCastCache[$key] = $value;
@@ -1684,8 +1713,7 @@ class Model
     {
         global $observers;
         $class = get_class($this);
-        if (isset($observers[$class]))
-        {
+        if (isset($observers[$class])) {
             $observer = new $observers[$class];
             if (method_exists($observer, $function))
                 $observer->$function($model);
@@ -1698,9 +1726,9 @@ class Model
      * @param string $value
      * @return mixed
      */
-    public function getOriginal($key=null, $default=null)
+    public function getOriginal($key = null, $default = null)
     {
-        if ($key) {    
+        if ($key) {
             return Arr::get($this->original, $key, $default);
         }
 
@@ -1725,7 +1753,7 @@ class Model
      * @param string $value
      * @return mixed
      */
-    public function isDirty($value=null)
+    public function isDirty($value = null)
     {
         if ($value) {
             return $this->original[$value] != $this->attributes[$value];
@@ -1746,7 +1774,7 @@ class Model
      * @param string $value
      * @return mixed
      */
-    public function isClean($value=null)
+    public function isClean($value = null)
     {
         if ($value) {
             return $this->original[$value] == $this->attribute[$value];
@@ -1776,8 +1804,8 @@ class Model
      */
     public function fresh()
     {
-        if (count($this->original)==0) {
-            throw new LogicException('Trying to re-retrieve from a new Model'); 
+        if (count($this->original) == 0) {
+            throw new LogicException('Trying to re-retrieve from a new Model');
         }
 
         return $this->getQuery()->_fresh($this->original, $this->_eagerLoad);
@@ -1797,7 +1825,7 @@ class Model
         $this->relations = $cloned->relations;
         $this->_eagerLoad = $cloned->_eagerLoad;
         $this->original = $cloned->original;
-        
+
         return $this;
     }
 
@@ -1848,7 +1876,7 @@ class Model
         //$this->attributes = $attributes;
     }
 
-    public function setAppends($appends=array())
+    public function setAppends($appends = array())
     {
         $this->appends = array();
 
@@ -1880,7 +1908,7 @@ class Model
      */
     public function fill($attributes)
     {
-        foreach($attributes as $key => $val) {
+        foreach ($attributes as $key => $val) {
             $this->setAttribute($key, $val);
         }
 
@@ -1907,11 +1935,11 @@ class Model
     {
         $this->checkObserver('saving', $this);
 
-        if (count($this->original)>0) {
+        if (!$this->wasRecentlyCreated) {
             $result = $this->update();
         } else {
             $query = $this->getQuery();
-            $query->_fillableOff = true;         
+            $query->_fillableOff = true;
             $result = $query->create($this);
             $query->_fillableOff = false;
         }
@@ -1934,7 +1962,6 @@ class Model
     public function touch($column = null)
     {
         return $this->getQuery()->touch($column);
-
     }
 
     /**
@@ -1969,7 +1996,7 @@ class Model
      * @param array $record
      * @return bool
      */
-    public function update($attributes=array())
+    public function update($attributes = array())
     {
         $this->fill($attributes);
 
@@ -1979,7 +2006,7 @@ class Model
         }
 
         $this->checkObserver('updating', $this);
-        
+
         $result = $this->getQuery()->update($this->attributes);
         $this->_query = null;
 
@@ -2001,6 +2028,8 @@ class Model
 
         $res = self::instance(get_class($this));
         $primary = $this->getKeyName();
+
+        $res->_connector = $this->getConnectionName();
         $res = $res->where($primary, $this->$primary)->delete();
 
         if ($res) {
@@ -2019,7 +2048,7 @@ class Model
     public function load($relations)
     {
         $relations = is_string($relations) ? func_get_args() : $relations;
-        
+
         $this->getQuery()->load($relations);
 
         $this->_query = null;
@@ -2027,7 +2056,7 @@ class Model
         return $this;
     }
 
-     /**
+    /**
      * Create a pending has-many-through or has-one-through relationship.
      *
      * @return PendingHasThroughRelationship
@@ -2050,7 +2079,7 @@ class Model
      * @param string $primary - Primary key
      * @return Builder
      */
-    public function hasOne($class, $foreign=null, $primary=null)
+    public function hasOne($class, $foreign = null, $primary = null)
     {
         return Relations::hasOne($this->getQuery(), $class, $foreign, $primary);
         //return $this->getQuery()->hasOne($class, $foreign, $primary);
@@ -2065,7 +2094,7 @@ class Model
      * @param string $primary - Primary key
      * @return Builder
      */
-    public function hasMany($class, $foreign=null, $primary=null)
+    public function hasMany($class, $foreign = null, $primary = null)
     {
         return Relations::hasMany($this->getQuery(), $class, $foreign, $primary);
         //return $this->getQuery()->hasMany($class, $foreign, $primary);
@@ -2080,7 +2109,7 @@ class Model
      * @param string $primary - Primary key
      * @return Builder
      */
-    public function belongsTo($class, $foreign=null, $primary=null)
+    public function belongsTo($class, $foreign = null, $primary = null)
     {
         return Relations::belongsTo($this->getQuery(), $class, $foreign, $primary);
         //return $this->getQuery()->belongsTo($class, $foreign, $primary);
@@ -2098,7 +2127,7 @@ class Model
      * @param string $primarythrough - Primary key through
      * @return Builder
      */
-    public function hasOneThrough($class, $classthrough, $foreignthrough=null, $foreign=null, $primary=null, $primarythrough=null)
+    public function hasOneThrough($class, $classthrough, $foreignthrough = null, $foreign = null, $primary = null, $primarythrough = null)
     {
         return Relations::hasOneThrough($this->getQuery(), $class, $classthrough, $foreignthrough, $foreign, $primary, $primarythrough);
         //return $this->getQuery()->hasOneThrough($class, $classthrough, $foreignthrough, $foreign, $primary, $primarythrough);
@@ -2116,7 +2145,7 @@ class Model
      * @param string $primarythrough - Primary key through
      * @return Builder
      */
-    public function hasManyThrough($class, $classthrough, $foreignthrough, $foreign, $primary='id', $primarythrough='id')
+    public function hasManyThrough($class, $classthrough, $foreignthrough, $foreign, $primary = 'id', $primarythrough = 'id')
     {
         return Relations::hasManyThrough($this->getQuery(), $class, $classthrough, $foreignthrough, $foreign, $primary, $primarythrough);
         //return $this->getQuery()->hasManyThrough($class, $classthrough, $foreignthrough, $foreign, $primary, $primarythrough);
@@ -2131,7 +2160,7 @@ class Model
      * @param string $primary - Primary key
      * @return Builder
      */
-    public function belongsToMany($class, $foreign=null, $primary=null, $foreignthrough=null, $primarythrough=null)
+    public function belongsToMany($class, $foreign = null, $primary = null, $foreignthrough = null, $primarythrough = null)
     {
         return Relations::belongsToMany($this->getQuery(), $class, $foreign, $primary, $foreignthrough, $primarythrough);
         //return $this->getQuery()->belongsToMany($class, $foreign, $primary, $foreignthrough, $primarythrough);
@@ -2178,7 +2207,7 @@ class Model
      */
     public function loadAggregate($relations, $column, $function = null)
     {
-        $relations = is_string($relations) ? array($relations) : $relations;            
+        $relations = is_string($relations) ? array($relations) : $relations;
 
         $query = $this;
 
@@ -2187,7 +2216,7 @@ class Model
             $query->setQuery(null);
         }
 
-        return $query;//->_collection->first();
+        return $query; //->_collection->first();
     }
 
     /**
@@ -2260,7 +2289,7 @@ class Model
     public function loadExists($relations)
     {
         $relations = is_string($relations) ? func_get_args() : $relations;
-  
+
         return $this->loadAggregate($relations, '*', 'exists');
     }
 
@@ -2381,5 +2410,4 @@ class Model
             } */
         }
     }
-    
 }

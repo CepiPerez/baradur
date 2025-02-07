@@ -28,7 +28,6 @@ class Kernel extends HttpKernel
         'signed' => ValidateSignature::class,
         'can' => Authorize::class,
         'verified' => EnsureEmailIsVerified::class,
-        'features' => EnsureFeaturesAreActive::class,
-        'custom' => MyMiddleware::class
+        'features' => EnsureFeaturesAreActive::class
     ];
 }

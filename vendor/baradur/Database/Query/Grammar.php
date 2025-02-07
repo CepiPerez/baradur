@@ -31,6 +31,10 @@ class Grammar
             return $this->wrapJsonSelector($value);
         } */
 
+        if (strpos($value, '`')!==false && !str_contains($value, $this->tablePrefix)) {    
+            return $this->wrapSegments(array($this->tablePrefix, $value));
+        }
+
         return $this->wrapSegments(explode('.', $value));
     }
 
@@ -105,7 +109,8 @@ class Grammar
 
     protected function wrapValue($value)
     {
-        if ($value !== '*') {
+        //if ($value !== '*') {
+        if ($value!=='*' && strpos($value, '`')===false) {
             return '`'.$value.'`';
         }
 

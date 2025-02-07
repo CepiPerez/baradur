@@ -1,6 +1,6 @@
 <?php
 
-Class ExceptionHandler
+class ExceptionHandler
 {
     private $exception;
 
@@ -22,10 +22,7 @@ Class ExceptionHandler
         $this->exception = $exeption;
     }
 
-    public function register()
-    {
-
-    }
+    public function register() {}
 
     public function setException($exception)
     {
@@ -43,7 +40,7 @@ Class ExceptionHandler
     {
         $this->renderable[] = $callback;
     }
-    
+
     public function handleException()
     {
         ob_end_clean();
@@ -54,7 +51,7 @@ Class ExceptionHandler
             $response = $this->exception->render(request());
 
             echo CoreLoader::processResponse($response);
-            
+
             __exit();
         }
 
@@ -64,7 +61,7 @@ Class ExceptionHandler
 
                 $class = new $class($this->exception);
                 $res = executeCallback($class, $method, array($this->exception, request()), $class);
-                
+
                 if ($res) {
                     echo CoreLoader::processResponse($res);
                     __exit();
@@ -77,7 +74,7 @@ Class ExceptionHandler
                 __exit();
             }
         }
-        
+
         if (request()->expectsJson()) {
             echo $this->generateJson();
 
@@ -85,7 +82,7 @@ Class ExceptionHandler
         }
 
         echo $this->generateException();
-        
+
         __exit();
     }
 
@@ -93,17 +90,17 @@ Class ExceptionHandler
     {
         $code = 0;
 
-        if (method_exists($this->exception, 'getStatusCode')) {            
+        if (method_exists($this->exception, 'getStatusCode')) {
             $code = $this->exception->getStatusCode();
         } else {
             $code = $this->exception->getCode();
         }
 
-        if ($code==0) $code = 404;
+        if ($code == 0) $code = 404;
 
         $message = $this->exception->getMessage();
 
-        if (!$message || $message=='') {
+        if (!$message || $message == '') {
             $message = HttpResponse::$reason_phrases[$code];
         }
 
@@ -112,13 +109,13 @@ Class ExceptionHandler
 
     public function generateJson()
     {
-        if (method_exists($this->exception, 'getStatusCode')) {            
+        if (method_exists($this->exception, 'getStatusCode')) {
             $code = $this->exception->getStatusCode();
         } else {
             $code = $this->exception->getCode();
         }
 
-        if ($code==0) $code = 404;
+        if ($code == 0) $code = 404;
 
         $result = array();
 
@@ -141,11 +138,11 @@ Class ExceptionHandler
 
     public static function getClassFilename($class)
     {
-        if (str_contains($class, '/storage/framework/views')) {
-            return '<i style="opacity:50%;margin-right:.5rem;">(compiled)</i>'. base64url_decode(basename($class));
+        if (str_contains($class, DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'views')) {
+            return '<i style="opacity:50%;margin-right:.5rem;">(compiled)</i>' . base64url_decode(basename($class));
         }
 
-        if (str_contains($class, '/storage/framework/classes')) {
+        if (str_contains($class, DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes')) {
             global $_class_list;
             $real = $_class_list[self::getClassBasename($class)];
             return '<i style="opacity:50%;margin-right:.5rem;">(compiled)</i>' . str_replace(_DIR_, '', $real);
@@ -156,7 +153,7 @@ Class ExceptionHandler
 
     public static function getClassBasename($class)
     {
-        if (str_contains($class, '/storage/framework/views')) {
+        if (str_contains($class, DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'views')) {
             $class = base64url_decode(basename($class));
         }
 
@@ -169,15 +166,28 @@ Class ExceptionHandler
         return $class;
     }
 
+    public static function getClassBasenameForTab($class)
+    {
+        if (str_contains($class, DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'views')) {
+            $class = base64url_decode(basename($class));
+        }
+
+        $class = pathinfo($class);
+        $class = $class['basename'];
+        $class = str_ireplace('.php', '', $class);
+
+        return $class;
+    }
+
     public static function showException($exception)
     {
-        $blade = new BladeOne(_DIR_.'vendor/baradur/Exceptions/views', _DIR_.'storage/framework/views');
+        $blade = new BladeOne(_DIR_ . 'vendor/baradur/Exceptions/views', _DIR_ . 'storage/framework/views');
 
         global $debuginfo;
 
         $message = $exception->getMessage();
 
-        if (!$message || $message=='') {
+        if (!$message || $message == '') {
             $message = HttpResponse::$reason_phrases[$exception->getCode()];
         }
 
@@ -191,38 +201,37 @@ Class ExceptionHandler
 
         $currentTab = 0;
 
-        $trace[$class."@".$line] = array(
+        $trace[$class . "@" . $line] = array(
             'function' => null,
             'file' => $class,
             'line' => $line,
             'basename' => $basename,
-            'content' => Helpers::loadFile($class, intval($line)-10, intval($line)+10),
-            'vendor' => str_contains($class, '/vendor/')? '1' : '0'
+            'content' => Helpers::loadFile($class, intval($line) - 10, intval($line) + 10),
+            'vendor' => str_contains($class, DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR) ? '1' : '0'
         );
 
-        if (!str_contains($class, '/vendor/')) {
+        if (!str_contains($class, DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR)) {
             $currentTab = 1;
         }
 
         $loop = 2;
-        foreach ($exception->getTrace() as $tr)
-        {
+        foreach ($exception->getTrace() as $tr) {
             if ($tr['file']) {
                 $line = $tr['line'];
                 $class = $tr['file'];
                 $basename = self::getClassBasename($class);
-        
-                if(!isset($trace[$class."@".$line])) {
-                    $trace[$class."@".$line] = array(
+
+                if (!isset($trace[$class . "@" . $line])) {
+                    $trace[$class . "@" . $line] = array(
                         'function' => $tr['function'],
                         'file' => $class,
                         'line' => $line,
                         'basename' => $basename,
-                        'content' => Helpers::loadFile($class, intval($line)-10, intval($line)+10),
-                        'vendor' => str_contains($class, '/vendor/')? '1' : '0'
+                        'content' => Helpers::loadFile($class, intval($line) - 10, intval($line) + 10),
+                        'vendor' => str_contains($class, DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR) ? '1' : '0'
                     );
 
-                    if (!str_contains($class, '/vendor/') && $currentTab==0) {
+                    if (!str_contains($class, DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR) && $currentTab == 0) {
                         $currentTab = $loop;
                     }
 
@@ -234,7 +243,8 @@ Class ExceptionHandler
         //dd($exception, $message, self::canBeSolved($exception), ExceptionSolutionHelper::getSolution($exception));
 
         $result = $blade->runInternal(
-            'exception', array(
+            'exception',
+            array(
                 'exception' => $exception,
                 'message' => $message,
                 'query' => self::isQueryException($exception)
@@ -255,7 +265,7 @@ Class ExceptionHandler
 
     private static function canBeSolved($exception)
     {
-        if (get_class($exception)=='QueryException') {
+        if (get_class($exception) == 'QueryException') {
             return Str::contains($exception->getMessage(), array('Unknown column', "doesn't exist", 'not found'));
         }
 
@@ -276,5 +286,4 @@ Class ExceptionHandler
     {
         return self::showException($this->exception);
     }
-
 }

@@ -101,9 +101,26 @@ class Stringable
         return $this;
     }
 
+    public function chopEnd($needle)
+    {
+        $this->value = Str::chopEnd($this->value, $needle);
+        return $this;
+    }
+
+    public function chopStart($needle)
+    {
+        $this->value = Str::chopStart($this->value, $needle);
+        return $this;
+    }
+
     public function contains($needles)
     {
         return Str::contains($this->value, $needles);
+    }
+
+    public function doesntContain($needles)
+    {
+        return Str::doesntContain($this->value, $needles);
     }
 
     public function camel()
@@ -216,6 +233,12 @@ class Stringable
     public function snake($delimiter = '_')
     {
         $this->value = Str::snake($this->value, $delimiter);
+        return $this;
+    }
+
+    public function deduplicate(string $character = ' ')
+    {
+        $this->value = Str::deduplicate($this->value, $character);
         return $this;
     }
 
