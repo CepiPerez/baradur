@@ -1,6 +1,6 @@
 <?php
 
-Class Collection implements ArrayAccess, Iterator, Countable
+class Collection implements ArrayAccess, Iterator, Countable
 {
     protected static $_macros = array();
 
@@ -56,7 +56,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
      * 
      * @param string $classname
      */
-    public function __construct($data=null)
+    public function __construct($data = null)
     {
         if ($data) $this->collect($data);
     }
@@ -78,8 +78,8 @@ Class Collection implements ArrayAccess, Iterator, Countable
                 $m = '__invoke';
             }
 
-            for ($i=0; $i<count($params); $i++) {
-                if (count($parameters)>=$i) {
+            for ($i = 0; $i < count($params); $i++) {
+                if (count($parameters) >= $i) {
                     $params[$i] = $parameters[$i];
                 }
             }
@@ -107,12 +107,12 @@ Class Collection implements ArrayAccess, Iterator, Countable
         return isset($this->items[$offset]);
     }
 
-    public function offsetGet($offset) 
+    public function offsetGet($offset)
     {
         return isset($this->items[$offset]) ? $this->items[$offset] : null;
     }
 
-    public function offsetSet($offset, $value) 
+    public function offsetSet($offset, $value)
     {
         if (is_null($offset)) {
             $this->items[] = $value;
@@ -121,7 +121,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
         }
     }
 
-    public function offsetUnset($offset) 
+    public function offsetUnset($offset)
     {
         unset($this->items[$offset]);
     }
@@ -130,7 +130,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
     {
         return $this->items[$this->position];
     }
-    
+
     public function key()
     {
         return $this->position;
@@ -213,7 +213,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
             list($class, $method) = getCallbackFromString($number);
 
             $result = executeCallback($class, $method, array($this));
-            
+
             return new Collection(Arr::random($this->items, $result, $preserveKeys));
         }
 
@@ -283,7 +283,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
      * 
      * @return array
      */
-    public function toArray($data=null)
+    public function toArray($data = null)
     {
         if (!isset($data)) {
             $data = $this->items;
@@ -295,7 +295,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function toArrayObject()
     {
         $arr = array();
-        
+
         foreach ($this->items as $obj) {
             $arr[] = $obj;
         }
@@ -317,7 +317,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function count()
     {
         return count($this->items);
-    } 
+    }
 
 
     private function __array_search($value, $haystack, $strict = false)
@@ -325,11 +325,11 @@ Class Collection implements ArrayAccess, Iterator, Countable
         if (is_assoc($haystack)) {
             foreach ($haystack as $key => $val) {
                 if ($strict) {
-                    if ((string)$value===(string)$val && gettype($value)==gettype($val)) {
+                    if ((string)$value === (string)$val && gettype($value) == gettype($val)) {
                         return $key;
                     }
                 } else {
-                    if ((string)$value===(string)$val) {
+                    if ((string)$value === (string)$val) {
                         return $key;
                     }
                 }
@@ -338,11 +338,11 @@ Class Collection implements ArrayAccess, Iterator, Countable
             $pos = 0;
             foreach ($haystack as $val) {
                 if ($strict) {
-                    if ((string)$value===(string)$val && gettype($value)==gettype($val)) {
+                    if ((string)$value === (string)$val && gettype($value) == gettype($val)) {
                         return $pos;
                     }
                 } else {
-                    if ((string)$value===(string)$val) {
+                    if ((string)$value === (string)$val) {
                         return $pos;
                     }
                 }
@@ -370,7 +370,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
 
             list($class, $method) = getCallbackFromString($value);
 
-            if (executeCallback($class, $method, array($item, $key) )) {
+            if (executeCallback($class, $method, array($item, $key))) {
                 return $key;
             }
 
@@ -397,7 +397,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
         }
 
         $keys = new Collection(array_keys($this->items));
-        
+
         $position = $keys->search($key);
 
         if ($position === 0) {
@@ -432,7 +432,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
         return $this->get($keys->get($position + 1));
     }
 
-     /**
+    /**
      * Get and remove the first N items from the collection.
      *
      * @param  int  $count
@@ -468,7 +468,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
 
         return new Collection($results);
     }
-    
+
     /**
      * Removes and returns the last item from the collection
      * 
@@ -476,7 +476,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
      */
     public function pop()
     {
-        if ($this->count()==0) {
+        if ($this->count() == 0) {
             return null;
         }
 
@@ -518,7 +518,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
             list($class, $method) = getCallbackFromString($callback);
 
             foreach ($this->items as $key => $item) {
-                if (executeCallback($class, $method, array($item, $key) )) {
+                if (executeCallback($class, $method, array($item, $key))) {
                     return $item;
                 }
             }
@@ -526,7 +526,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
             return $default;
         }
 
-        return $this->count()>0 ? $this->items[0] : $default;
+        return $this->count() > 0 ? $this->items[0] : $default;
     }
 
     /**
@@ -540,8 +540,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
 
         if (is_null($key) && $this->count() > 0) {
             $res[] = $this->first();
-        } 
-        elseif (!is_closure($key)) {
+        } elseif (!is_closure($key)) {
             if (func_num_args() === 1) {
                 $value = true;
                 $operator = '=';
@@ -551,13 +550,12 @@ Class Collection implements ArrayAccess, Iterator, Countable
                 $value = $operator;
                 $operator = '=';
             }
-            
+
             $res = $this->where($key, $operator, $value);
-        }
-        else {
+        } else {
             list($class, $method) = getCallbackFromString($key);
-     
-            foreach ($this->items as $key => $item) {    
+
+            foreach ($this->items as $key => $item) {
                 if (executeCallback($class, $method, array($item, $key), $this)) {
                     $res[] = $item;
                     break;
@@ -570,7 +568,6 @@ Class Collection implements ArrayAccess, Iterator, Countable
         }
 
         return $res->first();
-
     }
 
     /**
@@ -580,7 +577,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
      */
     public function last()
     {
-        return $this->count()>0 ? end($this->items) : null;
+        return $this->count() > 0 ? end($this->items) : null;
     }
 
     /**
@@ -625,14 +622,14 @@ Class Collection implements ArrayAccess, Iterator, Countable
         }
 
         $res = new Collection();
-        
+
         list($class, $method, $params, $names) = getCallbackFromString($callback);
 
         foreach ($this->items as $key => $item) {
 
-            for ($i=0; $i < count($params); $i++) {
-                if ($names[$i]=='key') $params[$i] = $key;
-                if ($names[$i]=='value') $params[$i] = $item;
+            for ($i = 0; $i < count($params); $i++) {
+                if ($names[$i] == 'key') $params[$i] = $key;
+                if ($names[$i] == 'value') $params[$i] = $item;
             }
 
             if (!in_array('value', $names)) {
@@ -641,11 +638,11 @@ Class Collection implements ArrayAccess, Iterator, Countable
 
             $res->items[] = executeCallback($class, $method, $params);
         }
-        
+
         return $res;
     }
 
-        /**
+    /**
      * Run a grouping map over the items.
      * The callback should return an associative array with a single key/value pair.
      */
@@ -672,9 +669,9 @@ Class Collection implements ArrayAccess, Iterator, Countable
 
         foreach ($this->items as $key => $item) {
 
-            for ($i=0; $i < count($params); $i++) {
-                if ($names[$i]=='key') $params[$i] = $key;
-                if ($names[$i]=='value') $params[$i] = $item;
+            for ($i = 0; $i < count($params); $i++) {
+                if ($names[$i] == 'key') $params[$i] = $key;
+                if ($names[$i] == 'value') $params[$i] = $item;
             }
 
             if (!in_array('value', $names)) {
@@ -709,16 +706,16 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function implode($value, $glue = null)
     {
         if (is_closure($value)) {
-            return implode($glue? $glue : '', $this->map($value)->all());
+            return implode($glue ? $glue : '', $this->map($value)->all());
         }
 
         $first = $this->first();
 
         if (is_array($first) || (is_object($first) && ! $first instanceof Stringable)) {
-            return implode($glue? $glue : '', $this->pluck($value)->all());
+            return implode($glue ? $glue : '', $this->pluck($value)->all());
         }
 
-        return implode($value? $value : '', $this->items);
+        return implode($value ? $value : '', $this->items);
     }
 
     /**
@@ -734,15 +731,15 @@ Class Collection implements ArrayAccess, Iterator, Countable
             throw new InvalidArgumentException('Invalid callback');
         }
 
-        $res = new Collection(); 
-        
+        $res = new Collection();
+
         list($class, $method, $params, $names) = getCallbackFromString($callback);
 
         foreach ($this->items as $key => $item) {
 
-            for ($i=0; $i < count($params); $i++) {
-                if ($names[$i]=='key') $params[$i] = $key;
-                if ($names[$i]=='value') $params[$i] = $item;
+            for ($i = 0; $i < count($params); $i++) {
+                if ($names[$i] == 'key') $params[$i] = $key;
+                if ($names[$i] == 'value') $params[$i] = $item;
             }
 
             if (!in_array('value', $names)) {
@@ -817,13 +814,13 @@ Class Collection implements ArrayAccess, Iterator, Countable
      */
     public function contains($key, $operator = null, $value = null)
     {
-        if (func_num_args()===1 && !is_closure($key)) {
+        if (func_num_args() === 1 && !is_closure($key)) {
             return in_array($key, $this->items);
         }
 
         if (!is_closure($key)) {
             if (!$value) {
-                $value = $operator? $operator : $key;
+                $value = $operator ? $operator : $key;
                 $operator = '==';
             }
 
@@ -831,21 +828,21 @@ Class Collection implements ArrayAccess, Iterator, Countable
         }
 
         $res = false;
-        
+
         list($class, $method, $params, $names) = getCallbackFromString($key);
 
         foreach ($this->items as $key => $value) {
 
-            for ($i=0; $i < count($params); $i++) {
-                if ($names[$i]=='key') $params[$i] = $key;
-                if ($names[$i]=='value') $params[$i] = $value;
+            for ($i = 0; $i < count($params); $i++) {
+                if ($names[$i] == 'key') $params[$i] = $key;
+                if ($names[$i] == 'value') $params[$i] = $value;
             }
 
             if (!in_array('value', $names)) {
                 $params[0] = $value;
             }
 
-            if(executeCallback($class, $method, $params, $this)) {
+            if (executeCallback($class, $method, $params, $this)) {
                 $res = true;
                 break;
             }
@@ -906,6 +903,20 @@ Class Collection implements ArrayAccess, Iterator, Countable
     }
 
     /**
+     * "Paginate" the collection by slicing it into a smaller collection.
+     *
+     * @param  int  $page
+     * @param  int  $perPage
+     * @return static
+     */
+    public function forPage($page, $perPage)
+    {
+        $offset = max(0, ($page - 1) * $perPage);
+
+        return $this->slice($offset, $perPage);
+    }
+
+    /**
      * Divides the collection based on callback
      * Check Laravel documentation
      *
@@ -918,13 +929,13 @@ Class Collection implements ArrayAccess, Iterator, Countable
             throw new InvalidArgumentException('Invalid callback');
         }
 
-        $res1 = new Collection(); 
-        $res2 = new Collection(); 
-        
+        $res1 = new Collection();
+        $res2 = new Collection();
+
         list($class, $method) = getCallbackFromString($callback);
 
         foreach ($this as $record) {
-            if(executeCallback($class, $method, array($record), $this)) {
+            if (executeCallback($class, $method, array($record), $this)) {
                 $res1->items[] = $record;
             } else {
                 $res2->items[] = $record;
@@ -949,7 +960,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
 
         $dictionary = $this->getDictionary();
         $items = $this->getDictionary($items);
-        
+
         foreach (array_keys($dictionary) as $item) {
             if (!isset($items[$item])) {
                 $diff->items[] = $dictionary[$item];
@@ -968,14 +979,14 @@ Class Collection implements ArrayAccess, Iterator, Countable
         if (!is_closure($callback)) {
             throw new InvalidArgumentException('Invalid callback');
         }
-        
+
         list($class, $method, $params, $names) = getCallbackFromString($callback);
 
         foreach ($this->items as $key => $value) {
 
-            for ($i=0; $i < count($params); $i++) {
-                if ($names[$i]=='key') $params[$i] = $key;
-                if ($names[$i]=='value') $params[$i] = $value;
+            for ($i = 0; $i < count($params); $i++) {
+                if ($names[$i] == 'key') $params[$i] = $key;
+                if ($names[$i] == 'value') $params[$i] = $value;
             }
 
             if (!in_array('value', $names)) {
@@ -988,7 +999,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
                 break;
             }
         }
-        
+
         return $this;
     }
 
@@ -1002,17 +1013,17 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function chunk($value)
     {
         $result = array();
-        $col = new Collection; 
-        
+        $col = new Collection;
+
         foreach ($this->items as $record) {
-            if ($col->count()==$value) {
+            if ($col->count() == $value) {
                 $result[] = $col;
                 $col = new Collection;
             }
             $col->items[] = $record;
         }
 
-        if ($col->count()>0) {
+        if ($col->count() > 0) {
             $result[] = $col;
         }
 
@@ -1035,11 +1046,11 @@ Class Collection implements ArrayAccess, Iterator, Countable
 
             if (is_closure($groupBy)) {
 
-                for ($i=0; $i < count($params); $i++) {
-                    if ($names[$i]=='key') $params[$i] = $key;
-                    if ($names[$i]=='value') $params[$i] = $item;
+                for ($i = 0; $i < count($params); $i++) {
+                    if ($names[$i] == 'key') $params[$i] = $key;
+                    if ($names[$i] == 'value') $params[$i] = $item;
                 }
-    
+
                 if (!in_array('value', $names)) {
                     $params[0] = $item;
                 }
@@ -1047,7 +1058,6 @@ Class Collection implements ArrayAccess, Iterator, Countable
                 $res = executeCallback($class, $method, $params);
 
                 $results[$res][] = $item;
-
             } else {
                 if ($item->{$groupBy}) {
                     $results[$item->{$groupBy}][] = $item;
@@ -1072,15 +1082,15 @@ Class Collection implements ArrayAccess, Iterator, Countable
             throw new InvalidArgumentException('Invalid callback');
         }
 
-        $res = new Collection(); 
+        $res = new Collection();
 
         list($class, $method, $params, $names) = getCallbackFromString($callback);
 
         foreach ($this->items as $key => $item) {
 
-            for ($i=0; $i < count($params); $i++) {
-                if ($names[$i]=='key') $params[$i] = $key;
-                if ($names[$i]=='value') $params[$i] = $item;
+            for ($i = 0; $i < count($params); $i++) {
+                if ($names[$i] == 'key') $params[$i] = $key;
+                if ($names[$i] == 'value') $params[$i] = $item;
             }
 
             if (!in_array('value', $names)) {
@@ -1115,11 +1125,11 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function values()
     {
         $res = new Collection();
-        
+
         foreach ($this->items as $item) {
             $res->items[] = $item;
         }
-        
+
         return $res;
     }
 
@@ -1188,7 +1198,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
      * 
      * @return Collection
      */
-    public function where($key, $operator='==', $value=true)
+    public function where($key, $operator = '==', $value = true)
     {
         if (func_num_args() === 1) {
             $value = true;
@@ -1204,8 +1214,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
 
         $res = new Collection();
 
-        foreach ($this->items as $record)
-        {
+        foreach ($this->items as $record) {
             $retrieved = $this->getItemValue($record, $key);
 
             if (is_string($value) && is_string($retrieved)) {
@@ -1216,23 +1225,38 @@ Class Collection implements ArrayAccess, Iterator, Countable
             switch ($operator) {
                 default:
                 case '=':
-                case '==':  if ($retrieved == $value) $res->items[] = $record; break;
+                case '==':
+                    if ($retrieved == $value) $res->items[] = $record;
+                    break;
                 case '!=':
-                case '<>':  if ($retrieved != $value) $res->items[] = $record; break;
-                case '<':   if ($retrieved < $value) $res->items[] = $record; break;
-                case '>':   if ($retrieved > $value) $res->items[] = $record; break;
-                case '<=':  if ($retrieved <= $value) $res->items[] = $record; break;
-                case '>=':  if ($retrieved >= $value) $res->items[] = $record; break;
-                case '===': if ($retrieved === $value) $res->items[] = $record; break;
-                case '!==': if ($retrieved !== $value) $res->items[] = $record; break;
-                //case '<=>': if ($retrieved <=> $value) $res[] = $record; break;
+                case '<>':
+                    if ($retrieved != $value) $res->items[] = $record;
+                    break;
+                case '<':
+                    if ($retrieved < $value) $res->items[] = $record;
+                    break;
+                case '>':
+                    if ($retrieved > $value) $res->items[] = $record;
+                    break;
+                case '<=':
+                    if ($retrieved <= $value) $res->items[] = $record;
+                    break;
+                case '>=':
+                    if ($retrieved >= $value) $res->items[] = $record;
+                    break;
+                case '===':
+                    if ($retrieved === $value) $res->items[] = $record;
+                    break;
+                case '!==':
+                    if ($retrieved !== $value) $res->items[] = $record;
+                    break;
+                    //case '<=>': if ($retrieved <=> $value) $res[] = $record; break;
             }
 
             /* if ($retrieved==$value)
             {
                 $res[] = $record;
             } */
-
         }
 
         return $res;
@@ -1250,10 +1274,10 @@ Class Collection implements ArrayAccess, Iterator, Countable
      */
     public function whereNot($key, $value)
     {
-        $res = new Collection(); 
+        $res = new Collection();
 
         foreach ($this->items as $record) {
-            if (isset($record->$key) && $record->$key!=$value) {
+            if (isset($record->$key) && $record->$key != $value) {
                 $res->items[] = $record;
             }
         }
@@ -1268,8 +1292,8 @@ Class Collection implements ArrayAccess, Iterator, Countable
      */
     public function whereNull($key)
     {
-        $res = new Collection(); 
-        
+        $res = new Collection();
+
         foreach ($this->items as $record) {
             if (!isset($record->$key)) {
                 $res->items[] = $record;
@@ -1286,9 +1310,8 @@ Class Collection implements ArrayAccess, Iterator, Countable
      */
     public function whereNotNull($key)
     {
-        $res = new Collection(); 
-        foreach ($this->items as $record)
-        {
+        $res = new Collection();
+        foreach ($this->items as $record) {
             if (isset($record->$key)) {
                 $res->items[] = $record;
             }
@@ -1302,9 +1325,9 @@ Class Collection implements ArrayAccess, Iterator, Countable
      * 
      * @return Collection
      */
-    public function whereIn($key, $values, $strict=false)
+    public function whereIn($key, $values, $strict = false)
     {
-        $res = new Collection(); 
+        $res = new Collection();
 
         foreach ($this->items as $record) {
             if (in_array($record->$key, $values, $strict)) {
@@ -1330,10 +1353,10 @@ Class Collection implements ArrayAccess, Iterator, Countable
      * 
      * @return Collection
      */
-    public function whereNotIn($key, $values, $strict=false)
+    public function whereNotIn($key, $values, $strict = false)
     {
-        $res = new Collection(); 
-        
+        $res = new Collection();
+
         foreach ($this->items as $record) {
             if (!in_array($record->$key, $values, $strict)) {
                 $res->items[] = $record;
@@ -1350,11 +1373,11 @@ Class Collection implements ArrayAccess, Iterator, Countable
      */
     public function shuffle()
     {
-        $array = range(0, $this->count()-1);
-        
+        $array = range(0, $this->count() - 1);
+
         shuffle($array);
 
-        $res = new Collection(); 
+        $res = new Collection();
 
         foreach ($array as $a) {
             $res->items[] = $this[$a];
@@ -1381,14 +1404,14 @@ Class Collection implements ArrayAccess, Iterator, Countable
      */
     public function whereContains($key, $value)
     {
-        $res = new Collection(); 
-        
+        $res = new Collection();
+
         foreach ($this->items as $record) {
-            if (isset($record->$key) && $record->$key==$value) {
+            if (isset($record->$key) && $record->$key == $value) {
                 $res->items[] = $record;
             }
         }
-        
+
         return $res;
     }
 
@@ -1400,14 +1423,14 @@ Class Collection implements ArrayAccess, Iterator, Countable
      */
     public function whereNotContains($key, $value)
     {
-        $res = new Collection(); 
-        
+        $res = new Collection();
+
         foreach ($this->items as $record) {
-            if (strpos($record->$key, $value)==false && substr($record->$key, 0, strlen($value))!=$value) {
+            if (strpos($record->$key, $value) == false && substr($record->$key, 0, strlen($value)) != $value) {
                 $res->items[] = $record;
             }
         }
-        
+
         return $res;
     }
 
@@ -1418,8 +1441,8 @@ Class Collection implements ArrayAccess, Iterator, Countable
      */
     public function whereInstanceOf($type)
     {
-        $res = new Collection(); 
-        
+        $res = new Collection();
+
         foreach ($this->items as $record) {
             if ($record instanceof $type) {
                 $res->items[] = $record;
@@ -1432,7 +1455,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function modelKeys()
     {
         $keys = $this->first()->getKeyName();
-        
+
         return $this->pluck($keys)->toArray();
     }
 
@@ -1442,24 +1465,24 @@ Class Collection implements ArrayAccess, Iterator, Countable
      * 
      * @return Collection
      */
-    public function pluck($value, $key=null)
+    public function pluck($value, $key = null)
     {
         $extra = null;
-        if (strpos($value, '.')!==false) {
+        if (strpos($value, '.') !== false) {
             list($value, $extra) = explode('.', $value);
         }
 
         $array = array();
-        
+
         foreach ($this->items as $record) {
-            
+
             if (is_object($record)) {
                 if ($key) {
                     $array[$record->$key] = $record->$value;
                 } else {
                     $val = $record->$value;
-                    if (!in_array($val, $array) && $val!==null) {
-                        $array[] = $extra? $val->$extra : $val;
+                    if (!in_array($val, $array) && $val !== null) {
+                        $array[] = $extra ? $val->$extra : $val;
                     }
                 }
             } else {
@@ -1467,13 +1490,13 @@ Class Collection implements ArrayAccess, Iterator, Countable
                     $res[$record[$key]] = $record[$value];
                 } else {
                     if (!in_array($record[$value], $array)) {
-                        $array[] = $extra? $record[$value][$extra] : $record[$value];
+                        $array[] = $extra ? $record[$value][$extra] : $record[$value];
                     }
                 }
             }
         }
 
-        $result = new Collection(); 
+        $result = new Collection();
 
         foreach ($array as $key => $val) {
             $result->items[$key] = $val;
@@ -1488,9 +1511,9 @@ Class Collection implements ArrayAccess, Iterator, Countable
      * @return Collection
      */
     public function keys($keys)
-    {        
-        $result = new Collection(); 
-        
+    {
+        $result = new Collection();
+
         foreach ($this->items as $record) {
 
             if ($record instanceof stdClass) {
@@ -1528,7 +1551,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
             $key = is_array($item) ? $item[$keyBy] : $item->$keyBy;
             $results[$key] = $item;
         }
-        
+
         return new Collection($results);
     }
 
@@ -1564,35 +1587,35 @@ Class Collection implements ArrayAccess, Iterator, Countable
      * 
      * @return mixed
      */
-    public function pull($index, $value=null)
+    public function pull($index, $value = null)
     {
         if (!is_integer($index)) {
             $ind = -1;
             $count = 0;
 
             foreach ($this->items as $record) {
-                if (isset($record->$index) && $record->$index==$value) {
+                if (isset($record->$index) && $record->$index == $value) {
                     $ind = $count;
                     break;
                 }
                 ++$count;
             }
 
-            if ($ind==-1) {
+            if ($ind == -1) {
                 return null;
             }
 
             $index = $ind;
         }
-        
-        if ($index > $this->count()-1) {
+
+        if ($index > $this->count() - 1) {
             return null;
         }
-        
+
         $res = $this->items[$index];
 
         array_splice($this->items, $index, 1);
-        
+
         return $res;
     }
 
@@ -1706,7 +1729,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function skipUntil($value)
     {
         $res = new Collection();
-        
+
         $class = null;
 
         if (is_closure($value)) {
@@ -1743,7 +1766,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function skipWhile($value)
     {
         $res = new Collection();
-        
+
         $class = null;
 
         if (is_closure($value)) {
@@ -1791,7 +1814,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function takeUntil($value)
     {
         $res = new Collection();
-        
+
         $class = null;
 
         if (is_closure($value)) {
@@ -1824,7 +1847,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function takeWhile($value)
     {
         $res = new Collection();
-        
+
         $class = null;
 
         if (is_closure($value)) {
@@ -1871,25 +1894,23 @@ Class Collection implements ArrayAccess, Iterator, Countable
                 $value = $operator;
                 $operator = '=';
             }
-            
+
             $res = $this->where($key, $operator, $value);
-        }
-        else 
-        {
+        } else {
             list($class, $method) = getCallbackFromString($key);
-            
+
             $skip = true;
-    
+
             foreach ($this->items as $item) {
-    
+
                 $skip = !executeCallback($class, $method, array($item), $this);
-    
+
                 if (!$skip) {
                     $res[] = $item;
                 }
             }
         }
-        
+
         if ($res->count() === 0) {
             throw new ItemNotFoundException("Item not found in Collection.");
         }
@@ -1919,8 +1940,8 @@ Class Collection implements ArrayAccess, Iterator, Countable
             $key = $item instanceof Model ? $item->getKey() : (
                 $item instanceof RouteItem ? $item->url : (
                     is_array($item)
-                        ? reset(array_values($item)) 
-                        : $item
+                    ? reset(array_values($item))
+                    : $item
                 ));
 
             $dictionary[$key] = $item;
@@ -1983,20 +2004,20 @@ Class Collection implements ArrayAccess, Iterator, Countable
         $new = array();
 
         if (is_closure($key)) {
-            
+
             list($class, $method, $params, $names) = getCallbackFromString($key);
-                
+
             foreach ($this->items as $key => $item) {
-    
-                for ($i=0; $i < count($params); $i++) {
-                    if ($names[$i]=='key') $params[$i] = $key;
-                    if ($names[$i]=='value') $params[$i] = $item;
+
+                for ($i = 0; $i < count($params); $i++) {
+                    if ($names[$i] == 'key') $params[$i] = $key;
+                    if ($names[$i] == 'value') $params[$i] = $item;
                 }
-    
+
                 if (!in_array('value', $names)) {
                     $params[0] = $item;
                 }
-    
+
                 $key = executeCallback($class, $method, $params);
 
                 if (!isset($new[$key])) {
@@ -2008,8 +2029,8 @@ Class Collection implements ArrayAccess, Iterator, Countable
         }
 
         foreach ($this->items as $item) {
-    
-            $k = is_array($item)? $item[$key] : $item->$key;
+
+            $k = is_array($item) ? $item[$key] : $item->$key;
 
             if (!isset($new[$k])) {
                 $new[$k] = $item;
@@ -2081,7 +2102,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
             : ksort($array, $options);
 
         $this->items = array();
-        
+
         foreach (array_keys($array) as $key) {
             $this->items[] = $array[$key];
         }
@@ -2144,8 +2165,8 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function intersect($items)
     {
         $types = $this->getContentType();
-        
-        if (count($types)==0) {
+
+        if (count($types) == 0) {
             return new Collection(array_intersect($this->items, $this->getArrayableItems($items)));
         }
 
@@ -2157,7 +2178,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
 
         $dictionary = $this->getDictionary();
         $items = $this->getDictionary($items);
-        
+
         foreach (array_keys($items) as $item) {
             if (isset($dictionary[$item])) {
                 $intersect->items[] = $dictionary[$item];
@@ -2170,10 +2191,9 @@ Class Collection implements ArrayAccess, Iterator, Countable
     {
         $types = array();
 
-        foreach ($this->items as $item)
-        {
+        foreach ($this->items as $item) {
             if (is_object($item) && !in_array(get_class($item), $types)) {
-                $types[] = get_class($item); 
+                $types[] = get_class($item);
             }
         }
 
@@ -2183,12 +2203,12 @@ Class Collection implements ArrayAccess, Iterator, Countable
     private function verifedContenType()
     {
         $types = $this->getContentType();
-        
-        if (count($types)==0) {
+
+        if (count($types) == 0) {
             throw new LogicException("This collection doesn't have models");
         }
 
-        if (count($types)>1) {
+        if (count($types) > 1) {
             throw new LogicException("This collection have more than one model type");
         }
 
@@ -2216,9 +2236,9 @@ Class Collection implements ArrayAccess, Iterator, Countable
         $allowedTypes = array();
 
         foreach ($array_types as $item) {
-            if ($item=='int') $item = 'integer';
-            if ($item=='bool') $item = 'boolean';
-            if ($item=='float') $item = 'double';
+            if ($item == 'int') $item = 'integer';
+            if ($item == 'bool') $item = 'boolean';
+            if ($item == 'float') $item = 'double';
 
             $allowedTypes[] = $item;
         }
@@ -2230,15 +2250,15 @@ Class Collection implements ArrayAccess, Iterator, Countable
             $allowed = false;
 
             foreach ($allowedTypes as $allowedType) {
-                if ($itemType==$allowedType || $item instanceof $allowedType) {
+                if ($itemType == $allowedType || $item instanceof $allowedType) {
                     $allowed = true;
                     break;
                 }
-            }   
+            }
 
             if (!$allowed) {
-                if ($itemType=='object') $itemType = get_class($item);
-        
+                if ($itemType == 'object') $itemType = get_class($item);
+
                 throw new UnexpectedValueException(
                     sprintf("Collection should only include '%s' items, but '%s' found.", implode(', ', $array_types), $itemType)
                 );
@@ -2267,7 +2287,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
             list($class, $method) = getCallbackFromString($key);
 
             foreach ($this->items as $key => $item) {
-                if (! executeCallback($class, $method, array($item, $key) )) {
+                if (! executeCallback($class, $method, array($item, $key))) {
                     return false;
                 }
             }
@@ -2280,8 +2300,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
             $operator = '=';
         }
 
-        foreach ($this->items as $record)
-        {
+        foreach ($this->items as $record) {
             $retrieved = $this->getItemValue($record, $key);
 
             if (is_string($value) && is_string($retrieved)) {
@@ -2294,18 +2313,34 @@ Class Collection implements ArrayAccess, Iterator, Countable
             switch ($operator) {
                 default:
                 case '=':
-                case '==':  if ($retrieved == $value) $result = true; break;
+                case '==':
+                    if ($retrieved == $value) $result = true;
+                    break;
                 case '!=':
-                case '<>':  if ($retrieved != $value) $result = true; break;
-                case '<':   if ($retrieved < $value) $result = true; break;
-                case '>':   if ($retrieved > $value) $result = true; break;
-                case '<=':  if ($retrieved <= $value) $result = true; break;
-                case '>=':  if ($retrieved >= $value) $result = true; break;
-                case '===': if ($retrieved === $value) $result = true; break;
-                case '!==': if ($retrieved !== $value) $result = true; break;
+                case '<>':
+                    if ($retrieved != $value) $result = true;
+                    break;
+                case '<':
+                    if ($retrieved < $value) $result = true;
+                    break;
+                case '>':
+                    if ($retrieved > $value) $result = true;
+                    break;
+                case '<=':
+                    if ($retrieved <= $value) $result = true;
+                    break;
+                case '>=':
+                    if ($retrieved >= $value) $result = true;
+                    break;
+                case '===':
+                    if ($retrieved === $value) $result = true;
+                    break;
+                case '!==':
+                    if ($retrieved !== $value) $result = true;
+                    break;
             }
 
-            if ($result==false) {
+            if ($result == false) {
                 return false;
             }
         }
@@ -2365,7 +2400,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
 
             $result = is_null($result) || $value < $result ? $value : $result;
         }
-        
+
         return is_assoc($result) ? reset($result) : $result;
     }
 
@@ -2400,12 +2435,12 @@ Class Collection implements ArrayAccess, Iterator, Countable
 
             $result = is_null($result) || $value > $result ? $value : $result;
         }
-        
+
         return is_assoc($result) ? reset($result) : $result;
     }
 
 
-     /**
+    /**
      * Alias for the "avg" method.
      *
      * @return float|int|null
@@ -2431,7 +2466,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
      * @return mixed
      */
     public function sum($callback = null)
-    {       
+    {
         $result = null;
 
         foreach ($this->items as $key => $item) {
@@ -2459,14 +2494,14 @@ Class Collection implements ArrayAccess, Iterator, Countable
         }
 
         $count = 0;
-        
+
         list($class, $method, $params, $names) = getCallbackFromString($callback);
 
         foreach ($this->items as $key => $item) {
 
-            for ($i=0; $i < count($params); $i++) {
-                if ($names[$i]=='key') $params[$i] = $key;
-                if ($names[$i]=='value') $params[$i] = $item;
+            for ($i = 0; $i < count($params); $i++) {
+                if ($names[$i] == 'key') $params[$i] = $key;
+                if ($names[$i] == 'value') $params[$i] = $item;
             }
 
             if (!in_array('value', $names)) {
@@ -2494,7 +2529,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
         $result = $initial;
 
         list($class, $method) = getCallbackFromString($callback);
-                
+
         foreach ($this->items as $key => $item) {
             $result = executeCallback($class, $method, array($result, $item, $key));
         }
@@ -2535,7 +2570,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
             return new Collection($this->items);
         }
 
-        $keys = is_array($keys)? $keys : func_get_args();
+        $keys = is_array($keys) ? $keys : func_get_args();
 
         if (is_assoc($this->items)) {
             return new Collection(Arr::except($this->items, $keys));
@@ -2557,7 +2592,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
     {
         $class = new Builder($this->verifedContenType());
         $class->_collection = $this;
-        $class->load( is_string($relations) ? func_get_args() : $relations );
+        $class->load(is_string($relations) ? func_get_args() : $relations);
         return $this;
     }
 
@@ -2639,7 +2674,7 @@ Class Collection implements ArrayAccess, Iterator, Countable
     public function loadExists($relations)
     {
         $relations = is_string($relations) ? func_get_args() : $relations;
-        
+
         return $this->loadAggregate($relations, '*', 'exists');
     }
 

@@ -3,7 +3,6 @@
 class Paginator extends Collection
 {
     protected static $style = 'tailwind';
-	//protected $pagination;
 
     protected $pageName = 'page';
 
@@ -26,31 +25,41 @@ class Paginator extends Collection
         self::$style = 'bootstrap5';
     }
 
+
+    public static function resolveCurrentPage($pageName = 'page', $default = 1)
+    {
+        if (request()->input($pageName)) {
+            return (int) request()->input($pageName);
+        }
+
+        return $default;
+    }
+
     # Sets pagination
-	public function setPagination($val)
-	{
-		//$this->pagination = $val;
-        $this->first = $val['first']; 
-        $this->last = $val['last']; 
+    public function setPagination($val)
+    {
+        //$this->pagination = $val;
+        $this->first = $val['first'];
+        $this->last = $val['last'];
         $this->previous = $val['previous'];
         $this->next = $val['next'];
         $this->query = $val['query'];
         $this->meta = $val['meta'];
-	}
+    }
 
-	# Gets pagination
-	public function pagination()
-	{
-		//return $this->pagination;
+    # Gets pagination
+    public function pagination()
+    {
+        //return $this->pagination;
         return array(
-            'first' => $this->first, 
-            'last'  => $this->last, 
+            'first' => $this->first,
+            'last'  => $this->last,
             'previous' => $this->previous,
             'next' => $this->next,
             'query' => $this->query,
             'meta' => $this->meta
         );
-	}
+    }
 
     public function setPageName($pageName)
     {
@@ -88,7 +97,7 @@ class Paginator extends Collection
 
     public function hasMorePages()
     {
-        return $this->next!==null;
+        return $this->next !== null;
     }
 
     public function url()
@@ -103,11 +112,11 @@ class Paginator extends Collection
      */
     public function links()
     {
-        if ($this->meta['last_page']==1) {
+        if ($this->meta['last_page'] == 1) {
             return null;
         }
 
-        if (Paginator::style()!='tailwind') {
+        if (Paginator::style() != 'tailwind') {
             return View::loadTemplate('layouts/pagination-bootstrap4', array('paginator' => $this));
         }
 
@@ -119,17 +128,17 @@ class Paginator extends Collection
      * 
      * @return Collection
      */
-    public function appends($params=array())
+    public function appends($params = array())
     {
         unset($params['ruta']);
         unset($params[$this->pageName]);
 
-        if (count($params)>0) {
+        if (count($params) > 0) {
 
             $str = http_build_query($params);
 
             $this->query = $str;
-            
+
             if (isset($this->first)) {
                 $this->first = $str . '&' . $this->first;
             }
@@ -160,5 +169,4 @@ class Paginator extends Collection
         $this->appends(request()->query());
         return $this;
     }
-
 }

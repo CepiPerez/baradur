@@ -3,10 +3,7 @@
 class CustomCasterServiceProvider extends ServiceProvider
 {
 
-    public function register()
-    {
-
-    }
+    public function register() {}
 
     public function boot()
     {
@@ -17,19 +14,21 @@ class CustomCasterServiceProvider extends ServiceProvider
             ->only(['pagination', 'items'])
             ->virtual('pagination', fn($q) => $q->pagination());
 
+        CustomCaster::for(LengthAwarePaginator::class)
+            ->only(['pagination', 'items'])
+            ->virtual('pagination', fn($q) => $q->pagination());
+
         CustomCaster::for(Model::class)
             ->only(['original', 'attributes', 'relations'])
             ->filter();
 
-        /* CustomCaster::for(Builder::class)
+        CustomCaster::for(Builder::class)
             ->only(['sql', 'bindings', '_eagerLoad'])
             ->virtual('sql', fn($q) => $q->toSql())
-            ->virtual('bindings', fn($q) => $q->getBindings()); */
+            ->virtual('bindings', fn($q) => $q->getBindings());
 
         CustomCaster::for(Carbon::class)
             ->only(['date'])
             ->virtual('date', fn($prod) => $prod->toDateTimeString());
-
     }
-
 }

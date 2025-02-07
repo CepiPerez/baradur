@@ -44,7 +44,9 @@ class FileStore implements Store
         $this->ensureCacheDirectoryExists($path = $this->path($key));
 
         $result = $this->files->put(
-            $path, $this->expiration($seconds).serialize($value), true
+            $path,
+            $this->expiration($seconds) . serialize($value),
+            true
         );
 
         if ($result !== false && $result > 0) {
@@ -68,7 +70,9 @@ class FileStore implements Store
         $this->ensureCacheDirectoryExists($path);
 
         $result = $this->files->put(
-            $path, $value, true
+            $path,
+            $value,
+            true
         );
 
         $value = null;
@@ -81,7 +85,7 @@ class FileStore implements Store
 
         return false;
     }
-    
+
 
     /**
      * Store an item in the cache if the key doesn't exist.
@@ -107,10 +111,9 @@ class FileStore implements Store
 
         $expire = $file->read(10);
 
-        if (empty($expire) || time() >= $expire)
-        {
+        if (empty($expire) || time() >= $expire) {
             $file->truncate()
-                ->write($this->expiration($seconds).serialize($value))
+                ->write($this->expiration($seconds) . serialize($value))
                 ->close();
 
             $this->ensurePermissionsAreCorrect($path);
@@ -153,8 +156,10 @@ class FileStore implements Store
         if (!file_exists($path))
             return;
 
-        if (is_null($this->filePermission) ||
-            intval($this->files->chmod($path), 8) == $this->filePermission) {
+        if (
+            is_null($this->filePermission) ||
+            intval($this->files->chmod($path), 8) == $this->filePermission
+        ) {
         }
 
         $this->files->chmod($path, $this->filePermission);
@@ -171,7 +176,7 @@ class FileStore implements Store
     {
         $raw = $this->getPayload($key);
 
-        $times = $raw['data']? (int)$raw['data'] + 1 : 1;
+        $times = $raw['data'] ? (int)$raw['data'] + 1 : 1;
 
         $this->put($key, $times, 60);
 
@@ -254,7 +259,9 @@ class FileStore implements Store
         // the expiration UNIX timestamps from the start of the file's contents.
         try {
             $expire = substr(
-                $contents = $this->files->get($path, true), 0, 10
+                $contents = $this->files->get($path, true),
+                0,
+                10
             );
         } catch (Exception $e) {
             return $this->emptyPayload();
@@ -305,7 +312,7 @@ class FileStore implements Store
     {
         $parts = array_slice(str_split($hash = sha1($key), 2), 0, 2);
 
-        return $this->directory.'/'.implode('/', $parts).'/'.$hash;
+        return $this->directory . '/' . implode('/', $parts) . '/' . $hash;
         //return $this->directory.'/'.md5($key);
     }
 
@@ -350,7 +357,7 @@ class FileStore implements Store
      */
     public function setDirectory($directory)
     {
-        $this->ensureCacheDirectoryExists($directory.'/dummy');
+        $this->ensureCacheDirectoryExists($directory . '/dummy');
 
         $this->directory = $directory;
         return $this;
@@ -368,14 +375,11 @@ class FileStore implements Store
 
     public function remember($key, $seconds, $callback)
     {
-        if ($this->has($key))
-        {
+        if ($this->has($key)) {
             return $this->get($key);
-        }
-        else
-        {
+        } else {
             list($class, $method, $params) = getCallbackFromString($callback);
-            $value = call_user_func_array(array($class, $method), $params);
+            $value = executeCallback($class, $method, $params);
             $this->put($key, $value, $seconds);
             return $value;
         }
