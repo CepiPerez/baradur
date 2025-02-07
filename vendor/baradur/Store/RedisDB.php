@@ -1,6 +1,6 @@
 <?php
 
-Class RedisDB
+class RedisDB
 {
     static $_instance = null;
     private $redis;
@@ -10,7 +10,6 @@ Class RedisDB
         //echo "Connecting to REDIS";
         $this->redis = new Redis();
         $this->redis->connect(REDIS_HOST, REDIS_PORT);
-        
     }
 
 
@@ -36,7 +35,7 @@ Class RedisDB
     }
 
     public function put($name, $data)
-    {    
+    {
         return $this->redis->lpush($name, serialize($data));
     }
 
@@ -57,17 +56,13 @@ Class RedisDB
 
     public function remember($key, $seconds, $callback)
     {
-        if ($this->has($key))
-        {
+        if ($this->has($key)) {
             return $this->get($key);
-        }
-        else
-        {
+        } else {
             list($class, $method, $params) = getCallbackFromString($callback);
-            $value = call_user_func_array(array($class, $method), $params);
-            $this->put($key, $value/* , $seconds */);
+            $value = executeCallback($class, $method, $params);
+            $this->put($key, $value);
             return $value;
         }
     }
-
 }
