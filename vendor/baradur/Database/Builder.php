@@ -697,6 +697,30 @@ class Builder
         return $this;
     }
 
+
+    /**
+     * Add a where clause on the primary key to the query.
+     *
+     * @param  mixed  $id
+     * @return $this
+     */
+    public function whereKey($id)
+    {
+        if ($id instanceof Model) {
+            $id = $id->getKey();
+        }
+
+        $id = is_array($id) ? $id : array($id);
+
+        for ($i = 0; $i < count($id); $i++) {
+            $this->where($this->_primary[$i], $id[$i]);
+        }
+
+        return $this;
+    }
+
+
+
     /**
      * Add a raw or where clause to the query.
      *

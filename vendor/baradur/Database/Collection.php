@@ -470,6 +470,23 @@ class Collection implements ArrayAccess, Iterator, Countable
     }
 
     /**
+     * Select specific values from the items within the collection.
+     *
+     * @param  $keys
+     * @return Collection
+     */
+    public function select($keys)
+    {
+        if (is_null($keys)) {
+            return new Collection($this->items);
+        }
+
+        $keys = is_array($keys) ? $keys : func_get_args();
+
+        return new Collection(Arr::select($this->toArray(), $keys));
+    }
+
+    /**
      * Removes and returns the last item from the collection
      * 
      * @return Model|null
@@ -2734,6 +2751,34 @@ class Collection implements ArrayAccess, Iterator, Countable
         return $this->each->append($attributes);
     }
 
+
+    /**
+     * Get the Eloquent query builder from the collection.
+     *
+     * @return Builder
+     *
+     * @throws LogicException
+     */
+    public function toQuery()
+    {
+        $model = $this->first();
+
+        if (! $model) {
+            throw new LogicException('Unable to create query for empty collection.');
+        }
+
+        $class = get_class($model);
+
+        foreach ($this->items as $item) {
+            if (!$item instanceof $class) {
+                throw new LogicException('Unable to create query for collection with mixed types.');
+            }
+        }
+
+        return $model->newQuery()->whereKey($this->modelKeys());
+    }
+
+
     public static function macro($name, $function)
     {
         self::$_macros[$name] = $function;
@@ -2748,6 +2793,8 @@ class Collection implements ArrayAccess, Iterator, Countable
     {
         return self::$_macros;
     }
+
+
 
     ### MACROS
     ###(macros)

@@ -112,9 +112,9 @@ class Arr
 
         foreach ($array as $key => $value) {
             if (is_array($value) && ! empty($value)) {
-                $results = array_merge($results, self::dot($value, $prepend.$key.'.'));
+                $results = array_merge($results, self::dot($value, $prepend . $key . '.'));
             } else {
-                $results[$prepend.$key] = $value;
+                $results[$prepend . $key] = $value;
             }
         }
 
@@ -225,6 +225,22 @@ class Arr
     }
 
     /**
+     * Take the first or last {$limit} items from an array.
+     *
+     * @param  array  $array
+     * @param  int  $limit
+     * @return array
+     */
+    public static function take($array, $limit)
+    {
+        if ($limit < 0) {
+            return array_slice($array, $limit, abs($limit));
+        }
+
+        return array_slice($array, 0, $limit);
+    }
+
+    /**
      * Flatten a multi-dimensional array into a single level.
      *
      * @param  iterable  $array
@@ -286,7 +302,7 @@ class Arr
 
             while (count($parts) > 1) {
                 $part = array_shift($parts);
-                
+
                 if (isset($array[$part]) && self::accessible($array[$part])) {
                     $array = &$array[$part];
                 } else {
@@ -451,7 +467,7 @@ class Arr
 
         $finalItem = array_pop($array);
 
-        return implode($glue, $array).$finalGlue.$finalItem;
+        return implode($glue, $array) . $finalGlue . $finalItem;
     }
 
     /**
@@ -480,11 +496,11 @@ class Arr
         })->all(); */
 
         $result = array();
-        
+
         foreach ($array as $key => $val) {
-            $result[$prependWith.$key] = $val;
+            $result[$prependWith . $key] = $val;
         }
-        
+
         return $result;
     }
 
@@ -498,6 +514,36 @@ class Arr
     public static function only($array, $keys)
     {
         return array_intersect_key($array, array_flip((array) $keys));
+    }
+
+    /**
+     * Select an array of values from an array.
+     *
+     * @param  array  $array
+     * @param  array|string  $keys
+     * @return array
+     */
+    public static function select($array, $keys)
+    {
+        $keys = self::wrap($keys);
+
+        $result = array();
+
+        foreach ($array as $item) {
+            $res = array();
+            foreach ($keys as $key) {
+                if (Arr::accessible($item) && Arr::exists($item, $key)) {
+                    $res[$key] = $item[$key];
+                } elseif (is_object($item) && isset($item->{$key})) {
+                    $res[$key] = $item->{$key};
+                }
+            }
+            if (count($res) > 0) {
+                $result[] = $res;
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -768,12 +814,12 @@ class Arr
 
         if (! self::isList($array)) {
             $descending
-                    ? krsort($array, $options)
-                    : ksort($array, $options);
+                ? krsort($array, $options)
+                : ksort($array, $options);
         } else {
             $descending
-                    ? rsort($array, $options)
-                    : sort($array, $options);
+                ? rsort($array, $options)
+                : sort($array, $options);
         }
 
         return $array;

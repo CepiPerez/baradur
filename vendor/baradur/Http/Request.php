@@ -25,7 +25,7 @@ class Request
         $this->clear();
 
         $this->route = $route;
-        $this->method = $_SERVER['REQUEST_METHOD'];
+        $this->method = $this->getMethod();
         $this->uri = config('app.url') . $_SERVER['REQUEST_URI'];
         $this->ip = $_SERVER['REMOTE_ADDR'];
         $this->host = $_SERVER['HTTP_HOST'];
@@ -388,9 +388,48 @@ class Request
         return $res;
     }
 
+    public function getMethod()
+    {
+        if (null !== $this->method) {
+            return $this->method;
+        }
+
+        $this->method = strtoupper($_SERVER['REQUEST_METHOD']);
+
+        if ('POST' !== $this->method) {
+            return $this->method;
+        }
+
+        if (isset($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'])) {
+            $method = strtoupper($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']);
+        }
+
+        $method = strtoupper($method);
+
+        if (in_array($method, ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'PATCH', 'PURGE', 'TRACE'], true)) {
+            return $this->method = $method;
+        }
+
+        if (!preg_match('/^[A-Z]++$/D', $method)) {
+            throw new Exception('Invalid HTTP method override.');
+        }
+
+        return $this->method = $method;
+    }
+
+    public function getRealMethod()
+    {
+        return strtoupper($_SERVER['REQUEST_METHOD'] ? $_SERVER['REQUEST_METHOD'] : 'GET');
+    }
+
     public function method()
     {
-        return $this->method;
+        return $this->getMethod();
+    }
+
+    public function isMethod($method)
+    {
+        return $this->getMethod() === strtoupper($method);
     }
 
     public function root()
@@ -723,5 +762,57 @@ class Request
     public function float($key, $default = 0.0)
     {
         return floatval($this->input($key, $default));
+    }
+
+    public function whenHas($key, $callback, $default = null)
+    {
+        if (!is_closure($callback)) {
+            throw new Exception('Callback must be a valid closure');
+        }
+
+        if ($default && !is_closure($default)) {
+            throw new Exception('Default callback must be a valid closure');
+        }
+
+        if ($this->has($key)) {
+            list($class, $method, $params) = getCallbackFromString($callback);
+            $params[0] = $this->$key;
+            executeCallback($class, $method, $params);
+            return $this;
+        }
+
+        if ($default) {
+            list($class, $method, $params) = getCallbackFromString($default);
+            executeCallback($class, $method, $params);
+            return $this;
+        }
+
+        return $this;
+    }
+
+    public function whenMissing($key, $callback, $default = null)
+    {
+        if (!is_closure($callback)) {
+            throw new Exception('Callback must be a valid closure');
+        }
+
+        if ($default && !is_closure($default)) {
+            throw new Exception('Default callback must be a valid closure');
+        }
+
+        if ($this->missing($key)) {
+            list($class, $method, $params) = getCallbackFromString($callback);
+            $params[0] = $this->$key;
+            executeCallback($class, $method, $params);
+            return $this;
+        }
+
+        if ($default) {
+            list($class, $method, $params) = getCallbackFromString($default);
+            executeCallback($class, $method, $params);
+            return $this;
+        }
+
+        return $this;
     }
 }

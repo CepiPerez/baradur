@@ -1,6 +1,6 @@
 <?php
 
-class Stringable
+class StringableClass
 {
     protected $value;
 
@@ -9,7 +9,8 @@ class Stringable
         $this->value = (string) $value;
     }
 
-    public function __toString(){
+    public function __toString()
+    {
         return $this->value;
     }
 
@@ -40,8 +41,18 @@ class Stringable
 
         if (in_array(strtolower($this->value), array('off', 'no', 'false', '0', 0), true))
             return false;
-            
+
         return null;
+    }
+
+    public function toBase64()
+    {
+        return Str::toBase64($this->value);
+    }
+
+    public function fromBase64($strict = false)
+    {
+        return Str::fromBase64($this->value, $strict);
     }
 
     public function isUrl()
@@ -76,7 +87,7 @@ class Stringable
         $this->value = Str::beforeLast($this->value, $search);
         return $this;
     }
-    
+
     public function between($from, $to)
     {
         $this->value = Str::between($this->value, $from, $to);
@@ -283,19 +294,19 @@ class Stringable
 
     public function trim($characters = null)
     {
-        $trim = $characters? trim($this->value, $characters) : trim($this->value);
+        $trim = $characters ? trim($this->value, $characters) : trim($this->value);
         return new Stringable($trim);
     }
 
     public function ltrim($characters = null)
     {
-        $trim = $characters? ltrim($this->value, $characters) : rtrim($this->value);
+        $trim = $characters ? ltrim($this->value, $characters) : rtrim($this->value);
         return new Stringable($trim);
     }
 
     public function rtrim($characters = null)
     {
-        $trim = $characters? rtrim($this->value, $characters) : rtrim($this->value);
+        $trim = $characters ? rtrim($this->value, $characters) : rtrim($this->value);
         return new Stringable($trim);
     }
 
@@ -361,5 +372,4 @@ class Stringable
     {
         return Str::unwrap($this->value, $before, $after);
     }
-
 }

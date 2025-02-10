@@ -2,7 +2,7 @@
 
 class Helpers
 {
-    public static function camelCaseToSnakeCase($name, $plural=true)
+    public static function camelCaseToSnakeCase($name, $plural = true)
     {
         $converted = preg_replace('/([A-Z])/', '_$1', $name);
 
@@ -14,16 +14,16 @@ class Helpers
     public static function snakeCaseToCamelCase($name)
     {
         $converted = str_replace(' ', '', ucwords(str_replace('_', ' ', $name)));
-        
-        return strtolower(substr($converted, 0, 1)) . substr($converted, 1, strlen($converted)-1);
+
+        return strtolower(substr($converted, 0, 1)) . substr($converted, 1, strlen($converted) - 1);
     }
 
     public static function camelCaseToKebabCase($name)
     {
         $converted = preg_replace('/([A-Z])/', '-$1', $name);
-        
+
         $converted = ltrim(strtolower($converted), '-');
-        
+
         return $converted;
     }
 
@@ -32,16 +32,16 @@ class Helpers
         $locale = config('app.locale');
         $fallback_locale = config('app.fallback_locale');
 
-        $filepath = _DIR_.'lang/'.$locale.'/plurals.php';
-        
+        $filepath = _DIR_ . 'lang/' . $locale . '/plurals.php';
+
         if (!file_exists($filepath)) {
-            $filepath = _DIR_.'lang/'.$fallback_locale.'/plurals.php';
+            $filepath = _DIR_ . 'lang/' . $fallback_locale . '/plurals.php';
         }
 
         if (!file_exists($filepath)) {
             throw new Exception("FILE $filepath NOT FOUND\n");
         }
-        
+
         $lang = CoreLoader::loadConfigFile($filepath, false);
         $result = '';
 
@@ -50,7 +50,7 @@ class Helpers
             $len = strlen($key);
 
             if (substr($res, -$len) == $key) {
-                $result = substr($res, 0, strlen($res)-$len) . $value;
+                $result = substr($res, 0, strlen($res) - $len) . $value;
                 break;
             }
         }
@@ -60,7 +60,6 @@ class Helpers
         }
 
         return $result;
-
     }
 
     public static function getSingular($string)
@@ -68,10 +67,10 @@ class Helpers
         $locale = config('app.locale');
         $fallback_locale = config('app.fallback_locale');
 
-        $filepath = _DIR_.'lang/'.$locale.'/plurals.php';
-        
+        $filepath = _DIR_ . 'lang/' . $locale . '/plurals.php';
+
         if (!file_exists($filepath)) {
-            $filepath = _DIR_.'lang/'.$fallback_locale.'/plurals.php';
+            $filepath = _DIR_ . 'lang/' . $fallback_locale . '/plurals.php';
         }
 
         if (!file_exists($filepath)) {
@@ -86,7 +85,7 @@ class Helpers
             $len = strlen($value);
 
             if (substr($res, -$len) == $value) {
-                $result = substr($res, 0, strlen($res)-$len) . $key;
+                $result = substr($res, 0, strlen($res) - $len) . $key;
                 break;
             }
         }
@@ -96,14 +95,13 @@ class Helpers
         }
 
         return $result;
-
     }
 
     public static function arrayToObject($array)
     {
         $obj = new stdClass;
 
-        if (count($array)==0) {
+        if (count($array) == 0) {
             return $obj;
         }
 
@@ -111,14 +109,14 @@ class Helpers
             if (is_array($value)) {
                 $obj->$key = self::arrayToObject($value);
             } else {
-                $obj->$key = $value; 
+                $obj->$key = $value;
             }
         }
 
         return $obj;
     }
 
-    public static function trans($string, $placeholder=null)
+    public static function trans($string, $placeholder = null)
     {
         $locale = config('app.locale');
         $fallback_locale = config('app.fallback_locale');
@@ -127,31 +125,31 @@ class Helpers
 
         $file = array_shift($array);
 
-        $filepath = _DIR_.'lang/'.$locale.'/'.$file.'.php';
-        
+        $filepath = _DIR_ . 'lang/' . $locale . '/' . $file . '.php';
+
         if (!file_exists($filepath)) {
-            $filepath = _DIR_.'lang/'.$fallback_locale.'/'.$file.'.php';
+            $filepath = _DIR_ . 'lang/' . $fallback_locale . '/' . $file . '.php';
         }
 
         if (file_exists($filepath)) {
             $lang = CoreLoader::loadConfigFile($filepath);
         } else {
-            $filepath = _DIR_.'lang/'.$locale.'.json';
-            
+            $filepath = _DIR_ . 'lang/' . $locale . '.json';
+
             if (!file_exists($filepath)) {
-                $filepath = _DIR_.'lang/'.$fallback_locale.'.json';
+                $filepath = _DIR_ . 'lang/' . $fallback_locale . '.json';
             }
-            
+
             if (file_exists($filepath)) {
                 $lang = json_decode(file_get_contents($filepath, 'r'), true);
                 return isset($lang[$string]) ? $lang[$string] : $string;
             }
         }
-        
+
         $value = array_shift($array);
         $result = $lang[$value] ? $lang[$value] : $value;
 
-        while (count($array)>0) {
+        while (count($array) > 0) {
             $value = array_shift($array);
             $result = isset($result[$value]) ? $result[$value] : $value;
         }
@@ -178,7 +176,7 @@ class Helpers
 
         if ($placeholder) {
             foreach ($placeholder as $key => $val) {
-                $result = str_replace(':'.$key, $val, $result);
+                $result = str_replace(':' . $key, $val, $result);
             }
         }
 
@@ -187,7 +185,7 @@ class Helpers
         return $result;
     }
 
-    public static function trans_choice($string, $value, $placeholder=null)
+    public static function trans_choice($string, $value, $placeholder = null)
     {
         $str = self::trans($string, $placeholder);
         $res = explode('|', $str);
@@ -200,16 +198,16 @@ class Helpers
             $value = $value[$helper];
         }
 
-        if (count($res)==2) {
-            if ($value==1) {
-                return str_replace(':'.$helper, $value, $res[0]);
+        if (count($res) == 2) {
+            if ($value == 1) {
+                return str_replace(':' . $helper, $value, $res[0]);
             } else {
-                return str_replace(':'.$helper, $value, $res[1]);
+                return str_replace(':' . $helper, $value, $res[1]);
             }
-        } else if (count($res)>2) {
+        } else if (count($res) > 2) {
             $cons = array();
 
-            foreach($res as $r) {
+            foreach ($res as $r) {
                 preg_match('/^[\{\[]([^\[\]\{\}]*)[\}\]]/', $r, $matches);
                 $cons[] = $matches[1];
             }
@@ -218,16 +216,16 @@ class Helpers
 
             $selected = 0;
             $count = 0;
-            
+
             foreach ($cons as $range) {
                 $r = explode(',', $range);
-                
-                if ($r[1]=='*') {
+
+                if ($r[1] == '*') {
                     if ($value >= $r[0]) {
                         $selected = $segments[$count];
                         break;
                     }
-                } else if ($r==$value) {
+                } else if ($r == $value) {
                     $selected = $segments[$count];
                     break;
                 } else if (in_array($value, range($r[0], $r[1]))) {
@@ -239,7 +237,7 @@ class Helpers
             }
         }
 
-        return str_replace(':'.$helper, $value, $selected);
+        return str_replace(':' . $helper, $value, $selected);
     }
 
     /* private static function getBoostrapConfig()
@@ -268,7 +266,7 @@ class Helpers
 
         $file = array_shift($array);
 
-        if (!file_exists(_DIR_.'config/'.$file.'.php')) {
+        if (!file_exists(_DIR_ . 'config/' . $file . '.php')) {
             if ($artisan) {
                 return $default;
             } else {
@@ -277,7 +275,7 @@ class Helpers
             }
         }
 
-        CoreLoader::loadConfigFile(_DIR_.'config/'.$file.'.php');
+        CoreLoader::loadConfigFile(_DIR_ . 'config/' . $file . '.php');
 
         return Arr::get($config, $val);
     }
@@ -287,7 +285,7 @@ class Helpers
         $new = array();
         $current = 'get';
 
-        if (count(array_keys($array))==0) {
+        if (count(array_keys($array)) == 0) {
             foreach ($array as $val) {
                 $new[$current] = $val;
                 $current = 'set';
@@ -309,9 +307,9 @@ class Helpers
     public static function toArray($object)
     {
         ini_set('xdebug.max_nesting_level', 200);
-        
+
         $arr = array();
-        
+
         foreach ($object as $key => $val) {
             if ($val instanceof Collection || $val instanceof Model) {
                 $arr[$key] = $val->toArray();
@@ -331,7 +329,7 @@ class Helpers
         return $arr;
     }
 
-    public static function loadFile($path, $start=null, $end=null)
+    public static function loadFile($path, $start = null, $end = null)
     {
         $lines = file($path);
 
@@ -344,7 +342,7 @@ class Helpers
             $start++;
             $end++;
         }
-        
+
         $count = 0;
 
         foreach ($lines as $line) {
@@ -378,5 +376,4 @@ class Helpers
 
         return $val;
     }
-
 }

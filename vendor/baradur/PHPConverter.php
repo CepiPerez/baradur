@@ -726,6 +726,9 @@ class PHPConverter
         # Feature functions
         $text = str_replace('Feature::for(', 'Feature::instanceFor(', $text);
 
+        # Stringable to StringableClass (Fucking PHP 8 new Interface)
+        $text = preg_replace('/new[\s*]Stringable\(/x', 'new StringableClass(', $text);
+
         # __DIR__ to dirname(__FILE__)
         $text = str_replace('__DIR__', 'dirname(__FILE__)', $text);
 

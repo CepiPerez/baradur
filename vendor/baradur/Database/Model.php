@@ -27,6 +27,8 @@
  * @method static Builder whereNotBetweenColumns(string $column, array $values, string $boolan='AND', bool $not=false)
  * @method static Builder whereRelation(string $relation, string $column, string $comparator, string $value)
  * @method static Builder whereBelongsTo(string $related, string $relationshipName=null, $boolean='AND')
+ * @method static Builder whereAll(string $columns, string $operator = null, string $value = null, bool $boolean = 'AND')
+ * @method static Builder whereAny(string $columns, string $operator = null, string $value = null, bool $boolean = 'AND')
  * @method static Builder when($value, Closure $callback, Closure $defut=null)
  * @method static Builder having(string|array $reference, string $operator=null, $value=null)
  * @method static Builder havingNull(string $reference)
@@ -1450,6 +1452,33 @@ class Model
         return $this->getArrayableItems(
             array_combine($this->appends, $this->appends)
         );
+    }
+
+
+    /**
+     * Convert the object into something JSON serializable.
+     *
+     * @return mixed
+     */
+    public function jsonSerialize()
+    {
+        return $this->toArray();
+    }
+
+    /**
+     * Convert the model instance to JSON.
+     *
+     * @return string
+     */
+    public function toJson()
+    {
+        try {
+            $json = json_encode($this->jsonSerialize());
+        } catch (Exception $e) {
+            throw JsonEncodingException::forModel($this, $e->getMessage());
+        }
+
+        return $json;
     }
 
     /**

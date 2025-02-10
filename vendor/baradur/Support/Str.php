@@ -7,7 +7,11 @@ class Str
 
     private static function getInstance($string = null)
     {
-        return new Stringable($string);
+        /* if (interface_exists('Stringable')) {
+            return new StringableClass($string);
+        } */
+
+        return new StringableClass($string);
     }
 
     /* public static function marcro($name, $callback)
@@ -23,7 +27,7 @@ class Str
     /* function __toString(){
         return $this->value;
     } */
-    
+
     public static function isUrl($value)
     {
         if (! is_string($value)) {
@@ -56,12 +60,12 @@ class Str
         return preg_match($pattern, $value) > 0;
     }
 
-    public static function orderedUuid($data=null)
+    public static function orderedUuid($data = null)
     {
         return self::getInstance(Uuid::uuid_generate_time());
     }
 
-    public static function uuid($data=null)
+    public static function uuid($data = null)
     {
         return self::getInstance(Uuid::uuid_generate_random());
     }
@@ -129,13 +133,12 @@ class Str
     {
         if ($search === '') {
             return $subject;
-        }
-        else {
+        } else {
             $res = array_reverse(explode($search, $subject, 2));
             return $res[0];
         }
     }
-    
+
     public static function afterLast($subject, $search)
     {
         if ($search === '') {
@@ -153,8 +156,8 @@ class Str
 
     public static function chopEnd($subject, $needle)
     {
-        $needle = is_array($needle)? $needle : array($needle);
-        
+        $needle = is_array($needle) ? $needle : array($needle);
+
         foreach ($needle as $n) {
             if (str_ends_with($subject, $n)) {
                 return substr($subject, 0, -strlen($n));
@@ -166,8 +169,8 @@ class Str
 
     public static function chopStart($subject, $needle)
     {
-        $needle = is_array($needle)? $needle : array($needle);
-        
+        $needle = is_array($needle) ? $needle : array($needle);
+
         foreach ($needle as $n) {
             if (str_starts_with($subject, $n)) {
                 return substr($subject, strlen($n));
@@ -176,7 +179,7 @@ class Str
 
         return $subject;
     }
-    
+
     public static function contains($haystack, $needles, $ignoreCase = false)
     {
         if ($ignoreCase) {
@@ -235,7 +238,8 @@ class Str
         return strlen($value);
     }
 
-    public static function mapCallback($word) {
+    public static function mapCallback($word)
+    {
         return self::ucfirst($word);
     }
 
@@ -254,18 +258,18 @@ class Str
 
     public static function words($value, $words = 100, $end = '...')
     {
-        preg_match('/^\s*+(?:\S++\s*+){1,'.$words.'}/u', $value, $matches);
+        preg_match('/^\s*+(?:\S++\s*+){1,' . $words . '}/u', $value, $matches);
 
         if (! isset($matches[0]) || self::length($value) === self::length($matches[0])) {
             return $value;
         }
 
-        return rtrim($matches[0]).$end;
+        return rtrim($matches[0]) . $end;
     }
 
     public static function plural($value, $count = 2)
     {
-        return $count>1? Helpers::getPlural($value) : $value;
+        return $count > 1 ? Helpers::getPlural($value) : $value;
     }
 
     public static function random($length = 16)
@@ -330,7 +334,7 @@ class Str
     public static function replaceLast($search, $replace, $subject)
     {
         $search = (string) $search;
-        
+
         if ($search === '') {
             return $subject;
         }
@@ -368,7 +372,7 @@ class Str
     {
         $quoted = preg_quote($prefix, '/');
 
-        return $prefix.preg_replace('/^(?:'.$quoted.')+/u', '', $value);
+        return $prefix . preg_replace('/^(?:' . $quoted . ')+/u', '', $value);
     }
 
     public static function upper($value)
@@ -398,13 +402,13 @@ class Str
     {
         $flip = $separator === '-' ? '_' : '-';
 
-        $title = preg_replace('!['.preg_quote($flip).']+!u', $separator, $title);
+        $title = preg_replace('![' . preg_quote($flip) . ']+!u', $separator, $title);
 
-        $title = str_replace('@', $separator.'at'.$separator, $title);
+        $title = str_replace('@', $separator . 'at' . $separator, $title);
 
-        $title = preg_replace('![^'.preg_quote($separator).'\pL\pN\s]+!u', '', self::lower($title));
+        $title = preg_replace('![^' . preg_quote($separator) . '\pL\pN\s]+!u', '', self::lower($title));
 
-        $title = preg_replace('!['.preg_quote($separator).'\s]+!u', $separator, $title);
+        $title = preg_replace('![' . preg_quote($separator) . '\s]+!u', $separator, $title);
 
         return trim($title, $separator);
     }
@@ -414,7 +418,7 @@ class Str
         if (! ctype_lower($value)) {
             $value = preg_replace('/\s+/u', '', ucwords($value));
 
-            $value = self::lower(preg_replace('/(.)(?=[A-Z])/u', '$1'.$delimiter, $value));
+            $value = self::lower(preg_replace('/(.)(?=[A-Z])/u', '$1' . $delimiter, $value));
         }
 
         return $value;
@@ -427,13 +431,13 @@ class Str
 
     public static function deduplicate($string, $character = ' ')
     {
-        return preg_replace('/'.preg_quote($character, '/').'+/u', $character, $string);
+        return preg_replace('/' . preg_quote($character, '/') . '+/u', $character, $string);
     }
 
 
     public static function startsWith($haystack, $needles)
     {
-        $needles = is_array($needles)? $needles : array($needles);
+        $needles = is_array($needles) ? $needles : array($needles);
 
         foreach ($needles as $needle) {
             if ((string) $needle !== '' && str_starts_with($haystack, $needle)) {
@@ -446,7 +450,7 @@ class Str
 
     public static function endsWith($haystack, $needles)
     {
-        $needles = is_array($needles)? $needles : array($needles);
+        $needles = is_array($needles) ? $needles : array($needles);
 
         foreach ($needles as $needle) {
             if (
@@ -462,7 +466,7 @@ class Str
 
     public static function substr($string, $start, $length = null)
     {
-        return $length? substr($string, $start, $length) : substr($string, $start);
+        return $length ? substr($string, $start, $length) : substr($string, $start);
     }
 
     public static function substrCount($haystack, $needle, $offset = 0, $length = null)
@@ -488,14 +492,24 @@ class Str
         return strtr($subject, $map);
     }
 
+    public static function toBase64($string)
+    {
+        return base64_encode($string);
+    }
+
+    public static function fromBase64($string, $strict = false)
+    {
+        return base64_decode($string, $strict);
+    }
+
     public static function lcfirst($string)
     {
-        return self::lower(self::substr($string, 0, 1)).self::substr($string, 1);
+        return self::lower(self::substr($string, 0, 1)) . self::substr($string, 1);
     }
 
     public static function ucfirst($string)
     {
-        return self::upper(self::substr($string, 0, 1)).self::substr($string, 1);
+        return self::upper(self::substr($string, 0, 1)) . self::substr($string, 1);
     }
 
     public static function ucsplit($string)
@@ -525,7 +539,7 @@ class Str
 
             $pattern = str_replace('\*', '.*', $pattern);
 
-            if (preg_match('#^'.$pattern.'\z#u', $value) === 1) {
+            if (preg_match('#^' . $pattern . '\z#u', $value) === 1) {
                 return true;
             }
         }
@@ -539,24 +553,101 @@ class Str
 
         if ($letters) {
             $chars = array_merge($chars, array(
-                'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
-                'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
-                'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
-                'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R',
-                'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+                'a',
+                'b',
+                'c',
+                'd',
+                'e',
+                'f',
+                'g',
+                'h',
+                'i',
+                'j',
+                'k',
+                'l',
+                'm',
+                'n',
+                'o',
+                'p',
+                'q',
+                'r',
+                's',
+                't',
+                'u',
+                'v',
+                'w',
+                'x',
+                'y',
+                'z',
+                'A',
+                'B',
+                'C',
+                'D',
+                'E',
+                'F',
+                'G',
+                'H',
+                'I',
+                'J',
+                'K',
+                'L',
+                'M',
+                'N',
+                'O',
+                'P',
+                'Q',
+                'R',
+                'S',
+                'T',
+                'U',
+                'V',
+                'W',
+                'X',
+                'Y',
+                'Z',
             ));
         }
 
         if ($numbers) {
             $chars = array_merge($chars, array(
-                '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                '0',
+                '1',
+                '2',
+                '3',
+                '4',
+                '5',
+                '6',
+                '7',
+                '8',
+                '9',
             ));
         }
         if ($symbols) {
             $chars = array_merge($chars, array(
-                '~', '!', '#', '$', '%', '^', '&', '*', '(', ')', '-',
-                '_', '.', ',', '?', '/', '\\', '{', '}', '[',
-                ']', '|', ':', ';',
+                '~',
+                '!',
+                '#',
+                '$',
+                '%',
+                '^',
+                '&',
+                '*',
+                '(',
+                ')',
+                '-',
+                '_',
+                '.',
+                ',',
+                '?',
+                '/',
+                '\\',
+                '{',
+                '}',
+                '[',
+                ']',
+                '|',
+                ':',
+                ';',
             ));
         }
         if ($spaces) {
@@ -567,10 +658,10 @@ class Str
 
         $result = array();
 
-        for ($i=0; $i < $length; $i++) {
+        for ($i = 0; $i < $length; $i++) {
             //$c = $chars[random_int(0, count($chars)-1)];
             //dump($c. " : ".$i);
-            $result[] = $chars[random_int(0, count($chars)-1)];
+            $result[] = $chars[random_int(0, count($chars) - 1)];
         }
 
         return implode('', $result);
@@ -583,14 +674,14 @@ class Str
         }
 
         if (is_string($index)) {
-            $index = strpos($string, $index)!==false ? strpos($string, $index) + 1 : 0;
-        } 
-
-        if ($length && is_string($length)) {
-            $length = strpos($string, $length)!==false ? strpos($string, $length) - $index : null;
+            $index = strpos($string, $index) !== false ? strpos($string, $index) + 1 : 0;
         }
 
-        $segment = $length? substr($string, $index, $length) : substr($string, $index);
+        if ($length && is_string($length)) {
+            $length = strpos($string, $length) !== false ? strpos($string, $length) - $index : null;
+        }
+
+        $segment = $length ? substr($string, $index, $length) : substr($string, $index);
 
         if ($segment === '') {
             return $string;
@@ -607,7 +698,7 @@ class Str
         $segmentLen = mb_strlen($segment);
         $end = substr($string, $startIndex + $segmentLen);
 
-        return $start.str_repeat(substr($character, 0, 1), $segmentLen).$end;
+        return $start . str_repeat(substr($character, 0, 1), $segmentLen) . $end;
     }
 
     public static function match($pattern, $subject)
@@ -684,5 +775,4 @@ class Str
 
         return $value;
     }
-
 }
