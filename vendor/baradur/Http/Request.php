@@ -410,9 +410,9 @@ class Request
             return $this->method = $method;
         }
 
-        if (!preg_match('/^[A-Z]++$/D', $method)) {
+        /* if (!preg_match('/^[A-Z]++$/D', $method)) {
             throw new Exception('Invalid HTTP method override.');
-        }
+        } */
 
         return $this->method = $method;
     }

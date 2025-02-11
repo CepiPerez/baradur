@@ -242,13 +242,15 @@ class ExceptionHandler
 
         //dd($exception, $message, self::canBeSolved($exception), ExceptionSolutionHelper::getSolution($exception));
 
+        $q = is_array($debuginfo['queryes']) ? $debuginfo['queryes'] : array();
+
         $result = $blade->runInternal(
             'exception',
             array(
                 'exception' => $exception,
                 'message' => $message,
                 'query' => self::isQueryException($exception)
-                    ? end($debuginfo['queryes'])
+                    ? end($q)
                     : null,
                 'solution' => self::canBeSolved($exception)
                     ? ExceptionSolutionHelper::getSolution($exception)
