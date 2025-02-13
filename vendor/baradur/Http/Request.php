@@ -84,11 +84,10 @@ class Request
                         $fileinfo['size'] = $val['size'][$i];
 
                         if ($fileinfo['name'] && $fileinfo['type'] && $fileinfo['error'] == 0) {
-                            $this->files[$fileinfo['name']] = new UploadedFile($fileinfo);
+                            $this->files[$key][] = new UploadedFile($fileinfo);
                         }
                     }
                 } else {
-                    //$this->files[$key] = new UploadedFile($val);
                     $fileinfo = array();
                     $fileinfo['name'] = $val['name'];
                     $fileinfo['type'] = $val['type'];
@@ -406,7 +405,7 @@ class Request
 
         $method = strtoupper($method);
 
-        if (in_array($method, ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'PATCH', 'PURGE', 'TRACE'], true)) {
+        if (in_array($method, array('GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'PATCH', 'PURGE', 'TRACE'))) {
             return $this->method = $method;
         }
 
