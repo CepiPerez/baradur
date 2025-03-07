@@ -22,12 +22,12 @@ class DB
         return $res; //->getQuery();
     }
 
-    public static function affectingStatement($query, $bindings=array())
+    public static function affectingStatement($query, $bindings = array())
     {
         $res = Model::instance('DB', 'dummy');
         $res->_bindings = $bindings;
         $connector = $res->toBase()->connector();
-        
+
         $stmnt = self::statement($query, $bindings);
 
         if (!$stmnt) {
@@ -37,24 +37,24 @@ class DB
         return $connector->status;
     }
 
-    public static function statement($query, $bindings=array())
+    public static function statement($query, $bindings = array())
     {
         $res = Model::instance('DB', 'dummy');
         $res->_bindings = $bindings;
         return $res->toBase()->connector()->execSQL($query, $res);
     }
 
-    public static function insert($query, $bindings=array())
+    public static function insert($query, $bindings = array())
     {
         return self::statement($query, $bindings);
     }
 
-    public static function update($query, $bindings=array())
+    public static function update($query, $bindings = array())
     {
         return self::affectingStatement($query, $bindings);
     }
 
-    public static function delete($query, $bindings=array())
+    public static function delete($query, $bindings = array())
     {
         return self::affectingStatement($query, $bindings);
     }
@@ -65,7 +65,7 @@ class DB
         return $res->toBase()->connector()->execUnpreparedSQL($query);
     }
 
-    public static function select($query, $bindings=array())
+    public static function select($query, $bindings = array())
     {
         if ($query instanceof Expression) {
             $query = $query->__toString();
@@ -73,8 +73,8 @@ class DB
 
         $res = Model::instance('DB', 'dummy');
         $res->_bindings = $bindings;
-        $res->toBase()->connector()->execSQL($query, $res, true);
-        return $res->_collection->all();
+
+        return $res->toBase()->connector()->execSQL($query, $res, true)->toArray();
     }
 
     public static function raw($value)
@@ -105,7 +105,7 @@ class DB
     public static function transaction($closure)
     {
         list($class, $method, $params) = getCallbackFromString($closure);
-        
+
         try {
             self::beginTransaction();
 
@@ -115,8 +115,7 @@ class DB
             self::commit();
 
             return true;
-        }
-        catch(Exception $e) {
+        } catch (Exception $e) {
             self::rollBack();
 
             return false;
@@ -129,8 +128,7 @@ class DB
 
         try {
             return $res->toBase()->connector()->getRowSet($query, $bindings);
-        }
-        catch (Exception $e) {
+        } catch (Exception $e) {
 
             if (config('app.debug')) {
                 throw new QueryException($e->getMessage());
@@ -140,7 +138,7 @@ class DB
         }
     }
 
-    public function __getConnector($connection=null)
+    public function __getConnector($connection = null)
     {
         if ($this->connectionDriver) {
             return $this->connectionDriver;
@@ -158,20 +156,20 @@ class DB
         if (isset($_SERVER['USERNAME']) || isset($_SERVER['SHELL'])) {
             $config['host'] = "127.0.0.1";
         }
-    
-        if ($config['driver']=='mysql') {
+
+        if ($config['driver'] == 'mysql') {
             return new PdoConnector($config);
         }
 
-        if ($config['driver']=='mysqli') {
+        if ($config['driver'] == 'mysqli') {
             return new MysqliConnector($config);
         }
 
-        if ($config['driver']=='oracle') {
+        if ($config['driver'] == 'oracle') {
             return new OracleConnector($config);
         }
 
-        if ($config['driver']=='sqlite' || $config['driver']=='sqlite2') {
+        if ($config['driver'] == 'sqlite' || $config['driver'] == 'sqlite2') {
             return new SqliteConnector($config);
         }
 
@@ -179,15 +177,44 @@ class DB
     }
 
 
-    public function getConnectionName() { return null; }
-    public function getKeyName() { return 'dummy'; }
-    public function getFillable() { return array(); }
-    public function getGuarded() { return array(); }
-    public function getHidden() { return array(); }
-    public function getAppends() { return array(); }
-    public function getRouteKeyName() { return 'dummy'; }
-    public function usesSoftDeletes() { return false; }
-    public function __getWith() { return array(); }
-    public function __getGlobalScopes() { return array(); }
+    public function getConnectionName()
+    {
+        return null;
+    }
+    public function getKeyName()
+    {
+        return 'dummy';
+    }
+    public function getFillable()
+    {
+        return array();
+    }
+    public function getGuarded()
+    {
+        return array();
+    }
+    public function getHidden()
+    {
+        return array();
+    }
+    public function getAppends()
+    {
+        return array();
+    }
+    public function getRouteKeyName()
+    {
+        return 'dummy';
+    }
+    public function usesSoftDeletes()
+    {
+        return false;
+    }
+    public function __getWith()
+    {
+        return array();
+    }
+    public function __getGlobalScopes()
+    {
+        return array();
+    }
 }
-
