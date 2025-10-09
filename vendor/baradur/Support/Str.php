@@ -522,16 +522,24 @@ class Str
         return str_word_count($string, 0, $characters);
     }
 
-    public static function is($pattern, $value)
+    public static function is($pattern, $value, $ignoreCase = false)
     {
-        $patterns = is_array($pattern) ? $pattern : (array) $pattern;
+        $value = (string) $value;
+
+        $patterns = is_array($pattern) ? $pattern : array($pattern);
 
         if (empty($patterns)) {
             return false;
         }
 
         foreach ($patterns as $pattern) {
-            if ($pattern == $value) {
+            $pattern = (string) $pattern;
+
+            if ($pattern === $value) {
+                return true;
+            }
+
+            if ($ignoreCase && strtolower($pattern) === strtolower($value)) {
                 return true;
             }
 
@@ -539,7 +547,7 @@ class Str
 
             $pattern = str_replace('\*', '.*', $pattern);
 
-            if (preg_match('#^' . $pattern . '\z#u', $value) === 1) {
+            if (preg_match('#^' . $pattern . '\z#' . ($ignoreCase ? 'iu' : 'u'), $value) === 1) {
                 return true;
             }
         }

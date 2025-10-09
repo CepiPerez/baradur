@@ -845,10 +845,8 @@ class PHPConverter
             $controller = preg_replace_callback('/(\w*)::(\w*)([->\w|\(]*)/x', array($this, 'callbackReplaceEnumCalls'), $controller);
             $this->_current_classname = $last_class;
 
-            Cache::store('file')
-                ->plainPut($dir . '/storage/framework/classes/baradurClosures_' . $this->_current_classname[0] . '.php', $controller);
-
-            //require_once(_DIR_.'storage/framework/classes/baradurClosures_'.$this->_current_classname[0].'.php');
+            //Cache::store('file')->plainPut($dir . '/storage/framework/classes/baradurClosures_' . $this->_current_classname[0] . '.php', $controller);
+            CoreLoader::compileClass($dir . '/storage/framework/classes/baradurClosures_' . $this->_current_classname[0] . '.php', $controller);
 
             $controller = null;
             $this->_arrow_functions = array();
@@ -867,8 +865,8 @@ class PHPConverter
 
             $controller .= "}";
 
-            Cache::store('file')
-                ->plainPut($dir . '/storage/framework/classes/baradurBuilderMacros_' . $__name . '.php', $controller);
+            //Cache::store('file')->plainPut($dir . '/storage/framework/classes/baradurBuilderMacros_' . $__name . '.php', $controller);
+            CoreLoader::compileClass($dir . '/storage/framework/classes/baradurBuilderMacros_' . $__name . '.php', $controller);
 
             $controller = null;
             $this->_builder_macros = array();
@@ -886,8 +884,8 @@ class PHPConverter
             }
             $controller .= "}";
 
-            Cache::store('file')
-                ->plainPut($dir . '/storage/framework/classes/baradurCollectionMacros_' . $__name . '.php', $controller);
+            //Cache::store('file')->plainPut($dir . '/storage/framework/classes/baradurCollectionMacros_' . $__name . '.php', $controller);
+            CoreLoader::compileClass($dir . '/storage/framework/classes/baradurCollectionMacros_' . $__name . '.php', $controller);
 
             $controller = null;
             $this->_collection_macros = array();

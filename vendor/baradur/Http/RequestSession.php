@@ -3,7 +3,7 @@
 class RequestSession
 {
     protected $data = array();
-    
+
     public function __construct()
     {
         if (isset($_SESSION['session'])) {
@@ -20,10 +20,10 @@ class RequestSession
         }
     }
 
-    public function get($key=null, $default=null)
+    public function get($key = null, $default = null)
     {
         if ($key) {
-            return $this->exists($key) ? $this->data[$key] : $default; 
+            return $this->exists($key) ? $this->data[$key] : $default;
         }
 
         return $this->data;
@@ -73,7 +73,7 @@ class RequestSession
         $this->data = $arr;
     }
 
-    public function pull($key, $default=null)
+    public function pull($key, $default = null)
     {
         $arr = $this->data;
         $result = Arr::pull($arr, $key, $default);
@@ -143,10 +143,10 @@ class RequestSession
 
     public function regenerateToken()
     {
-        if ( config('app.key') === null ) {
+        if (config('app.key') === null) {
             throw new MissingAppKeyException('No application encryption key has been specified.');
         }
-        
+
         $_SESSION['_token'] = hash_hmac('sha256', Str::random(40), config('app.key'));
     }
 
@@ -155,7 +155,7 @@ class RequestSession
         $result = $this->migrate($destroy);
 
         $this->regenerateToken();
-        
+
         return $result;
     }
 
@@ -165,6 +165,4 @@ class RequestSession
 
         return true;
     }
-
-
 }

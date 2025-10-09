@@ -2474,6 +2474,10 @@ class Collection implements ArrayAccess, Iterator, Countable
      */
     public function avg($callback = null)
     {
+        if ($this->count() == 0) {
+            return 0;
+        }
+
         return $this->sum($callback) / $this->count();
     }
 
@@ -2777,6 +2781,53 @@ class Collection implements ArrayAccess, Iterator, Countable
 
         return $model->newQuery()->whereKey($this->modelKeys());
     }
+
+
+    /**
+     * Create a new resource collection instance for the given resource.
+     *
+     * @param  JsonResource|null  $resourceClass
+     * @return ResourceCollection
+     *
+     * @throws Exception
+     */
+    public function toResourceCollection($resourceClass = null)
+    {
+        if ($resourceClass === null) {
+            return $this->guessResourceCollection();
+        }
+
+        $res = new $resourceClass;
+
+        return $res->collection($this);
+    }
+
+    /**
+     * Guess the resource collection for the items.
+     *
+     * @return ResourceCollection
+     *
+     * @throws Exception
+     */
+    protected function guessResourceCollection()
+    {
+        if ($this->isEmpty()) {
+            return new ResourceCollection($this);
+        }
+
+        $model = $this->items[0] ? $this->items[0] : null;
+
+        $resource = $model->guessResourceName();
+
+        if ($resource !== null) {
+            $res = new $resource;
+            return $res->collection($this);
+        }
+
+        throw new LogicException(sprintf('Failed to find resource class for model [%s].', get_class($model)));
+    }
+
+
 
 
     public static function macro($name, $function)

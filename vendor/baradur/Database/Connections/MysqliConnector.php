@@ -1,6 +1,6 @@
 <?php
 
-Class MysqliConnector extends Connector
+class MysqliConnector extends Connector
 {
     protected $connection;
     public $status;
@@ -13,7 +13,7 @@ Class MysqliConnector extends Connector
         $password = $config['password'];
         $database = $config['database'];
         $port = $config['port'] ? $config['port'] : 3306;
-        
+
         $this->database = $database;
 
         $this->connection = new mysqli($host, $username, $password, $database, $port);
@@ -21,7 +21,7 @@ Class MysqliConnector extends Connector
         mysqli_query($this->connection, "SET NAMES 'utf8'");
         //mysqli_report(MYSQLI_REPORT_OFF);
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-        
+
         if (!$this->connection) {
             throw new Exception("Error trying to connect to database");
         }
@@ -31,7 +31,7 @@ Class MysqliConnector extends Connector
     {
         return $this->inTransaction;
     }
-    
+
     public function beginTransaction()
     {
         $this->inTransaction = true;
@@ -45,7 +45,7 @@ Class MysqliConnector extends Connector
         $this->inTransaction = false;
         //throw new Exception('Transactions not supported');
     }
-    
+
     public function rollBack()
     {
         $this->connection->query('ROLLBACK');
@@ -62,7 +62,7 @@ Class MysqliConnector extends Connector
     {
         if (config('app.debug_info')) {
             global $debuginfo;
-            
+
             $debuginfo['queryes'][] = $sql; // preg_replace('/\s\s+/', ' ', str_replace("'", "\"", $sql));
         }
 
@@ -75,15 +75,15 @@ Class MysqliConnector extends Connector
         return true;
     }
 
-    public function _execSQL($sql, $parent, $fill=false)
-    {    
+    public function _execSQL($sql, $parent, $fill = false)
+    {
         $types = '';
         $params = array();
-        $bindings = $parent instanceof Builder? $parent->_bindings : $parent;
+        $bindings = $parent instanceof Builder ? $parent->_bindings : $parent;
 
         $bindings = Builder::__joinBindings($bindings);
-        
-        foreach($bindings as $val) {
+
+        foreach ($bindings as $val) {
             if (is_integer($val)) {
                 $types .= 'i';
             } elseif (is_float($val)) {
@@ -94,8 +94,7 @@ Class MysqliConnector extends Connector
             $params[] = $val;
         }
 
-        if (config('app.debug_info'))
-        {
+        if (config('app.debug_info')) {
             global $debuginfo;
 
             $result = Builder::__getPlainSqlQuery($sql, $bindings);
@@ -113,29 +112,31 @@ Class MysqliConnector extends Connector
         //echo "SQL NUEVO:".$sql."<br>".implode(', ', $params)."<br>";
 
         $query->execute();
-        
+
         $meta = $query->result_metadata();
+
+        //dump($query->affected_rows);
 
         $this->status = $query->affected_rows;
 
         $this->lastId = $this->connection->insert_id;
 
         if (!$meta) return true;
-    
+
         $row = array();
 
-        while ( $field = $meta->fetch_field() ) {
+        while ($field = $meta->fetch_field()) {
             $parameters[] = &$row[$field->name];
-        } 
+        }
 
         call_user_func_array(array($query, 'bind_result'), $this->refValues($parameters));
 
         if ($fill) {
-            while( $query->fetch() ) {
-                $r = new stdClass; 
+            while ($query->fetch()) {
+                $r = new stdClass;
 
-                foreach( $row as $key => $val ) { 
-                    $r->$key = is_null($val)? null : (string)$val; 
+                foreach ($row as $key => $val) {
+                    $r->$key = is_null($val) ? null : (string)$val;
                 }
 
                 if (!$parent->_toBase) {
@@ -143,7 +144,6 @@ Class MysqliConnector extends Connector
                 } else {
                     $parent->_collection->put($r);
                 }
-
             }
             return $parent->_collection;
         }
@@ -153,23 +153,23 @@ Class MysqliConnector extends Connector
 
     public function refValues($arr)
     {
-        if (count($arr)==0) return array();
+        if (count($arr) == 0) return array();
 
-        if (strnatcmp(phpversion(),'5.3') >= 0) {
+        if (strnatcmp(phpversion(), '5.3') >= 0) {
             $refs = array();
 
-            foreach($arr as $key => $value) {
+            foreach ($arr as $key => $value) {
                 $refs[$key] = &$arr[$key];
             }
 
             return $refs;
         }
-        
+
         return $arr;
     }
 
 
-    public function getRowSet($sql, $bindings=array())
+    public function getRowSet($sql, $bindings = array())
     {
         $bindings = is_array($bindings) ? $bindings : array($bindings);
 
@@ -191,9 +191,7 @@ Class MysqliConnector extends Connector
                     $result->free();
                     $sets[] = $child;
                 }
-
-            }
-            while ($this->connection->next_result());
+            } while ($this->connection->next_result());
         }
 
         return $sets;
@@ -203,5 +201,4 @@ Class MysqliConnector extends Connector
     {
         return preg_match('#Integrity constraint violation: 1062#i', $exception->getMessage());
     }
-
 }

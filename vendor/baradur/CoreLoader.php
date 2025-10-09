@@ -2,6 +2,20 @@
 
 class CoreLoader
 {
+    public static function compileClass($dest, $content)
+    {
+        /* $dest = str_replace('.php', '.enc', $dest);
+
+        if (substr($content, 0, 5) == '<?php') {
+            $content = substr($content, 5);
+        }
+
+        $content = base64_encode($content);
+
+        shell_exec('/var/www/serviciomedico/storage/framework/xor_encoder_cli "' . $dest . '" "' . $content . '"'); */
+
+        Cache::store('file')->plainPut($dest, $content);
+    }
 
     public static function loadClass($file, $is_provider = true, $migration = null)
     {
@@ -15,8 +29,39 @@ class CoreLoader
         ) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR;
         $dest_file = basename($file);
 
-        if (file_exists($file)) {
-            if (!file_exists($dest_folder . $dest_file) || (filemtime($file) > filemtime($dest_folder . $dest_file))) {
+
+        // OBFUSCATION
+        /* $not_encoded = $dest_folder . $dest_file;
+        $encoded = str_replace('.php', '.enc', $dest_folder . $dest_file);
+
+        if (file_exists($encoded)) {
+
+            dd($encoded);
+            if (file_exists($not_encoded)) {
+                unlink($not_encoded);
+            }
+
+            $texto = file_get_contents($encoded);
+            $decrypt = self::xorEncryptDecrypt(base64_decode($texto), 'matiasperez');
+
+            eval($decrypt);
+
+            if ($is_provider) {
+                global $_service_providers;
+                $_service_providers[$cfname] = null;
+            }
+
+            return;
+        } */
+
+        //$enc_file = str_replace('.php', '.enc', $dest_file);
+
+        if (file_exists($file) || file_exists($dest_folder . $dest_file)) {
+
+            if (
+                !file_exists($dest_folder . $dest_file)
+                || (file_exists($file) && filemtime($file) > filemtime($dest_folder . $dest_file))
+            ) {
 
                 $classFile = file_get_contents($file);
 
@@ -43,9 +88,11 @@ class CoreLoader
                     strpos($cfname, 'baradurBuilderMacros_') === false &&
                     strpos($cfname, 'baradurCollectionMacros_') === false
                 ) {
-                    Cache::store('file')->plainPut($dest_folder . $dest_file, $classFile);
+                    //Cache::store('file')->plainPut($dest_folder . $dest_file, $classFile);
+                    self::compileClass($dest_folder . $dest_file, $classFile);
                 } else {
-                    Cache::store('file')->plainPut($dest_folder . $dest_file, $classFile);
+                    //Cache::store('file')->plainPut($dest_folder . $dest_file, $classFile);
+                    self::compileClass($dest_folder . $dest_file, $classFile);
                 }
             }
 
@@ -55,23 +102,19 @@ class CoreLoader
             }
 
             if (file_exists($dest_folder . 'baradurClosures_' . $dest_file)) {
-                //echo "Requiring class: baradurClosures_$dest_file <br>";
-                require_once($dest_folder . 'baradurClosures_' . $dest_file);
+                private_decode_load_class($dest_folder . 'baradurClosures_' . $dest_file);
             }
 
             if (file_exists($dest_folder . 'baradurBuilderMacros_' . $dest_file)) {
-                //echo "Requiring class: baradurBuilderMacros_$dest_file <br>";
-                require_once($dest_folder . 'baradurBuilderMacros_' . $dest_file);
+                private_decode_load_class($dest_folder . 'baradurBuilderMacros_' . $dest_file);
             }
 
             if (file_exists($dest_folder . 'baradurCollectionMacros_' . $dest_file)) {
-                //echo "Requiring class: baradurCollectionMacros_$dest_file <br>";
-                require_once($dest_folder . 'baradurCollectionMacros_' . $dest_file);
+                private_decode_load_class($dest_folder . 'baradurCollectionMacros_' . $dest_file);
             }
 
-            //dump($dest_folder . $dest_file, file_exists($dest_folder . $dest_file));
 
-            require_once($dest_folder . $dest_file);
+            private_decode_load_class($dest_folder . $dest_file);
 
 
             if ($is_provider) {

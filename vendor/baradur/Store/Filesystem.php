@@ -7,7 +7,7 @@ class Filesystem
     protected $url;
     protected $disk;
 
-    public function __construct($path=null, $url=null, $disk=null)
+    public function __construct($path = null, $url = null, $disk = null)
     {
         $this->path = $path;
         $this->url = $url;
@@ -76,8 +76,7 @@ class Filesystem
 
         if ($res) @chmod($path, 0777);
 
-        return $res===false? false : true;
-
+        return $res === false ? false : true;
     }
 
     public function append($path, $contents)
@@ -89,8 +88,7 @@ class Filesystem
 
         if ($res) @chmod($path, 0777);
 
-        return $res===false? false : true;
-
+        return $res === false ? false : true;
     }
 
     public function delete($paths)
@@ -99,8 +97,7 @@ class Filesystem
 
         $success = true;
 
-        foreach ($paths as $path)
-        {
+        foreach ($paths as $path) {
             $path = $this->getPath() . $path;
             try {
                 if (@unlink($path)) {
@@ -158,20 +155,16 @@ class Filesystem
             return false;
         }
 
-        
-        $files = array_diff(scandir($path), array('.','..'));
-        foreach ($files as $file)
-        {
-            if (is_dir("$path/$file") && !is_link("$path/$file")) 
-            {
+
+        $files = array_diff(scandir($path), array('.', '..'));
+        foreach ($files as $file) {
+            if (is_dir("$path/$file") && !is_link("$path/$file")) {
                 $this->deleteDirectory("$path/$file");
-            }
-            else
-            {
+            } else {
                 $this->delete("$path/$file");
             }
         }
-        
+
 
         /* $items = new FilesystemIterator($directory);
 
@@ -210,7 +203,7 @@ class Filesystem
             $directories[] = $dir->getPathname();
         } */
 
-        $directories = glob($path . '/*' , GLOB_ONLYDIR);
+        $directories = glob($path . '/*', GLOB_ONLYDIR);
         $directories[] = $path;
 
         return $directories;
@@ -236,34 +229,34 @@ class Filesystem
 
         if ($handle) {
             /* try { */
-                if (flock($handle, LOCK_SH)) {
-                    clearstatcache(true, $path);
+            if (flock($handle, LOCK_SH)) {
+                clearstatcache(true, $path);
 
-                    $contents = fread($handle, ($this->size($path) ? $this->size($path) : 1));
+                $contents = fread($handle, ($this->size($path) ? $this->size($path) : 1));
 
-                    flock($handle, LOCK_UN);
-                }
+                flock($handle, LOCK_UN);
+            }
             /* } finally { */
-                fclose($handle);
+            fclose($handle);
             /* } */
         }
 
         return $contents;
     }
 
-    public function download($file, $name=null, $headers=null)
+    public function download($file, $name = null, $headers = null)
     {
         $file = $this->getPath() . $file;
 
         if (!isset($name)) $name = basename($file);
         $mime = mime_content_type($file);
 
-        header('Content-type: '.$mime);
-        header('Content-disposition: download; filename="'.$name.'"');
+        header('Content-type: ' . $mime);
+        header('Content-disposition: download; filename="' . $name . '"');
         header('content-Transfer-Encoding:binary');
         header('Accept-Ranges:bytes');
 
-        foreach($headers as $header) {
+        foreach ($headers as $header) {
             header($header);
         }
 
@@ -275,7 +268,7 @@ class Filesystem
     {
         return $this->getUrl() . $file;
     }
-    
+
     public function path($file)
     {
         return $this->getPath() . $file;
@@ -290,12 +283,12 @@ class Filesystem
 
     public function copy($source, $dest)
     {
-        return copy($this->getPath().$source, $this->getPath().$dest);
+        return copy($this->getPath() . $source, $this->getPath() . $dest);
     }
 
     public function move($source, $dest)
     {
-        return rename($this->getPath().$source, $this->getPath().$dest);
+        return rename($this->getPath() . $source, $this->getPath() . $dest);
     }
 
     public function putFile($path, $file = null, $options = array())
@@ -321,7 +314,9 @@ class Filesystem
         // they provide better performance than alternatives. Once we write the file this
         // stream will get closed automatically by us so the developer doesn't have to.
         $result = $this->put(
-            $path = trim($path.'/'.$name, '/'), $stream, $options
+            $path = trim($path . '/' . $name, '/'),
+            $stream,
+            $options
         );
 
         if (is_resource($stream)) {
@@ -340,17 +335,15 @@ class Filesystem
     public function temporaryUrl($path, $expiration, $options)
     {
         if ($expiration instanceof Carbon) {
-            $expiration = $expiration->timestamp; 
+            $expiration = $expiration->timestamp;
         }
 
         if (!isset(Storage::$temporaryUrlCallbacks[$this->disk]))
             throw new BadMethodCallException("Disk [$this->disk] doesn't support temporaryUrl");
-      
+
         list($class, $method) = getCallbackFromString(Storage::$temporaryUrlCallbacks[$this->disk]);
-        
+
         //return $class::$method($path, $expiration, $options);
         return call_user_func_array(array($class, $method), array($path, $expiration, $options));
-
     }
-
 }

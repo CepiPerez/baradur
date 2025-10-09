@@ -13,13 +13,14 @@ class Fluent
 
     public function get($key, $default = null)
     {
-        /* if (array_key_exists($key, $this->attributes)) {
-            return $this->attributes[$key];
-        }
-
-        return $default; */
-
         return data_get($this->attributes, $key, $default);
+    }
+
+    public function set($key, $value)
+    {
+        data_set($this->attributes, $key, $value);
+
+        return $this;
     }
 
     public function value($key, $default = null)
@@ -37,7 +38,7 @@ class Fluent
             (array) $this->get($key, $default)
         );
     }
-    
+
     public function getAttributes()
     {
         return $this->attributes;

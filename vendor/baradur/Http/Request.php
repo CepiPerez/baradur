@@ -56,7 +56,20 @@ class Request
                     $this->input[$key] = $val;
                 }
             }
+
+            # Read input too (POST with json body)
+            $data = file_get_contents("php://input");
+            $data = json_decode($data);
+            //if (json_last_error() === JSON_ERROR_NONE) { // Doesn't work on old PHP
+            if (is_array($data)) {
+                foreach ($data as $key => $val) {
+                    if ($key != '_method' && $key != '_token' && $key != 'ruta') {
+                        $this->input[$key] = $val;
+                    }
+                }
+            }
         }
+
 
         # Adding PUT values into Request
         if ($_SERVER['REQUEST_METHOD'] == 'PUT' || $_SERVER['REQUEST_METHOD'] == 'PATCH') {

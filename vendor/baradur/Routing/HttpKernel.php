@@ -11,18 +11,28 @@ class HttpKernel
     {
         global $phpConverter;
 
-        if (!file_exists(_DIR_ . 'app/http/Kernel.php')) {
-            throw new RuntimeException("Error trying to book Http kernel");
+        if (
+            !file_exists(_DIR_ . 'storage/framework/classes/App_Http_Kernel.php')
+            || (file_exists(_DIR_ . 'app/http/Kernel.php')
+                && filemtime(_DIR_ . 'app/http/Kernel.php') > filemtime(_DIR_ . 'storage/framework/classes/App_Http_Kernel.php')
+            )
+        ) {
+            if (!file_exists(_DIR_ . 'app/http/Kernel.php')) {
+                throw new RuntimeException("Error trying to book Http kernel");
+            }
+
+            $temp = file_get_contents(_DIR_ . 'app/http/Kernel.php');
+
+            $temp = str_replace("ThrottleRequests::class.':api'", "'ThrottleRequests:api'", $temp);
+
+            $temp = $phpConverter->replaceNewPHPFunctions($temp, 'App_Http_Kernel', _DIR_);
+
+            //Cache::store('file')->plainPut(_DIR_ . 'storage/framework/classes/App_Http_Kernel.php', $temp);
+            CoreLoader::compileClass(_DIR_ . 'storage/framework/classes/App_Http_Kernel.php', $temp);
         }
 
-        $temp = file_get_contents(_DIR_ . 'app/http/Kernel.php');
-
-        $temp = str_replace("ThrottleRequests::class.':api'", "'ThrottleRequests:api'", $temp);
-
-        $temp = $phpConverter->replaceNewPHPFunctions($temp, 'App_Http_Kernel', _DIR_);
-
-        Cache::store('file')->plainPut(_DIR_ . 'storage/framework/classes/App_Http_Kernel.php', $temp);
-        require_once(_DIR_ . 'storage/framework/classes/App_Http_Kernel.php');
+        //require_once(_DIR_ . 'storage/framework/classes/App_Http_Kernel.php');
+        private_decode_load_class(_DIR_ . 'storage/framework/classes/App_Http_Kernel.php');
 
         self::$kernel = new Kernel;
     }

@@ -50,6 +50,7 @@
  * @method static Builder latest($colun)
  * @method static Builder oldest($column)
  * @method static Builder orderBy(string|Builder $column, string $order='ASC')
+ * @method static Builder orderByDesc(string|Builder $column, string $order='ASC')
  * @method static Builder orderByRaw(string $order)
  * @method static bool increment(string $column, int $amount=1, array $extra=array())
  * @method static bool decrement(string $column, int $amount=1, array $extra=array())
@@ -577,6 +578,10 @@ class Model
 
         if ($config['driver'] == 'oracle') {
             return new OracleConnector($config);
+        }
+
+        if ($config['driver'] == 'mssql') {
+            return new MssqlConnector($config);
         }
 
         if ($config['driver'] == 'sqlite' || $config['driver'] == 'sqlite2') {
@@ -1765,6 +1770,44 @@ class Model
     }
 
     /**
+     * Get a subset of the model's attributes.
+     *
+     * @param  array|mixed  $attributes
+     * @return array
+     */
+    public function only($attributes)
+    {
+        $results = array();
+
+        foreach (is_array($attributes) ? $attributes : func_get_args() as $attribute) {
+            $results[$attribute] = $this->getAttribute($attribute);
+        }
+
+        return $results;
+    }
+
+    /**
+     * Get all attributes except the given ones.
+     *
+     * @param  array|mixed  $attributes
+     * @return array
+     */
+    public function except($attributes)
+    {
+        $attributes = is_array($attributes) ? $attributes : func_get_args();
+
+        $results = array();
+
+        foreach ($this->getAttributes() as $key => $value) {
+            if (! in_array($key, $attributes)) {
+                $results[$key] = $this->getAttribute($key);
+            }
+        }
+
+        return $results;
+    }
+
+    /**
      * Discard attribute changes and reset the attributes to their original state.
      *
      * @return $this
@@ -1789,7 +1832,7 @@ class Model
         }
 
         foreach ($this->original as $key => $val) {
-            if ($this->attributes[$key] != $val) {
+            if ($this->attributes[$key] !== $val) {
                 return true;
             }
         }
@@ -2438,5 +2481,61 @@ class Model
                 $this->$relation->each->touchOwners();
             } */
         }
+    }
+
+
+    /**
+     * Create a new resource object for the given resource.
+     *
+     * @param  JsonResource|null  $resourceClass
+     * @return JsonResource
+     *
+     * @throws Exception
+     */
+    public function toResource($resourceClass = null)
+    {
+        if ($resourceClass === null) {
+            return $this->guessResource();
+        }
+
+        return new $resourceClass($this);
+    }
+
+    /**
+     * Guess the resource class for the model.
+     *
+     * @return JsonResource
+     *
+     * @throws Exception
+     */
+    protected function guessResource()
+    {
+        $resource = $this->guessResourceName();
+
+        if ($resource !== null) {
+            return new $resource($this);
+        }
+
+        throw new LogicException(sprintf('Failed to find resource class for model [%s].', get_class($this)));
+    }
+
+    /**
+     * Guess the resource class name for the model.
+     *
+     * @return array
+     */
+    public function guessResourceName()
+    {
+        $modelClass = get_class($this);
+
+        if ($modelClass !== null) {
+            $modelClass .= "Resource";
+
+            if (class_exists($modelClass)) {
+                return $modelClass;
+            }
+        }
+
+        return null;
     }
 }

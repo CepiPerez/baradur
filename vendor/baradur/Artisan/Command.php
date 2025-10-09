@@ -55,17 +55,17 @@ class Command
             $values[] = is_array($item) ? array_values($item) : array($item);
         }
 
-        for ($i=0; $i < count($headers); $i++) {
+        for ($i = 0; $i < count($headers); $i++) {
 
             if (!isset($len[$i])) {
-                $len[$i] = strlen($headers[$i])+2;
+                $len[$i] = strlen($headers[$i]) + 2;
             } elseif ($len[$i] < strlen($headers[$i])) {
-                $len[$i] = strlen($headers[$i])+2;
+                $len[$i] = strlen($headers[$i]) + 2;
             }
 
-            for ($j=0; $j < count($headers); $j++) {
+            for ($j = 0; $j < count($headers); $j++) {
                 if ($len[$i] < strlen($values[$i][$j])) {
-                    $len[$i] = strlen($values[$i][$j])+2;
+                    $len[$i] = strlen($values[$i][$j]) + 2;
                 }
             }
         }
@@ -77,9 +77,9 @@ class Command
         printf("\n"); */
 
         /* printf(' |'); */
-        for ($i=0; $i < count($headers); $i++) {
-            $h = "\033[32m".$headers[$i]."\033[m";
-            $str = '  ' . str_pad($h, $len[$i]+9, ' ') . '   '; //'  |';
+        for ($i = 0; $i < count($headers); $i++) {
+            $h = "\033[32m" . $headers[$i] . "\033[m";
+            $str = '  ' . str_pad($h, $len[$i] + 9, ' ') . '   '; //'  |';
             printf($str);
         }
         printf("\n");
@@ -90,10 +90,10 @@ class Command
         }
         printf("\n"); */
 
-        for ($i=0; $i < count($values); $i++) {
+        for ($i = 0; $i < count($values); $i++) {
             /* printf(' |'); */
-            for ($j=0; $j < count($headers); $j++) {                
-                $str = '  ' . str_pad($values[$i][$j], $len[$j]+2, ' ') . '  '; // . ' |';
+            for ($j = 0; $j < count($headers); $j++) {
+                $str = '  ' . str_pad($values[$i][$j], $len[$j] + 2, ' ') . '  '; // . ' |';
                 printf($str);
             }
             printf("\n");
@@ -118,17 +118,28 @@ class Command
         $names = explode(' ', $this->signature);
         array_shift($names);
 
-        for ($i=0; $i < count($names); $i++) {
-
+        for ($i = 0; $i < count($names); $i++) {
             $key = $this->stripName($names[$i]);
 
-            if (strpos($names[$i], '--')===false) {
+            if (strpos($names[$i], '--') === false) {
                 $this->arguments[$key] = $parameters[$i];
             } else {
                 $param = end(explode('=', $parameters[$i]));
                 $this->options[$key] = $param;
             }
         }
+
+        $new_args = array();
+
+        foreach ($this->arguments as $key => $val) {
+            if (substr($key, -1) === '?') {
+                if ($val != null) $new_args[substr($key, 0, strlen($key) - 1)] = $val;
+            } else {
+                $new_args[$key] = $val;
+            }
+        }
+
+        $this->arguments = $new_args;
     }
 
     public function setSignature($signature)
@@ -225,5 +236,4 @@ class Command
 
         $bar->finish();
     }
-
 }

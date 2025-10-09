@@ -18,7 +18,7 @@ class JsonResource
     public static function instance($parent)
     {
         return new $parent();
-    } 
+    }
 
     public static function withoutWrapping()
     {
@@ -33,7 +33,7 @@ class JsonResource
 
     public function collection($collection)
     {
-        if ($collection=='_value_not_loaded') {
+        if ($collection == '_value_not_loaded') {
             return '_value_not_loaded';
         }
 
@@ -43,7 +43,7 @@ class JsonResource
         foreach ($collection as $key => $item) {
             $item = new $class($item);
 
-            $item = self::$wrap? $item->{self::$wrap} : $item;
+            $item = self::$wrap ? $item->{self::$wrap} : $item;
 
             if ($this->preserveKeys) {
                 $res[$key] = $item;
@@ -51,7 +51,7 @@ class JsonResource
                 $res[] = $item;
             }
         }
-        
+
         if (self::$wrap) {
             $result = collect(array(self::$wrap => $res));
         } else {
@@ -61,27 +61,25 @@ class JsonResource
                 unset($item->preserveKeys);
             }
         }
-        
-        return $result;
 
+        return $result;
     }
 
-    public function __construct($resource=null)
+    public function __construct($resource = null)
     {
         $this->parent = get_class($this);
 
-        if ($resource)
-        {
+        if ($resource) {
             $this->resource = $resource;
-            
+
             $data = $this->toArray(request());
-            
+
             foreach ($data as $key => $val) {
 
-                if($val!='_value_not_loaded') {
+                if ($val != '_value_not_loaded') {
 
                     if (is_array($val) && isset($val['_merged'])) {
-                        foreach($val['_merged'] as $k => $v) {
+                        foreach ($val['_merged'] as $k => $v) {
                             $data[$k] = $v;
                         }
                     } else {
@@ -105,12 +103,10 @@ class JsonResource
             foreach ($res as $key => $val) {
                 $this->$key = $val;
             }
-
         } else {
             unset($this->parent);
             unset($this->resource);
         }
-
     }
 
     private function _toArray($item)
@@ -128,7 +124,7 @@ class JsonResource
             return $item->toArray();
         }
 
-        if (is_array($item) ) {
+        if (is_array($item)) {
             $res = array();
 
             foreach ($item as $key => $val) {
@@ -174,8 +170,11 @@ class JsonResource
 
     public function whenLoaded($relation)
     {
-        if ($this->resource->getRelation($relation)) {
+        try {
+            $this->resource->getRelation($relation);
             return $this->resource->$relation;
+        } catch (Exception $th) {
+            return '_value_not_loaded';
         }
 
         return '_value_not_loaded';
@@ -184,31 +183,33 @@ class JsonResource
     public function whenCounted($relation)
     {
         $relation = str_replace('_count', '', $relation) . '_count';
-        
-        if ($this->resource->getAttribute($relation)) {
+
+        try {
+            $this->resource->getAttribute($relation);
             return $this->resource->$relation;
+        } catch (MissingAttributeException $th) {
+            return '_value_not_loaded';
         }
 
         return '_value_not_loaded';
     }
 
-    public function when($condition, $value, $default=null)
+    public function when($condition, $value, $default = null)
     {
         if ($condition) {
             return value($value, $this);
         }
 
-        return func_num_args()===3 ? value($default, $this) : '_value_not_loaded';
-
+        return func_num_args() === 3 ? value($default, $this) : '_value_not_loaded';
     }
 
-    public function unless($condition, $value, $default=null)
+    public function unless($condition, $value, $default = null)
     {
         if (!$condition) {
             return value($value, $this);
         }
 
-        return func_num_args()===3 ? value($default, $this) : '_value_not_loaded';
+        return func_num_args() === 3 ? value($default, $this) : '_value_not_loaded';
     }
 
     public function whenNotNull($value)
@@ -223,7 +224,5 @@ class JsonResource
     public function mergeWhen($condition, $value)
     {
         return $condition ? array('_merged' => value($value, $this)) : '_value_not_loaded';
-
     }
-
 }

@@ -849,6 +849,29 @@ class Arr
     }
 
     /**
+     * Conditionally compile styles from an array into a style list.
+     *
+     * @param  array  $array
+     * @return string
+     */
+    public static function toCssStyles($array)
+    {
+        $styleList = self::wrap($array);
+
+        $styles = array();
+
+        foreach ($styleList as $class => $constraint) {
+            if (is_numeric($class)) {
+                $styles[] = Str::finish($constraint, ';');
+            } elseif ($constraint) {
+                $styles[] = Str::finish($class, ';');
+            }
+        }
+
+        return implode(' ', $styles);
+    }
+
+    /**
      * Filter the array using the given callback.
      *
      * @param  array  $array
@@ -865,7 +888,33 @@ class Arr
         return ! is_null($value);
     }
 
+    /**
+     * Partition the array into two arrays using the given callback.
+     *
+     * @template TKey of array-key
+     * @template TValue of mixed
+     *
+     * @param  array  $array
+     * @param  callable  $callback
+     * @return array<int<0, 1>, array<TKey, TValue>>
+     */
+    public static function partition($array, $callback)
+    {
+        $passed = array();
+        $failed = array();
 
+        list($class, $method) = getCallbackFromString($callback);
+
+        foreach ($array as $key => $item) {
+            if (executeCallback($class, $method, array($item, $key))) {
+                $passed[$key] = $item;
+            } else {
+                $failed[$key] = $item;
+            }
+        }
+
+        return array($passed, $failed);
+    }
 
     /**
      * Filter items where the value is not null.

@@ -28,9 +28,9 @@ class DB
         $res->_bindings = $bindings;
         $connector = $res->toBase()->connector();
 
-        $stmnt = self::statement($query, $bindings);
+        $connector->execSQL($query, $res);
 
-        if (!$stmnt) {
+        if (!$connector) {
             return false;
         }
 
@@ -73,8 +73,9 @@ class DB
 
         $res = Model::instance('DB', 'dummy');
         $res->_bindings = $bindings;
+        $res->toBase()->connector()->execSQL($query, $res, true);
 
-        return $res->toBase()->connector()->execSQL($query, $res, true)->toArray();
+        return is_array($res->_collection) ? $res->_collection : $res->_collection->all();
     }
 
     public static function raw($value)
@@ -167,6 +168,10 @@ class DB
 
         if ($config['driver'] == 'oracle') {
             return new OracleConnector($config);
+        }
+
+        if ($config['driver'] == 'mssql') {
+            return new MssqlConnector($config);
         }
 
         if ($config['driver'] == 'sqlite' || $config['driver'] == 'sqlite2') {

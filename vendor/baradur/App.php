@@ -1,6 +1,7 @@
 <?php
 
-Class App {
+class App
+{
 
     public $result;
     public $action;
@@ -20,11 +21,11 @@ Class App {
     protected $environmentFile = '.env';
 
     public static function start()
-    { 
+    {
         # Autologin
         if (!isset($_SESSION['guard'])) {
-            if (isset($_COOKIE[config('app.name').'_token']) && !Auth::user() && Route::has('login')) {
-                Auth::autoLogin($_COOKIE[config('app.name').'_token']);
+            if (isset($_COOKIE[config('app.name') . '_token']) && !Auth::user() && Route::has('login')) {
+                Auth::autoLogin($_COOKIE[config('app.name') . '_token']);
             }
         }
 
@@ -36,7 +37,7 @@ Class App {
         if ($content !== null) {
             CoreLoader::processResponse($content);
         }
-        
+
         __exit();
     }
 
@@ -62,23 +63,23 @@ Class App {
 
     public function isDownForMaintenance()
     {
-        return file_exists(_DIR_.'/storage/framework/down');
+        return file_exists(_DIR_ . '/storage/framework/down');
     }
 
     public function maintenanceMode()
     {
-        return file_exists(_DIR_.'storage/framework/down');
+        return file_exists(_DIR_ . 'storage/framework/down');
     }
 
     public static function getError($error)
     {
-        global $errors; 
+        global $errors;
         return $errors->$error;
     }
 
     public static function getRequestToken()
     {
-        if ( config('app.key') === null ) {
+        if (config('app.key') === null) {
             throw new MissingAppKeyException('No application encryption key has been specified.');
         }
 
@@ -97,7 +98,7 @@ Class App {
     public function bind($abstract, $concrete = null, $shared = false)
     {
         $this->binds[$abstract] = array(
-            'concrete' => $concrete, 
+            'concrete' => $concrete,
             'shared' => $shared
         );
     }
@@ -106,7 +107,7 @@ Class App {
     {
         $this->bind($abstract, $concrete, true);
     }
-    
+
     public static function instance($name = null)
     {
         global $app;
@@ -144,5 +145,4 @@ Class App {
 
         return new $name;
     }
-
 }

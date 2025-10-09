@@ -1,12 +1,12 @@
 <?php
 
-Class PDF 
+class PDF
 {
     protected $html;
     protected $file;
     protected $options = array();
 
-    public function __construct($html=null, $file=null)
+    public function __construct($html = null, $file = null)
     {
         $this->html = $html;
         $this->file = $file;
@@ -17,45 +17,51 @@ Class PDF
         $folder = _DIR_ . config('pdf.path') . '/';
         $folder = str_replace('//', '/', $folder);
 
-        if (substr(strtolower($filename),-4)!='.pdf') {
+        if (substr(strtolower($filename), -4) != '.pdf') {
             $filename .= '.pdf';
         }
 
-        if (file_exists($folder.$filename) && !$overwrite) {
+        if (file_exists($folder . $filename) && !$overwrite) {
             if ($overwrite) {
-                @unlink($folder.$filename);
+                @unlink($folder . $filename);
             } else {
                 return;
             }
         }
 
-        $command = config('pdf.bin').' ';
-        
+        $command = config('pdf.bin') . ' ';
+
         foreach ($this->options as $key => $value) {
-            $command .= '-- ' . strtolower($key) . ' '. $value . ' ';
+            $command .= '--' . strtolower($key) . ' ' . $value . ' ';
         }
 
         if ($this->html) {
-            @unlink($folder.'temp_file.html');
-            file_put_contents($folder.'temp_file.html', $this->html);
-            chmod($folder.'temp_file.html', 0777);
-            
-            $command .= $folder . 'temp_file.html ' . $folder.$filename;
+            @unlink($folder . $filename . '.html');
+            file_put_contents($folder . $filename . '.html', $this->html);
+            chmod($folder . $filename . '.html', 0777);
+
+            $command .= $folder . $filename . '.html ' . $folder . $filename;
         } else {
-            $command .= $this->file . ' ' . $folder.$filename;
+            $command .= $this->file . ' ' . $folder . $filename;
         }
-                
-        shell_exec($command);
 
-        @unlink($folder.'temp_file.html');
+        //dd($command);
 
-        if (!file_exists($folder.$filename)) {
+        $res = exec($command);
+        //dump($res);
+
+        //@unlink($folder . $filename . '.html');
+
+        //dd(file_exists($folder . $filename), $folder . $filename, $command, $res);
+
+        if (!file_exists($folder . $filename)) {
+            //dd(file_exists($folder . $filename), $folder . $filename, $command, $res);
             throw new Exception("Error creating PDF file. Check binary configuration.");
         }
 
-        chmod($folder.$filename, 0777);
+        chmod($folder . $filename, 0777);
 
-        return $folder.$filename;
+        return $folder . $filename;
     }
 
     public static function loadView($template, $params)
@@ -81,7 +87,7 @@ Class PDF
         return $this;
     }
 
-    public function setPaper($paper, $orientation=null)
+    public function setPaper($paper, $orientation = 'portrait')
     {
         $this->setOption('page-size', $paper);
         if ($orientation) {
@@ -90,7 +96,8 @@ Class PDF
         return $this;
     }
 
-    public function setOption($option, $value) {
+    public function setOption($option, $value)
+    {
         $this->options[$option] = $value;
         return $this;
     }
@@ -104,12 +111,12 @@ Class PDF
     }
 
     public function output()
-	{
-		if ($this->html || $this->file) {
-			return file_get_contents($this->generate('temp.pdf', true));
-		}
+    {
+        if ($this->html || $this->file) {
+            return file_get_contents($this->generate('temp.pdf', true));
+        }
 
-		throw new InvalidArgumentException('PDF Generator requires a html or file in order to produce output.');
+        throw new InvalidArgumentException('PDF Generator requires a html or file in order to produce output.');
     }
 
     public function download($filename)
@@ -120,7 +127,7 @@ Class PDF
         $header['content-Transfer-Encoding'] = 'binary';
         $header['Accept-Ranges'] = 'bytes';
 
-        return response()->download($res, $filename.'.pdf', $headers);
+        return response()->download($res, $filename . '.pdf', $headers);
     }
 
     public function inline($filename)
@@ -135,12 +142,11 @@ Class PDF
     }
 
     public function save($filename, $overwrite = false)
-    {   
+    {
         if ($this->html || $this->file) {
             $this->generate($filename, $overwrite);
         }
 
         return $this;
     }
-
 }

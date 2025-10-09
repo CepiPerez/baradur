@@ -71,7 +71,7 @@ if (config('app.debug_info')) {
 }
 
 # Error handling
-error_reporting(E_ERROR + E_PARSE + E_CORE_ERROR + E_RECOVERABLE_ERROR
+error_reporting(E_ERROR + E_PARSE + E_CORE_ERROR /* + E_RECOVERABLE_ERROR */
     + E_USER_ERROR + E_COMPILE_ERROR /* + ~E_WARNING */);
 
 # Display errors only in debug mode
@@ -229,6 +229,64 @@ function baradur_load_all()
     }
 }
 
+$baradur_private_classes_loaded = array();
+
+function private_decode_load_class($class)
+{
+    //dd("LOADING", $class);
+    require_once($class);
+    return;
+
+    global $baradur_private_classes_loaded;
+
+    if (!in_array($class, $baradur_private_classes_loaded)) {
+        $text = shell_exec('/var/www/serviciomedico/storage/framework/xor_encoder_cli "' . $class . '"');
+        $baradur_private_classes_loaded[] = $class;
+        //dd($text, $class);
+        eval(base64_decode($text));
+    }
+}
+
+
+function private_class_require($class)
+{
+    $folder = _DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR;
+
+    /* $encoded_class = $class . '.enc';
+
+    if (file_exists($folder . $encoded_class)) {
+
+        private_decode_load_class($folder . $encoded_class);
+
+        if (file_exists($folder . 'baradurClosures_' . $encoded_class)) {
+            private_decode_load_class($folder . 'baradurClosures_' . $encoded_class);
+        }
+
+        if (file_exists($folder . 'baradurBuilderMacros_' . $encoded_class)) {
+            private_decode_load_class($folder . 'baradurBuilderMacros_' . $encoded_class);
+        }
+
+        if (file_exists($folder . 'baradurCollectionMacros_' . $encoded_class)) {
+            private_decode_load_class($folder . 'baradurCollectionMacros_' . $encoded_class);
+        }
+
+        return;
+    } */
+
+    require_once($folder . $class . '.php');
+
+    if (file_exists($folder . 'baradurClosures_' . $class . '.php')) {
+        require_once($folder . 'baradurClosures_' . $class . '.php');
+    }
+
+    if (file_exists($folder . 'baradurBuilderMacros_' . $class . '.php')) {
+        require_once($folder . 'baradurBuilderMacros_' . $class . '.php');
+    }
+
+    if (file_exists($folder . 'baradurCollectionMacros_' . $class . '.php')) {
+        require_once($folder . 'baradurCollectionMacros_' . $class . '.php');
+    }
+}
 
 # Autoload function
 function baradur_class_loader($class, $require = true)
@@ -249,38 +307,32 @@ function baradur_class_loader($class, $require = true)
         $newclass = $class;
     }
 
+    $folder = _DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR;
 
+    //dd("LOAD", $class);
+    /* // CHECK OBFUSCATED EXISTS
+    if (file_exists($folder . $class . '.enc')) {
+        private_class_require($class);
+    }
 
+    // NOT OBFUSCATED
+    else */
     if (
-        file_exists(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . '' . $class . '.php')
+        file_exists($folder . $class . '.php')
         && $newclass && strpos($newclass, '' . DIRECTORY_SEPARATOR . 'vendor') === false
     ) {
         $date = filemtime($newclass);
-        $cachedate = filemtime(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . '' . $class . '.php');
+        $cachedate = filemtime($folder . $class . '.php');
         #echo($class.":::".$date ."::".$cachedate."<br>");
 
         if ($date < $cachedate) {
             if (!$require)
                 return;
 
-            #echo "Requiring class: $class <br>";
-            require_once(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . '' . $class . '.php');
-
-            if (file_exists(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'baradurClosures_' . $class . '.php')) {
-                require_once(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'baradurClosures_' . $class . '.php');
-            }
-
-            if (file_exists(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'baradurBuilderMacros_' . $class . '.php')) {
-                require_once(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'baradurBuilderMacros_' . $class . '.php');
-            }
-
-            if (file_exists(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'baradurCollectionMacros_' . $class . '.php')) {
-                require_once(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'baradurCollectionMacros_' . $class . '.php');
-            }
-
+            private_class_require($class);
             return;
         } else {
-            @unlink(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . '' . $class . '.php');
+            @unlink($folder . $class . '.php');
         }
     }
 
@@ -304,24 +356,13 @@ function baradur_class_loader($class, $require = true)
 
             #echo "Saving class $class<br>";
 
-            Cache::store('file')->plainPut(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . '' . $class . '.php', $temp);
+            //dd($class, $temp);
+            //Cache::store('file')->plainPut(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . '' . $class . '.php', $temp);
+            CoreLoader::compileClass(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . '' . $class . '.php', $temp);
             $temp = null;
 
             if ($require) {
-                require_once(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . '' . $class . '.php');
-
-                if (file_exists(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'baradurClosures_' . $class . '.php')) {
-                    require_once(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'baradurClosures_' . $class . '.php');
-                }
-
-                if (file_exists(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'baradurBuilderMacros_' . $class . '.php')) {
-                    require_once(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'baradurBuilderMacros_' . $class . '.php');
-                }
-
-                if (file_exists(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'baradurCollectionMacros_' . $class . '.php')) {
-                    require_once(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'baradurCollectionMacros_' . $class . '.php');
-                }
-
+                private_class_require($class);
                 return;
             }
         } elseif ($require) {
@@ -425,6 +466,8 @@ if (config('app.debug')) {
 
 function loadClassesInCache($list)
 {
+    //checkObfuscationConfig($list);
+
     if (file_exists(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'loaded')) {
         return;
     }
@@ -437,4 +480,101 @@ function loadClassesInCache($list)
     }
 
     Cache::store('file')->plainPut(_DIR_ . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'loaded', '');
+}
+
+function checkObfuscationConfig($list)
+{
+    if (!config('app.obfuscation')) {
+        return;
+    }
+
+    $app_list = array();
+
+    foreach ($list as $key => $val) {
+        if (substr($val, 0, 4) == 'app' . DIRECTORY_SEPARATOR) {
+            $app_list[$key] = $val;
+        }
+    }
+
+    if (count($app_list) == 0) {
+        return;
+    }
+
+    $lc = 'a';
+    $classes = array();
+    $functions = array();
+
+    // First we need all classes names
+    foreach (array_keys($app_list) as $class) {
+        $classes[$class] = $lc;
+        $lc++;
+    }
+
+    $dest_folder = str_replace(
+        DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'baradur',
+        '',
+        dirname(__FILE__)
+    ) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR;
+
+
+    $lc = 'a';
+    foreach (array_values($app_list) as $file) {
+        $content = file_get_contents($dest_folder . basename($file));
+
+        preg_match_all('/(public|protected|private)[\s]function[\s]*[\S](.*?)\)(:?.*use[\s]*\(([^\)]*)\))?/x', $content, $matches);
+
+        if (count($matches) > 0) {
+            foreach ($matches[0] as $functionname) {
+                $function1 = explode('function', $functionname);
+                $function2 = explode('(', $function1[1]);
+                $name = trim($function2[0]);
+
+                if (!in_array($name, $functions)) {
+                    $functions[$name] = $lc;
+                    $lc++;
+                }
+            }
+        }
+    }
+
+    $count = 0;
+    $lc = 'aaaaa';
+    foreach (array_values($app_list) as $file) {
+        $content = file_get_contents($dest_folder . basename($file));
+
+        $variables = array();
+
+        preg_match_all('/(\$\w*[-\w]*[^->$|)| |,])/x', $content, $matches);
+
+        if (count($matches[0]) > 0) {
+            foreach ($matches[0] as $m) {
+                $variables[$m] = $lc;
+                $lc++;
+            }
+        }
+
+        foreach ($variables as $var => $val) {
+            $content = preg_replace('/(\\' . $var . ')([^\w])/x', '\$' . $val . '$2', $content);
+        }
+
+        dd($content, $variables);
+
+        foreach ($classes as $class => $val) {
+            dump($class, $val);
+            $content = preg_replace('/([\^|\s])(' . $class . ')([:|(\s|;])/x', '$1' . $val . '$3', $content);
+
+            //preg_match_all('/[\^|\s](' . $class . ')([:|(\s|;])/x', $content, $matches);
+
+            dd($content);
+        }
+
+        $count++;
+        if ($count > 2) break;
+    }
+
+    dd("FIN");
+
+    dd($classes, $functions);
+
+    dd("END");
 }

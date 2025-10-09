@@ -719,6 +719,27 @@ class Builder
         return $this;
     }
 
+    /**
+     * Add a where clause on the primary key to the query.
+     *
+     * @param  mixed  $id
+     * @return $this
+     */
+    public function whereKeyNot($id)
+    {
+        if ($id instanceof Model) {
+            $id = $id->getKey();
+        }
+
+        $id = is_array($id) ? $id : array($id);
+
+        for ($i = 0; $i < count($id); $i++) {
+            $this->where($this->_primary[$i], '!=', $id[$i]);
+        }
+
+        return $this;
+    }
+
 
 
     /**
@@ -2992,11 +3013,11 @@ class Builder
 
             $this->_model->checkObserver('created', $item);
             $this->_fillableOff = $prev;
-            return $item;
+            return $item ? $item : true;
         }
 
         $this->_fillableOff = $prev;
-        return null;
+        return true;
     }
 
     /**
@@ -3510,11 +3531,11 @@ class Builder
             $this->where($primary, $record[$primary]);
         }
 
-        $deleted_name = $this->_model->_getDeleteColumnName();
+        $deleted_name = $this->_model->getDeletedAtColumn();
 
         $sql = 'UPDATE `' . $this->table . '` SET `' . $deleted_name . '` = ' . "'$date'" . ' ' . $this->_where;
 
-        $query = $this->connector()->execSQL($sql, array());
+        $query = $this->connector()->execSQL($sql, $this->_bindings['where']);
 
         $this->clear();
 
@@ -3568,11 +3589,54 @@ class Builder
 
         $sql = 'DELETE FROM `' . $this->table . '` ' . $this->_where;
 
-        $query = $this->connector()->execSQL($sql, array()); //, $this->_bindings);
+        $query = $this->connector()->execSQL($sql, $this->_bindings['where']);
 
         $this->clear();
 
         return $query;
+    }
+
+
+    /**
+     * Force a hard destroy on a soft deleted model.
+     *
+     * This method protects developers from running forceDestroy when the trait is missing.
+     *
+     * @param Collection|array|int|string  $ids
+     * @return bool|null
+     */
+    public function forceDestroy($ids)
+    {
+
+        if (!$this->_softDelete) {
+            throw new BadMethodCallException('Trying to use softDelete method on a non-softDelete Model');
+        }
+
+        if ($ids instanceof Collection) {
+            $ids = $ids->modelKeys();
+        }
+
+        $ids = is_array($ids) ? $ids : func_get_args();
+
+        if (count($ids) === 0) {
+            return 0;
+        }
+
+        // We will actually pull the models from the database table and call delete on
+        // each of them individually so that their events get fired properly with a
+        // correct set of attributes in case the developers wants to check these.
+        $key = $this->_model->getKeyName();
+
+        $count = 0;
+
+        foreach ($this->withTrashed()->whereIn($key, $ids)->get() as $model) {
+            if ($model->forceDelete()) {
+                $count++;
+            }
+        }
+
+        return $count;
+        //return $this->destroy($ids);
     }
 
 
@@ -3771,15 +3835,37 @@ class Builder
 
      * @return Model|Collection
      */
-    public function find($id, $columns = null)
+    public function find($id, $columns = array('*'))
     {
-        if (is_array($id)) {
+        /* if (is_array($id)) {
             $this->whereIn($this->_primary[0], $id);
         } else {
             $this->where($this->_primary[0], $id);
         }
 
-        return is_array($id) ? $this->get($columns) : $this->first($columns);
+        return is_array($id) ? $this->get($columns) : $this->first($columns); */
+
+        if (is_array($id)) {
+            return $this->findMany($id, $columns);
+        }
+
+        return $this->whereKey($id)->first($columns);
+    }
+
+    /**
+     * Find multiple models by their primary keys.
+     *
+     * @param  array  $ids
+     * @param  array|string  $columns
+     * @return Collection
+     */
+    public function findMany($ids, $columns = array('*'))
+    {
+        if (empty($ids)) {
+            return new Collection();
+        }
+
+        return $this->whereKey($ids)->get($columns);
     }
 
     /**
@@ -3914,7 +4000,7 @@ class Builder
      * 
      * @return Model
      */
-    public function first($columns = null)
+    public function first($columns = array('*'))
     {
         return $this->take(1)->get($columns)->first();
     }
@@ -3924,15 +4010,19 @@ class Builder
      * 
      * @return Collection
      */
-    public function get($columns = null)
+    public function get($columns = array('*'))
     {
+        if ($columns === null) {
+            $columns = array('*');
+        }
+
         if ($this->_softDelete && !$this->_withTrashed) {
             $this->whereNull('deleted_at');
         }
 
         $this->applyGlobalScopes();
 
-        if ($columns) {
+        if ($columns != array('*')) {
             $this->select($columns);
         }
 
@@ -4392,6 +4482,7 @@ class Builder
 
     private function _has($relation, $constraints = null, $comparator = null, $value = null, $boolean = 'AND')
     {
+        //dump(func_get_args());
         $data = null;
 
         if (strpos($relation, '.') > 0) {
@@ -4413,7 +4504,6 @@ class Builder
         $filter = '';
 
         if (isset($constraints) && is_closure($constraints)) {
-
             $this->getCallback($constraints, $data);
 
             if ($data->_bindings['where']) {
@@ -4424,11 +4514,23 @@ class Builder
                 $this->_bindings['where'] = array_merge($this->_bindings['where'], $data->_bindings['where']);
             }
 
-            $filter = ' AND (' . ltrim($data->_where, 'WHERE') . ')';
+            $filter = ' AND (' . trim(ltrim($data->_where, 'WHERE')) . ')';
+        } elseif (isset($constraints) && is_array($constraints)) {
+            $col = $constraints[0];
+            $cond = $constraints[1];
+            $val = $constraints[2];
+            if ($val === null) {
+                $val = $cond;
+                $cond = '=';
+            }
+
+            $filter = " AND (`$data->table`.`$col` $cond ?)";
+
+            if ($value) {
+                $this->_bindings['where'][] = $val;
+            }
         } elseif (isset($constraints) && !is_array($constraints)) {
-
             $filter = " AND `$data->table`.`$constraints` $comparator ?";
-
             $comparator = null;
 
             if ($value) {
@@ -4522,6 +4624,26 @@ class Builder
     public function orWhereRelation($relation, $column, $comparator = null, $value = null)
     {
         return $this->_has($relation, $column, $comparator, $value, 'OR');
+    }
+
+    /**
+     * Add a basic count / exists condition to a relationship query.
+     *
+     * @return Builder
+     */
+    public function whereDoesntHaveRelation($relation, $column, $operator = null, $value = null)
+    {
+        return $this->_has($relation, array($column, $operator, $value), '<', 1, 'AND');
+    }
+
+    /**
+     * Add an "or where" clause to a relationship query.
+     *
+     * @return Builder
+     */
+    public function orWhereDoesntHaveRelation($relation, $column, $operator = null, $value = null)
+    {
+        return $this->_has($relation, array($column, $operator, $value), '<', 1, 'OR');
     }
 
     /**
@@ -4970,6 +5092,10 @@ class Builder
                 $subquery .= str_replace('WHERE', ' AND', $new_where);
             }
 
+            if ($data->_softDelete && !$data->_withTrashed) {
+                $subquery .= ' AND deleted_at IS NULL';
+            }
+
             $subquery .= ") AS `" . $column_name . "`";
 
             $this->_method .= ', ' . $subquery;
@@ -5170,7 +5296,13 @@ class Builder
     public function aggregate($function, $column = '*')
     {
         $query = $this->_clone();
+
+        if ($this->_softDelete && !$this->_withTrashed) {
+            $query->whereNull('deleted_at');
+        }
+
         $query->_method = "SELECT $function($column) as aggregate";
+
         $sql = $query->buildQuery();
 
         return $query->connector()->execSQL($sql, $query, true)->first()->aggregate;
@@ -5452,6 +5584,245 @@ class Builder
         } while ($countResults == $count);
 
         return true;
+    }
+
+
+    /**
+     * Add a where clause to determine if a "date" column is in the past to the query.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function wherePast($columns)
+    {
+        return $this->wherePastOrFuture($columns, '<', 'AND');
+    }
+
+    /**
+     * Add a where clause to determine if a "date" column is in the past or now to the query.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function whereNowOrPast($columns)
+    {
+        return $this->wherePastOrFuture($columns, '<=', 'AND');
+    }
+
+    /**
+     * Add an "or where" clause to determine if a "date" column is in the past to the query.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function orWherePast($columns)
+    {
+        return $this->wherePastOrFuture($columns, '<', 'OR');
+    }
+
+    /**
+     * Add a where clause to determine if a "date" column is in the past or now to the query.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function orWhereNowOrPast($columns)
+    {
+        return $this->wherePastOrFuture($columns, '<=', 'OR');
+    }
+
+    /**
+     * Add a where clause to determine if a "date" column is in the future to the query.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function whereFuture($columns)
+    {
+        return $this->wherePastOrFuture($columns, '>', 'AND');
+    }
+
+    /**
+     * Add a where clause to determine if a "date" column is in the future or now to the query.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function whereNowOrFuture($columns)
+    {
+        return $this->wherePastOrFuture($columns, '>=', 'AND');
+    }
+
+    /**
+     * Add an "or where" clause to determine if a "date" column is in the future to the query.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function orWhereFuture($columns)
+    {
+        return $this->wherePastOrFuture($columns, '>', 'OR');
+    }
+
+    /**
+     * Add an "or where" clause to determine if a "date" column is in the future or now to the query.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function orWhereNowOrFuture($columns)
+    {
+        return $this->wherePastOrFuture($columns, '>=', 'OR');
+    }
+
+    /**
+     * Add an "where" clause to determine if a "date" column is in the past or future.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    protected function wherePastOrFuture($columns, $operator, $boolean)
+    {
+        $value = Carbon::now();
+
+        foreach (Arr::wrap($columns) as $column) {
+            $this->where($column, $operator, $value, $boolean);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Add a "where date" clause to determine if a "date" column is today to the query.
+     *
+     * @param  array|string  $columns
+     * @param  string  $boolean
+     * @return $this
+     */
+    public function whereToday($columns, $boolean = 'AND')
+    {
+        return $this->whereTodayBeforeOrAfter($columns, '=', $boolean);
+    }
+
+    /**
+     * Add a "where date" clause to determine if a "date" column is before today.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function whereBeforeToday($columns)
+    {
+        return $this->whereTodayBeforeOrAfter($columns, '<', 'AND');
+    }
+
+    /**
+     * Add a "where date" clause to determine if a "date" column is today or before to the query.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function whereTodayOrBefore($columns)
+    {
+        return $this->whereTodayBeforeOrAfter($columns, '<=', 'AND');
+    }
+
+    /**
+     * Add a "where date" clause to determine if a "date" column is after today.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function whereAfterToday($columns)
+    {
+        return $this->whereTodayBeforeOrAfter($columns, '>', 'AND');
+    }
+
+    /**
+     * Add a "where date" clause to determine if a "date" column is today or after to the query.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function whereTodayOrAfter($columns)
+    {
+        return $this->whereTodayBeforeOrAfter($columns, '>=', 'AND');
+    }
+
+    /**
+     * Add an "or where date" clause to determine if a "date" column is today to the query.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function orWhereToday($columns)
+    {
+        return $this->whereToday($columns, 'OR');
+    }
+
+    /**
+     * Add an "or where date" clause to determine if a "date" column is before today.
+     *
+     * @param  array|string  $columns
+     * @return $this
+     */
+    public function orWhereBeforeToday($columns)
+    {
+        return $this->whereTodayBeforeOrAfter($columns, '<', 'OR');
+    }
+
+    /**
+     * Add an "or where date" clause to determine if a "date" column is today or before to the query.
+     *
+     * @param  array|string  $columns
+     * @param  string  $boolean
+     * @return $this
+     */
+    public function orWhereTodayOrBefore($columns)
+    {
+        return $this->whereTodayBeforeOrAfter($columns, '<=', 'OR');
+    }
+
+    /**
+     * Add an "or where date" clause to determine if a "date" column is after today.
+     *
+     * @param  array|string  $columns
+     * @param  string  $boolean
+     * @return $this
+     */
+    public function orWhereAfterToday($columns)
+    {
+        return $this->whereTodayBeforeOrAfter($columns, '>', 'OR');
+    }
+
+    /**
+     * Add an "or where date" clause to determine if a "date" column is today or after to the query.
+     *
+     * @param  array|string  $columns
+     * @param  string  $boolean
+     * @return $this
+     */
+    public function orWhereTodayOrAfter($columns)
+    {
+        return $this->whereTodayBeforeOrAfter($columns, '>=', 'OR');
+    }
+
+    /**
+     * Add a "where date" clause to determine if a "date" column is today or after to the query.
+     *
+     * @param  array|string  $columns
+     * @param  string  $operator
+     * @param  string  $boolean
+     * @return $this
+     */
+    protected function whereTodayBeforeOrAfter($columns, $operator, $boolean)
+    {
+        $value = Carbon::today()->format('Y-m-d');
+
+        foreach (Arr::wrap($columns) as $column) {
+            $this->where($column, $operator, $value, $boolean);
+        }
+
+        return $this;
     }
 
     /**

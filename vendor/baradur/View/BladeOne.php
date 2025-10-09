@@ -62,6 +62,8 @@ class BladeOne
     protected $slotStack = array();
     protected $slotOnce = array();
 
+    protected $renderedOnce = array();
+
     protected $firstCaseInSwitch = true;
 
     protected $fragments = array();
@@ -78,7 +80,6 @@ class BladeOne
 
     public function runChild($view, $variables = array())
     {
-
         $newVariables = array_merge($variables, $this->variables);
         return $this->runInternal($view, $newVariables, $this->isForced, false, $this->isRunFast);
     }
@@ -125,6 +126,16 @@ class BladeOne
     }
 
 
+    public function hasRenderedOnce($id)
+    {
+        return isset($this->renderedOnce[$id]);
+    }
+
+    public function markAsRenderedOnce($id)
+    {
+        $this->renderedOnce[$id] = true;
+    }
+
     public function compile($fileName = null, $forced = false)
     {
         if ($fileName) {
@@ -133,6 +144,8 @@ class BladeOne
         $compiled = $this->getCompiledFile();
         $template = $this->getTemplateFile();
         $template = str_replace('//', '/', $template);
+
+        //dump($this->getCompiledFile(), $this->getTemplateFile());
 
         if ($this->isExpired() || $forced) //|| substr($fileName, 0, 11)=='components/')
         {
@@ -763,8 +776,6 @@ class BladeOne
     }
 
 
-
-
     public function startComponent($name, $data = array())
     {
         if (\ob_start()) {
@@ -1159,6 +1170,25 @@ class BladeOne
         return '<?php $this->stopPush(); endif; ?>';
     }
 
+    protected function compilePushOnce($expression)
+    {
+        $parts = explode(',', $this->stripParentheses($expression), 2);
+
+        $stack = $parts[0];
+        $id = count($parts) > 1 ? $parts[1] : '';
+        $id = trim($id);
+
+        $id = $id != '' ? $id :  "'" . (string) Str::uuid() . "'";
+
+        return '<?php if (! $this->hasRenderedOnce(' . $id . ')): $this->markAsRenderedOnce(' . $id . '); 
+            $this->startPush(' . $stack . '); ?>';
+    }
+
+    protected function compileEndpushOnce()
+    {
+        return '<?php $this->stopPush(); endif; ?>';
+    }
+
     protected function compilePrepend($expression)
     {
         return $this->phpTag . "\$this->startPrepend{$expression}; ?>";
@@ -1169,14 +1199,16 @@ class BladeOne
         return $this->phpTag . '$this->stopPrepend(); ?>';
     }
 
-    protected function compileOnce()
+    protected function compileOnce($id = null)
     {
-        return $this->phpTag . '$this->startPushOnce(); ?>';
+        $id = $id ? $this->stripParentheses($id) : "'" . (string) Str::uuid() . "'";
+
+        return '<?php if (! $this->hasRenderedOnce(' . $id . ')): $this->markAsRenderedOnce(' . $id . '); ?>';
     }
 
     protected function compileEndonce()
     {
-        return $this->phpTag . '$this->stopPushOnce(); ?>';
+        return '<?php endif; ?>';
     }
 
     protected function compileSession($expression)
@@ -1707,6 +1739,7 @@ class BladeOne
     {
         $compiled = $this->getCompiledFile();
         $template = $this->getTemplateFile();
+        //dump("EXP", $this->getCompiledFile(), $this->getTemplateFile(), ! $this->compiledPath, ! file_exists($compiled));
 
         // If the compiled file doesn't exist we will indicate that the view is expired
         // so that it can be re-compiled. Else, we will verify the last modification
@@ -1719,8 +1752,6 @@ class BladeOne
 
     public function getFile($fileName)
     {
-        //dd($fileName, is_file($fileName));
-
         if (is_file($fileName)) {
             /* $res = file_get_contents($fileName);
             $res = preg_replace('/(@end[a-zA-Z0-9]+)/s', " $1 ", $res);
@@ -1728,6 +1759,7 @@ class BladeOne
             return $res; */
             return file_get_contents($fileName);
         }
+
         $this->showError('getFile', "File does not exist at path {$fileName}", true);
         return '';
     }

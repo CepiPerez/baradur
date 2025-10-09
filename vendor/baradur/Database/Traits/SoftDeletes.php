@@ -25,7 +25,7 @@ trait SoftDeletes
 
         return isset($this->_trashed);
     }
-    
+
     /**
      * Soft-deletes the current model from database
      * 
@@ -35,7 +35,7 @@ trait SoftDeletes
     {
         $this->checkObserver('deleting', $this);
 
-        if (count($this->original)==0) {
+        if (count($this->original) == 0) {
             throw new LogicException('Error! Trying to delete new Model');
         }
 
@@ -61,7 +61,7 @@ trait SoftDeletes
             throw new BadMethodCallException('Trying to use softDelete method on a non-softDelete Model');
         }
 
-        if (count($this->original)==0) {
+        if (count($this->original) == 0) {
             throw new LogicException('Error! Trying to delete new Model');
         }
 
@@ -87,7 +87,7 @@ trait SoftDeletes
             throw new BadMethodCallException('Trying to use softDelete method on a non-softDelete Model');
         }
 
-        if (count($this->original)==0) {
+        if (count($this->original) == 0) {
             throw new LogicException('Error! Trying to delete new Model');
         }
 
@@ -96,7 +96,7 @@ trait SoftDeletes
         if ($res) {
             $this->checkObserver('forceDeleted', $this);
         }
-        
+
         return $res;
     }
 
@@ -104,5 +104,4 @@ trait SoftDeletes
     {
         return $this->_DELETED_AT;
     }
-
 }

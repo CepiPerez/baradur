@@ -55,6 +55,11 @@ class StringableClass
         return Str::fromBase64($this->value, $strict);
     }
 
+    public function is($pattern, $ignoreCase = false)
+    {
+        return Str::is($pattern, $this->value, $ignoreCase);
+    }
+
     public function isUrl()
     {
         return Str::isUrl($this->value);
