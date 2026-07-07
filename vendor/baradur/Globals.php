@@ -257,3 +257,9 @@ if (!function_exists('trait_uses_recursive')) {
     }
 }
 
+if (!function_exists('mb_strpos')) {
+    function mb_strpos($haystack, $needle, $offset = 0)
+    {
+        return strpos($haystack, $needle, $offset);
+    }
+}
