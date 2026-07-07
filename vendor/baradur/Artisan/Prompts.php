@@ -16,7 +16,7 @@ define('KEY_TAB', "\t");
 define('KEY_SHIFT_TAB', "\e[Z");
 define('KEY_CTRL_C', "\x03");
 
-Class Prompts
+class Prompts
 {
     private static $inputValues = array();
 
@@ -31,7 +31,7 @@ Class Prompts
         if (self::$started) {
             self::$started = false;
             self::$initialMode = shell_exec("stty -g");
-            $screen_cols = (exec('tput cols')) -2;
+            $screen_cols = (exec('tput cols')) - 2;
             self::$cols = self::$cols > $screen_cols ? $screen_cols : self::$cols;
         } else {
             self::replaceCommandOutput(null);
@@ -55,7 +55,7 @@ Class Prompts
 
         if ($oldLines != 0) {
             $pos = $numNewLines - $oldLines;
-            for($i = 0; $i < $oldLines; $i++) {
+            for ($i = 0; $i < $oldLines; $i++) {
                 // Return to the beginning of the line
                 echo "\r";
                 // Erase to the end of the line
@@ -74,16 +74,16 @@ Class Prompts
                 //echo "\r\033[K\033[1A\r\033[K\r";
             }
         }
-        
+
         $oldLines = $numNewLines;
-        
+
         echo implode(PHP_EOL, $output);
         echo chr(27) . "[0G";
         echo chr(27) . "[" . $oldLines . "A";
 
         $legend = "";
         if ($pos < 0) {
-            for ($i=0; $i<abs($pos); $i++) {
+            for ($i = 0; $i < abs($pos); $i++) {
                 echo "\r";
                 echo "\033[K";
                 echo "\033[1A";
@@ -92,15 +92,15 @@ Class Prompts
                 $legend .= "!";
             }
         }
-        
-        echo /* $legend."::".$pos. */ implode(PHP_EOL, $output);//. ":::". $oldLines.":".$numNewLines;
+
+        echo /* $legend."::".$pos. */ implode(PHP_EOL, $output); //. ":::". $oldLines.":".$numNewLines;
 
         //  $numNewLines = $oldLines;
     }
 
-    private static function getScrollbar($values, $showed, $scroll, $active=true)
+    private static function getScrollbar($values, $showed, $scroll, $active = true)
     {
-        if (count($values)<=$scroll) {
+        if (count($values) <= $scroll) {
             return null;
         }
 
@@ -116,14 +116,13 @@ Class Prompts
 
         $res = array();
 
-        for ($i=0; $i<$scroll; $i++) {
-            if ($i==$position) {
-                for ($j=0; $j<$barHeight; $j++) {
+        for ($i = 0; $i < $scroll; $i++) {
+            if ($i == $position) {
+                for ($j = 0; $j < $barHeight; $j++) {
                     $res[] = $active ? "\033[38;5;6m ┃\033[38;5;240m" : "\033[38;5;248m ┃\033[38;5;240m";
-                    if ($j>1) $i++;
+                    if ($j > 1) $i++;
                 }
-            }
-            else $res[] = " │";
+            } else $res[] = " │";
         }
 
         return $res;
@@ -136,20 +135,25 @@ Class Prompts
 
     private static function restoreTty()
     {
-        shell_exec("stty ".self::$initialMode);
+        shell_exec("stty " . self::$initialMode);
 
         fprintf(STDOUT, "\033[?25h");
     }
 
-    private static function waitForInput()
+    private function privateCallbackWaitForInput($input)
+    {
+        // nada :D
+    }
+
+    private function waitForInput()
     {
         $input = '';
 
-        $read = [STDIN];
+        $read = array(STDIN);
         $write = null;
         $except = null;
-        
-        readline_callback_handler_install('', function() {});
+
+        readline_callback_handler_install('', array($this, 'privateCallbackWaitForInput'));
 
         do {
             $input .= fgetc(STDIN);
@@ -164,19 +168,29 @@ Class Prompts
     {
         switch ($type) {
             case 'info':
-                $color = " \033[32m"; break;
+                $color = " \033[32m";
+                break;
             case 'note':
-                $color = " \033[39m"; break;
+                $color = " \033[39m";
+                break;
             case 'warning':
-                $color = " \033[33m"; break;
+                $color = " \033[33m";
+                break;
             case 'error':
-                $color = " \033[31m"; break;
+                $color = " \033[31m";
+                break;
             case 'alert':
-                $color = " \033[41m"; $message = " ".$message." "; break;
+                $color = " \033[41m";
+                $message = " " . $message . " ";
+                break;
             case 'intro':
-                $color = " \033[7;49;36m"; $message = " ".$message." "; break;
+                $color = " \033[7;49;36m";
+                $message = " " . $message . " ";
+                break;
             case 'outro':
-                $color = " \033[7;49;36m"; $message = " ".$message." "; break;                
+                $color = " \033[7;49;36m";
+                $message = " " . $message . " ";
+                break;
         }
 
 
@@ -184,9 +198,9 @@ Class Prompts
 
         self::checkStart();
         //printf("\n  ");
-        printf(" ".$color."%s", $message."\033[m");
+        printf(" " . $color . "%s", $message . "\033[m");
         printf("\n\n");
-        
+
         self::restoreTty();
     }
 
@@ -199,7 +213,7 @@ Class Prompts
 
             self::checkStart();
             //printf("\n  ");
-            printf("  \033[".$color."m%s", " $type ");
+            printf("  \033[" . $color . "m%s", " $type ");
             printf("\033[m %s\n\n", $message);
 
             self::restoreTty();
@@ -212,31 +226,32 @@ Class Prompts
 
         self::$inputValues = array(
             'title' => $title,
-            'prompt' =>  $default, 
-            'placeholder' => $placeholder, 
+            'prompt' =>  $default,
+            'placeholder' => $placeholder,
             'password' => $password,
-            'required' => $required===true ? 'Required.' : $required,
+            'required' => $required === true ? 'Required.' : $required,
             'validate' => $validate,
             'hint' => $hint,
             'position' => 1
         );
 
         self::hideCursor();
-        
+
         self::drawInput();
 
-        $userline = $default=='' ? array() : str_split($default);
-        
-        while (true) {
-            $input = self::waitForInput();
+        $userline = $default == '' ? array() : str_split($default);
 
-            switch($input){
+        while (true) {
+            $iprompt = new Prompts();
+            $input = $iprompt->waitForInput();
+
+            switch ($input) {
                 case KEY_UP:
                     break;
                 case KEY_DOWN:
                     break;
                 case KEY_ENTER:
-                    if (count($userline)==0 && $required!==false) {
+                    if (count($userline) == 0 && $required !== false) {
                         self::drawInputRequired();
                     } elseif ($validate) {
                         list($class, $method) = getCallbackFromString($validate);
@@ -253,32 +268,32 @@ Class Prompts
                     }
                     break;
                 case KEY_BACKSPACE:
-                    if (count($userline)>0) {
-                        $pos = self::$inputValues['position']-2;
+                    if (count($userline) > 0) {
+                        $pos = self::$inputValues['position'] - 2;
                         $userline = array_merge(
                             array_slice($userline, 0, $pos > 0 ? $pos : 0),
-                            array_slice($userline, self::$inputValues['position']-1)
+                            array_slice($userline, self::$inputValues['position'] - 1)
                         );
                         self::$inputValues['prompt'] = join($userline);
-                        self::$inputValues['position'] = self::$inputValues['position']-1;
+                        self::$inputValues['position'] = self::$inputValues['position'] - 1;
                         self::drawInput();
                     }
                     break;
                 case KEY_LEFT:
-                    if (count($userline)>0 && self::$inputValues['position']>1) {
-                        self::$inputValues['position'] = self::$inputValues['position']-1;
+                    if (count($userline) > 0 && self::$inputValues['position'] > 1) {
+                        self::$inputValues['position'] = self::$inputValues['position'] - 1;
                         self::drawInput();
                     }
                     break;
                 case KEY_RIGHT:
-                    if (count($userline)>0 && self::$inputValues['position']<=count($userline)) {
-                        self::$inputValues['position'] = self::$inputValues['position']+1;
+                    if (count($userline) > 0 && self::$inputValues['position'] <= count($userline)) {
+                        self::$inputValues['position'] = self::$inputValues['position'] + 1;
                         self::drawInput();
                     }
                     break;
                 case KEY_DELETE:
-                    if (count($userline)>0 && self::$inputValues[3]<count($userline)+1) {
-                        $pos = self::$inputValues['position']-1;
+                    if (count($userline) > 0 && self::$inputValues[3] < count($userline) + 1) {
+                        $pos = self::$inputValues['position'] - 1;
                         $userline = array_merge(
                             array_slice($userline, 0, $pos > 0 ? $pos : 0),
                             array_slice($userline, self::$inputValues['position'])
@@ -290,7 +305,7 @@ Class Prompts
                 case KEY_TAB:
                 case KEY_SHIFT_TAB:
                     break;
-                case chr(27).chr(91).chr(50).chr(126):
+                case chr(27) . chr(91) . chr(50) . chr(126):
                 case chr(4):
                     // Insert key
                     break;
@@ -303,19 +318,19 @@ Class Prompts
                     if (count($userline) < (self::$cols - 7)) {
                         //$userline[] = $input;
                         $userline = array_merge(
-                            array_slice($userline, 0, self::$inputValues['position']-1),
+                            array_slice($userline, 0, self::$inputValues['position'] - 1),
                             array($input),
-                            array_slice($userline, self::$inputValues['position']-1)
+                            array_slice($userline, self::$inputValues['position'] - 1)
                         );
                         $val = '';
                         self::$inputValues['prompt'] = join($userline);
-                        self::$inputValues['position'] = self::$inputValues['position']+1;
+                        self::$inputValues['position'] = self::$inputValues['position'] + 1;
                         self::drawInput();
                     }
                     break;
             }
         }
-    
+
         self::restoreTty();
         printf("\n");
 
@@ -339,10 +354,10 @@ Class Prompts
 
 
         if ($default) {
-            $def = is_string($default)? array_search($default, array_keys($values)) : $default;
+            $def = is_string($default) ? array_search($default, array_keys($values)) : $default;
         }
-        
-        $scroll = count($values)>$scroll ? $scroll : count($values);
+
+        $scroll = count($values) > $scroll ? $scroll : count($values);
 
         $values = array_values($realvalues);
         $showed = array_slice($values, 0, $scroll);
@@ -358,8 +373,8 @@ Class Prompts
 
         self::$inputValues = array(
             'title' => $title,
-            'values' =>  $values, 
-            'showed' => $showed, 
+            'values' =>  $values,
+            'showed' => $showed,
             'selected' => $def,
             'scroll' => $scroll,
             'realvalues' => $realvalues,
@@ -372,9 +387,10 @@ Class Prompts
         self::hideCursor();
 
         while (true) {
-            $input = self::waitForInput();
+            $iprompt = new Prompts();
+            $input = $iprompt->waitForInput();
 
-            switch($input){
+            switch ($input) {
                 case KEY_ENTER:
                     if ($validate) {
                         list($class, $method) = getCallbackFromString($validate);
@@ -407,12 +423,11 @@ Class Prompts
                     break;
             }
         }
-    
+
         self::restoreTty();
-        
+
         $selected = array_keys($realvalues);
         return $selected[self::$inputValues['selected']];
-
     }
 
     public static function get_user_multichoice($title, $values, $default = array(), $scroll = 5, $required = false, $validate = null, $hint = '')
@@ -432,18 +447,18 @@ Class Prompts
 
         $values = array_values($values);
         $showed = array_slice($values, 0, $scroll);
-        $scroll = count($values)<$scroll ? count($values) : $scroll;
+        $scroll = count($values) < $scroll ? count($values) : $scroll;
 
         self::$inputValues = array(
             'title' => $title,
-            'values' =>  $values, 
-            'showed' => $showed, 
+            'values' =>  $values,
+            'showed' => $showed,
             'selected' => 0,
             'scroll' => $scroll,
             'multisel' => $multisel,
             'realvalues' => $realvalues,
             'hint' => $hint,
-            'required' => $required===true ? 'Required.' : $required,
+            'required' => $required === true ? 'Required.' : $required,
         );
 
         self::drawMultichoice();
@@ -451,11 +466,12 @@ Class Prompts
         self::hideCursor();
 
         while (true) {
-            $input = self::waitForInput();
+            $iprompt = new Prompts();
+            $input = $iprompt->waitForInput();
 
-            switch($input){
+            switch ($input) {
                 case KEY_ENTER:
-                    if ($required!==false && count(self::$inputValues['multisel'])==0) {
+                    if ($required !== false && count(self::$inputValues['multisel']) == 0) {
                         self::drawMultichoiceRequired();
                         break;
                     } elseif ($validate) {
@@ -491,19 +507,19 @@ Class Prompts
                     break;
             }
         }
-    
+
         self::restoreTty();
-        
+
         return self::$inputValues['multisel'];
     }
 
-    public static function get_user_confirm($title, $default=true, $yes='Yes', $no='No', $required=false, $hint = '')
+    public static function get_user_confirm($title, $default = true, $yes = 'Yes', $no = 'No', $required = false, $hint = '')
     {
         self::checkStart();
-        
+
         self::$inputValues = array(
             'title' => $title,
-            'selected' =>  $default? 0 : 1, 
+            'selected' =>  $default ? 0 : 1,
             'yes' => $yes,
             'no' => $no,
             'hint' => $hint,
@@ -515,11 +531,12 @@ Class Prompts
         self::hideCursor();
 
         $userline = array();
-        
-        while (true) {
-            $input = self::waitForInput();
 
-            switch($input) {
+        while (true) {
+            $iprompt = new Prompts();
+            $input = $iprompt->waitForInput();
+
+            switch ($input) {
                 case chr(116):
                 case chr(121):
                     self::$inputValues['selected'] = 0;
@@ -531,7 +548,7 @@ Class Prompts
                     self::drawConfirm();
                     break;
                 case KEY_ENTER:
-                    if (self::$inputValues['selected']==1 && $required!==false) {
+                    if (self::$inputValues['selected'] == 1 && $required !== false) {
                         self::drawConfirmRequired();
                         break;
                     } else {
@@ -553,11 +570,11 @@ Class Prompts
                     break;
             }
         }
-    
+
         self::restoreTty();
         printf("\n");
 
-        return self::$inputValues['selected']==0;
+        return self::$inputValues['selected'] == 0;
     }
 
     public static function get_user_suggest($title, $values, $placeholder = '', $default = '', $scroll = 5, $required = false, $validate = null, $hint = '')
@@ -574,8 +591,8 @@ Class Prompts
         } else {
             $realvalues = $values;
         }
-        
-        $scroll = count($values)>$scroll ? $scroll : count($values);
+
+        $scroll = count($values) > $scroll ? $scroll : count($values);
 
         $values = array_values($realvalues);
         $showed = array_slice($values, 0, $scroll);
@@ -589,21 +606,21 @@ Class Prompts
             }
         }
 
-        $userline = $default=='' ? array() : str_split($default);
+        $userline = $default == '' ? array() : str_split($default);
 
         self::$inputValues = array(
             'title' => $title,
             'placeholder' => $placeholder,
             'hint' => $hint,
-            'values' =>  $values, 
+            'values' =>  $values,
             'realvalues' => $realvalues,
             'prompt' => $default,
-            'showed' => $showed, 
+            'showed' => $showed,
             'selected' => -1,
             'scroll' => $scroll,
             'position' => 1,
             'showoptions' => false,
-            'required' => $required===true ? 'Required.' : $required,
+            'required' => $required === true ? 'Required.' : $required,
             'current' => null,
             'lastprompt' => '',
             'lastfilter' => $values
@@ -614,11 +631,12 @@ Class Prompts
         self::hideCursor();
 
         while (true) {
-            $input = self::waitForInput();
+            $iprompt = new Prompts();
+            $input = $iprompt->waitForInput();
 
-            switch($input){
+            switch ($input) {
                 case KEY_ENTER:
-                    if (!self::$inputValues['current'] &&  $required!==false) {
+                    if (!self::$inputValues['current'] &&  $required !== false) {
                         self::drawSuggestRequired();
                         break;
                     } elseif ($validate) {
@@ -648,15 +666,15 @@ Class Prompts
                     self::drawSuggestCancelled();
                     die();
                 case KEY_BACKSPACE:
-                    if (count($userline)>0) {
-                        $pos = self::$inputValues['position']-2;
+                    if (count($userline) > 0) {
+                        $pos = self::$inputValues['position'] - 2;
                         $userline = array_merge(
                             array_slice($userline, 0, $pos > 0 ? $pos : 0),
-                            array_slice($userline, self::$inputValues['position']-1)
+                            array_slice($userline, self::$inputValues['position'] - 1)
                         );
                         self::$inputValues['prompt'] = join($userline);
-                        self::$inputValues['position'] = self::$inputValues['position']-1;
-                        if (count($userline)==0) {
+                        self::$inputValues['position'] = self::$inputValues['position'] - 1;
+                        if (count($userline) == 0) {
                             self::$inputValues['selected'] = -1;
                             self::$inputValues['showoptions'] = false;
                         }
@@ -664,26 +682,26 @@ Class Prompts
                     }
                     break;
                 case KEY_LEFT:
-                    if (count($userline)>0 && self::$inputValues['position']>1) {
-                        self::$inputValues['position'] = self::$inputValues['position']-1;
+                    if (count($userline) > 0 && self::$inputValues['position'] > 1) {
+                        self::$inputValues['position'] = self::$inputValues['position'] - 1;
                         self::drawSuggest();
                     }
                     break;
                 case KEY_RIGHT:
-                    if (count($userline)>0 && self::$inputValues['position']<=count($userline)) {
-                        self::$inputValues['position'] = self::$inputValues['position']+1;
+                    if (count($userline) > 0 && self::$inputValues['position'] <= count($userline)) {
+                        self::$inputValues['position'] = self::$inputValues['position'] + 1;
                         self::drawSuggest();
                     }
                     break;
                 case KEY_DELETE:
-                    if (count($userline)>0 && self::$inputValues[3]<count($userline)+1) {
-                        $pos = self::$inputValues['position']-1;
+                    if (count($userline) > 0 && self::$inputValues[3] < count($userline) + 1) {
+                        $pos = self::$inputValues['position'] - 1;
                         $userline = array_merge(
                             array_slice($userline, 0, $pos > 0 ? $pos : 0),
                             array_slice($userline, self::$inputValues['position'])
                         );
                         self::$inputValues['prompt'] = join($userline);
-                        if (count($userline)==0) {
+                        if (count($userline) == 0) {
                             self::$inputValues['selected'] = -1;
                             self::$inputValues['showoptions'] = false;
                         }
@@ -694,25 +712,24 @@ Class Prompts
                     if (count($userline) < (self::$cols - 7)) {
                         //$userline[] = $input;
                         $userline = array_merge(
-                            array_slice($userline, 0, self::$inputValues['position']-1),
+                            array_slice($userline, 0, self::$inputValues['position'] - 1),
                             array($input),
-                            array_slice($userline, self::$inputValues['position']-1)
+                            array_slice($userline, self::$inputValues['position'] - 1)
                         );
                         $val = '';
                         self::$inputValues['prompt'] = join($userline);
-                        self::$inputValues['position'] = self::$inputValues['position']+1;
+                        self::$inputValues['position'] = self::$inputValues['position'] + 1;
                         self::drawSuggest();
                     }
                     break;
             }
         }
-    
+
         self::restoreTty();
-        
+
         printf("\n");
 
         return self::$inputValues['current'];
-
     }
 
     public static function get_user_search($title, $callback, $placeholder = '', $scroll = 5, $validate = null, $hint = '')
@@ -725,7 +742,7 @@ Class Prompts
             'title' => $title,
             'placeholder' => $placeholder,
             'hint' => $hint,
-            'callback' =>  $callback, 
+            'callback' =>  $callback,
             'required' => 'Required.',
             'prompt' => '',
             'selected' => -1,
@@ -744,9 +761,10 @@ Class Prompts
         self::hideCursor();
 
         while (true) {
-            $input = self::waitForInput();
+            $iprompt = new Prompts();
+            $input = $iprompt->waitForInput();
 
-            switch($input){
+            switch ($input) {
                 case KEY_ENTER:
                     if (!self::$inputValues['current']) {
                         self::drawSuggestRequired();
@@ -779,15 +797,15 @@ Class Prompts
                     self::drawSearchCancelled();
                     die();
                 case KEY_BACKSPACE:
-                    if (count($userline)>0) {
-                        $pos = self::$inputValues['position']-2;
+                    if (count($userline) > 0) {
+                        $pos = self::$inputValues['position'] - 2;
                         $userline = array_merge(
                             array_slice($userline, 0, $pos > 0 ? $pos : 0),
-                            array_slice($userline, self::$inputValues['position']-1)
+                            array_slice($userline, self::$inputValues['position'] - 1)
                         );
                         self::$inputValues['prompt'] = join($userline);
-                        self::$inputValues['position'] = self::$inputValues['position']-1;
-                        if (count($userline)==0) {
+                        self::$inputValues['position'] = self::$inputValues['position'] - 1;
+                        if (count($userline) == 0) {
                             self::$inputValues['selected'] = -1;
                             self::$inputValues['showoptions'] = false;
                         }
@@ -795,26 +813,26 @@ Class Prompts
                     }
                     break;
                 case KEY_LEFT:
-                    if (count($userline)>0 && self::$inputValues['position']>1) {
-                        self::$inputValues['position'] = self::$inputValues['position']-1;
+                    if (count($userline) > 0 && self::$inputValues['position'] > 1) {
+                        self::$inputValues['position'] = self::$inputValues['position'] - 1;
                         self::drawSearch();
                     }
                     break;
                 case KEY_RIGHT:
-                    if (count($userline)>0 && self::$inputValues['position']<=count($userline)) {
-                        self::$inputValues['position'] = self::$inputValues['position']+1;
+                    if (count($userline) > 0 && self::$inputValues['position'] <= count($userline)) {
+                        self::$inputValues['position'] = self::$inputValues['position'] + 1;
                         self::drawSearch();
                     }
                     break;
                 case KEY_DELETE:
-                    if (count($userline)>0 && self::$inputValues[3]<count($userline)+1) {
-                        $pos = self::$inputValues['position']-1;
+                    if (count($userline) > 0 && self::$inputValues[3] < count($userline) + 1) {
+                        $pos = self::$inputValues['position'] - 1;
                         $userline = array_merge(
                             array_slice($userline, 0, $pos > 0 ? $pos : 0),
                             array_slice($userline, self::$inputValues['position'])
                         );
                         self::$inputValues['prompt'] = join($userline);
-                        if (count($userline)==0) {
+                        if (count($userline) == 0) {
                             self::$inputValues['selected'] = -1;
                             self::$inputValues['showoptions'] = false;
                         }
@@ -825,25 +843,24 @@ Class Prompts
                     if (count($userline) < (self::$cols - 7)) {
                         //$userline[] = $input;
                         $userline = array_merge(
-                            array_slice($userline, 0, self::$inputValues['position']-1),
+                            array_slice($userline, 0, self::$inputValues['position'] - 1),
                             array($input),
-                            array_slice($userline, self::$inputValues['position']-1)
+                            array_slice($userline, self::$inputValues['position'] - 1)
                         );
                         $val = '';
                         self::$inputValues['prompt'] = join($userline);
-                        self::$inputValues['position'] = self::$inputValues['position']+1;
+                        self::$inputValues['position'] = self::$inputValues['position'] + 1;
                         self::drawSearch();
                     }
                     break;
             }
         }
-    
+
         self::restoreTty();
-        
+
         printf("\n");
 
         return self::$inputValues['current'];
-
     }
 
 
@@ -860,19 +877,19 @@ Class Prompts
 
         $text = array();
         foreach (str_split($prompt) as $char) {
-            if (ord($char)!=127) $text[] = $char;
+            if (ord($char) != 127) $text[] = $char;
         }
         $prompt = join($text);
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;240m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;240m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[38;5;240m │ \033[m";
 
-        if (strlen($prompt)==0) {
-            if (strlen($placeholder)>0) {
-                $input .= "\033[7;49;38m".$placeholder[0]."\033[m\033[38;5;248m".substr($placeholder, 1)."\033[m";
+        if (strlen($prompt) == 0) {
+            if (strlen($placeholder) > 0) {
+                $input .= "\033[7;49;38m" . $placeholder[0] . "\033[m\033[38;5;248m" . substr($placeholder, 1) . "\033[m";
                 $spaces = self::$cols - 6 - strlen($placeholder);
             } else {
                 $input .= "\033[7;49;39m \033[m";
@@ -880,11 +897,11 @@ Class Prompts
             }
         } else {
             $message = $password ? str_repeat('*', strlen($prompt)) : $prompt;
-            
+
             $i = 1;
             foreach (str_split($message) as $letter) {
-                if ($i==$position) {
-                    $input .= "\033[7;49;39m".$letter."\033[m";
+                if ($i == $position) {
+                    $input .= "\033[7;49;39m" . $letter . "\033[m";
                 } else {
                     $input .= $letter;
                 }
@@ -893,21 +910,21 @@ Class Prompts
 
             $spaces = self::$cols - 6 - strlen($prompt);
 
-            if ($position>strlen($prompt)) {
+            if ($position > strlen($prompt)) {
                 $input .= "\033[7;49;39m \033[m";
                 $spaces--;
             }
         }
 
-        $input .= "\033[38;5;240m ".str_repeat(' ', $spaces)." │ \033[m";
+        $input .= "\033[38;5;240m " . str_repeat(' ', $spaces) . " │ \033[m";
 
         $output[] = $input;
-        $output[] = "\033[38;5;240m"./* $position.":".strlen($prompt). */" └" . str_repeat('─', self::$cols-3) . "┘\033[m";
-        
+        $output[] = "\033[38;5;240m" ./* $position.":".strlen($prompt). */ " └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
+
         if (strlen($hint) > 0) {
             $output[] = "\033[38;5;240m  $hint\033[m";
         }
-        
+
         self::replaceCommandOutput($output);
     }
 
@@ -924,31 +941,30 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[31m ┌ \033[m" . $title . "\033[31m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[31m ┌ \033[m" . $title . "\033[31m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[31m │ \033[m";
 
-        if (strlen($prompt)==0) {
-            $input .= "\033[9;38;5;248m".$placeholder."\033[m";
+        if (strlen($prompt) == 0) {
+            $input .= "\033[9;38;5;248m" . $placeholder . "\033[m";
             $spaces = self::$cols - 6 - strlen($placeholder);
         } else {
-            $input .= "\033[9;38;5;248m".$prompt."\033[m";
+            $input .= "\033[9;38;5;248m" . $prompt . "\033[m";
             $spaces = self::$cols - 6 - strlen($prompt);
         }
-        $input .= "\033[31m ".str_repeat(' ', $spaces)." │ \033[m";
+        $input .= "\033[31m " . str_repeat(' ', $spaces) . " │ \033[m";
 
         $output[] = $input;
 
-        $output[] = "\033[31m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[31m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "\033[31m  ⚠ Cancelled.\033[m";
 
         self::replaceCommandOutput($output);
 
         printf("\n\n");
-        
-        self::restoreTty();
 
+        self::restoreTty();
     }
 
     private static function drawInputFinished()
@@ -961,24 +977,23 @@ Class Prompts
 
         $text = array();
         foreach (str_split($prompt) as $char) {
-            if (ord($char)!=127) $text[] = $char;
+            if (ord($char) != 127) $text[] = $char;
         }
         $prompt = join($text);
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;240m ┌ \033[m\033[38;5;248m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;240m ┌ \033[m\033[38;5;248m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[38;5;240m │ \033[m" . ($password ? str_repeat('*', strlen($prompt)) : $prompt);
         $spaces = self::$cols - 6 - strlen($prompt);
-        $input .= "\033[38;5;240m ".str_repeat(' ', $spaces)." │ \033[m";
+        $input .= "\033[38;5;240m " . str_repeat(' ', $spaces) . " │ \033[m";
         $output[] = $input;
 
-        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "";
 
         self::replaceCommandOutput($output);
-
     }
 
     private static function drawInputRequired($text = null)
@@ -993,25 +1008,25 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;172m ┌ \033[m" . $title . "\033[38;5;172m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;172m ┌ \033[m" . $title . "\033[38;5;172m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[38;5;172m │ \033[m";
 
-        if (strlen($prompt)==0) {
-            if (strlen($placeholder)>0) {
-                $input .= "\033[7;49;38m".$placeholder[0]."\033[m\033[38;5;248m".substr($placeholder, 1)."\033[m";
+        if (strlen($prompt) == 0) {
+            if (strlen($placeholder) > 0) {
+                $input .= "\033[7;49;38m" . $placeholder[0] . "\033[m\033[38;5;248m" . substr($placeholder, 1) . "\033[m";
                 $spaces = self::$cols - 6 - strlen($placeholder);
             } else {
                 $spaces = self::$cols - 6;
             }
         } else {
             $message = $password ? str_repeat('*', strlen($prompt)) : $prompt;
-            
+
             $i = 1;
             foreach (str_split($message) as $letter) {
-                if ($i==$position) {
-                    $input .= "\033[7;49;39m".$letter."\033[m";
+                if ($i == $position) {
+                    $input .= "\033[7;49;39m" . $letter . "\033[m";
                 } else {
                     $input .= $letter;
                 }
@@ -1020,22 +1035,22 @@ Class Prompts
 
             $spaces = self::$cols - 6 - strlen($prompt);
 
-            if ($position>strlen($prompt)) {
+            if ($position > strlen($prompt)) {
                 $input .= "\033[7;49;39m \033[m";
                 $spaces--;
             }
         }
 
-        $input .= "\033[38;5;172m ".str_repeat(' ', $spaces)." │ \033[m";
+        $input .= "\033[38;5;172m " . str_repeat(' ', $spaces) . " │ \033[m";
         $output[] = $input;
 
-        $output[] = "\033[38;5;172m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[38;5;172m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "\033[38;5;172m  ⚠ $required\033[m";
 
         self::replaceCommandOutput($output);
     }
 
-    private static function drawChoice($action=null)
+    private static function drawChoice($action = null)
     {
         $title = self::$inputValues['title'];
         $values = self::$inputValues['values'];
@@ -1044,18 +1059,18 @@ Class Prompts
         $scroll = self::$inputValues['scroll'];
         $hint = self::$inputValues['hint'];
 
-        if ($action=='UP') {
+        if ($action == 'UP') {
             $selected--;
-        } elseif ($action=='DOWN') {
+        } elseif ($action == 'DOWN') {
             $selected++;
         }
-        
-        if ($selected < 0) $selected = count($values) -1;
-        if ($selected > (count($values) -1)) $selected = 0;
 
-        if ($action=='UP') {
-            if ($selected == count($values)-1) {
-                $showed = array_slice($values, $selected-($scroll-1), $scroll);
+        if ($selected < 0) $selected = count($values) - 1;
+        if ($selected > (count($values) - 1)) $selected = 0;
+
+        if ($action == 'UP') {
+            if ($selected == count($values) - 1) {
+                $showed = array_slice($values, $selected - ($scroll - 1), $scroll);
             }
             if (!in_array($values[$selected], $showed)) {
                 array_pop($showed);
@@ -1063,7 +1078,7 @@ Class Prompts
             }
         }
 
-        if ($action=='DOWN') {
+        if ($action == 'DOWN') {
             if ($selected == 0) {
                 $showed = array_slice($values, 0, $scroll);
             }
@@ -1085,37 +1100,38 @@ Class Prompts
         $bar = self::getScrollbar($values, $showed, $scroll);
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;240m ┌ \033[m\033[38;5;6m" . $title /* .":".$bar  */. "\033[m\033[38;5;240m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;240m ┌ \033[m\033[38;5;6m" . $title /* .":".$bar  */ . "\033[m\033[38;5;240m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
-        $count = 0; $real = 0;
+        $count = 0;
+        $real = 0;
         foreach ($values as $option) {
             if (in_array($option, $showed)) {
                 $input = "\033[38;5;240m │ \033[m";
-                if ($real==$selected) {
-                    $input .= "\033[38;5;6m› ●  \033[m".$option."";
+                if ($real == $selected) {
+                    $input .= "\033[38;5;6m› ●  \033[m" . $option . "";
                 } else {
-                    $input .= "\033[38;5;248m  ○  ".$option."\033[m";
+                    $input .= "\033[38;5;248m  ○  " . $option . "\033[m";
                 }
-                $spaces = self::$cols - 11 - strlen($option) - ($bar? 2 : 0);
-                $input .= "\033[38;5;240m ".str_repeat(' ', $spaces);
+                $spaces = self::$cols - 11 - strlen($option) - ($bar ? 2 : 0);
+                $input .= "\033[38;5;240m " . str_repeat(' ', $spaces);
                 if ($bar) {
                     $input .= $bar[$count];
                 }
-                $input .= " │ \033[m";    
-                $output[] = $input;                
+                $input .= " │ \033[m";
+                $output[] = $input;
                 $count++;
             }
             $real++;
-            if ($count==$scroll) break;
+            if ($count == $scroll) break;
         }
 
-        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
-        
+        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
+
         if (strlen($hint) > 0) {
             $output[] = "\033[38;5;240m  $hint\033[m";
         }
-        
+
         self::replaceCommandOutput($output);
     }
 
@@ -1132,34 +1148,35 @@ Class Prompts
         $bar = self::getScrollbar($values, $showed, $scroll, false);
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;172m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;172m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;172m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;172m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
-        $count = 0; $real = 0;
+        $count = 0;
+        $real = 0;
         foreach ($values as $option) {
             if (in_array($option, $showed)) {
                 $input = "\033[38;5;172m │ \033[m";
-                if ($real==$selected) {
-                    $input .= "\033[38;5;6m› ●  \033[m".$option."";
+                if ($real == $selected) {
+                    $input .= "\033[38;5;6m› ●  \033[m" . $option . "";
                 } else {
-                    $input .= "\033[38;5;248m  ○  ".$option."\033[m";
+                    $input .= "\033[38;5;248m  ○  " . $option . "\033[m";
                 }
-                $spaces = self::$cols - 11 - strlen($option) - ($bar? 2 : 0);
-                $input .= "\033[38;5;240m ".str_repeat(' ', $spaces);
+                $spaces = self::$cols - 11 - strlen($option) - ($bar ? 2 : 0);
+                $input .= "\033[38;5;240m " . str_repeat(' ', $spaces);
                 if ($bar) {
                     $input .= $bar[$count];
                 }
-                $input .= "\033[38;5;172m │ \033[m";    
-                $output[] = $input;                
+                $input .= "\033[38;5;172m │ \033[m";
+                $output[] = $input;
                 $count++;
             }
             $real++;
-            if ($count==$scroll) break;
+            if ($count == $scroll) break;
         }
 
-        $output[] = "\033[38;5;172m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[38;5;172m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "\033[38;5;172m  ⚠ $required\033[m";
-        
+
         self::replaceCommandOutput($output);
     }
 
@@ -1174,38 +1191,39 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[31m ┌ \033[m" . $title . "\033[31m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[31m ┌ \033[m" . $title . "\033[31m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
-    
+
         $bar = self::getScrollbar($values, $showed, $scroll, false);
 
-        $count = 0; $real = 0;
+        $count = 0;
+        $real = 0;
         foreach ($showed as $option) {
             if (in_array($option, $showed)) {
                 $input = "\033[31m │ \033[m";
-                if ($count==$selected) {
-                    $input .= "\033[38;5;248m› ●  \033[9;38;5;248m".$option."\033[m";
+                if ($count == $selected) {
+                    $input .= "\033[38;5;248m› ●  \033[9;38;5;248m" . $option . "\033[m";
                 } else {
-                    $input .= "\033[38;5;248m  ○  \033[9;38;5;248m".$option."\033[m";
+                    $input .= "\033[38;5;248m  ○  \033[9;38;5;248m" . $option . "\033[m";
                 }
-                $spaces = self::$cols - 11 - strlen($option) - ($bar? 2 : 0);
-                $input .= "\033[38;5;240m ".str_repeat(' ', $spaces);
+                $spaces = self::$cols - 11 - strlen($option) - ($bar ? 2 : 0);
+                $input .= "\033[38;5;240m " . str_repeat(' ', $spaces);
                 if ($bar) {
                     $input .= $bar[$count];
                 }
-                $input .= "\033[31m │ \033[m";   
+                $input .= "\033[31m │ \033[m";
                 /* $spaces = 54 - strlen($option);
-                $input .= "\033[31m ".str_repeat(' ', $spaces)." │ \033[m"; */    
+                $input .= "\033[31m ".str_repeat(' ', $spaces)." │ \033[m"; */
                 $output[] = $input;
                 $count++;
             }
             $real++;
-            if ($count==$scroll) break;
+            if ($count == $scroll) break;
         }
 
-        $output[] = "\033[31m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[31m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "\033[31m  ⚠ Cancelled.\033[m";
-        
+
         self::replaceCommandOutput($output);
 
         self::restoreTty();
@@ -1225,18 +1243,18 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;240m ┌ \033[m\033[38;5;248m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;240m ┌ \033[m\033[38;5;248m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
-    
+
         $input = "\033[38;5;240m │ \033[m";
         $input .= $value;
         $spaces = self::$cols - 6 - strlen($value);
-        $input .= "\033[38;5;240m ".str_repeat(' ', $spaces)." │ \033[m";    
+        $input .= "\033[38;5;240m " . str_repeat(' ', $spaces) . " │ \033[m";
         $output[] = $input;
 
-        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "";
-        
+
         self::replaceCommandOutput($output);
 
         /* for ($i=0; $i<count($showed)-1; $i++){
@@ -1246,10 +1264,9 @@ Class Prompts
         } */
 
         printf("\n");
-
     }
 
-    private static function drawMultichoice($action=null)
+    private static function drawMultichoice($action = null)
     {
         $title = self::$inputValues['title'];
         $values = self::$inputValues['values'];
@@ -1260,19 +1277,19 @@ Class Prompts
         $realvalues = self::$inputValues['realvalues'];
         $hint = self::$inputValues['hint'];
 
-        if ($action=='UP') {
+        if ($action == 'UP') {
             $selected--;
         }
 
-        if ($action=='DOWN') {
+        if ($action == 'DOWN') {
             $selected++;
         }
 
-        if ($action=='SELECT') {
+        if ($action == 'SELECT') {
             $s = array_keys($realvalues);
 
             if (in_array($s[$selected], $multisel)) {
-                $multisel = array_diff($multisel, array($s[$selected])); 
+                $multisel = array_diff($multisel, array($s[$selected]));
             } else {
                 $multisel[] = $s[$selected];
             }
@@ -1280,12 +1297,12 @@ Class Prompts
 
 
 
-        if ($selected < 0) $selected = count($values) -1;
-        if ($selected > (count($values)-1)) $selected = 0;
+        if ($selected < 0) $selected = count($values) - 1;
+        if ($selected > (count($values) - 1)) $selected = 0;
 
-        if ($action=='UP') {
-            if ($selected == count($values)-1) {
-                $showed = array_slice($values, $selected-($scroll-1), $scroll);
+        if ($action == 'UP') {
+            if ($selected == count($values) - 1) {
+                $showed = array_slice($values, $selected - ($scroll - 1), $scroll);
             }
             if (!in_array($values[$selected], $showed)) {
                 array_pop($showed);
@@ -1293,7 +1310,7 @@ Class Prompts
             }
         }
 
-        if ($action=='DOWN') {
+        if ($action == 'DOWN') {
             if ($selected == 0) {
                 $showed = array_slice($values, 0, $scroll);
             }
@@ -1315,17 +1332,18 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;240m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;240m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $bar = self::getScrollbar($values, $showed, $scroll);
 
-        $count = 0; $real = 0;
+        $count = 0;
+        $real = 0;
         foreach ($realvalues as $key => $value) {
             if (in_array($value, $showed)) {
-                
+
                 $input = "\033[38;5;240m │ \033[m";
-                if ($real==$selected) {
+                if ($real == $selected) {
                     $input .= "\033[38;5;6m›\033[m" .
                         (in_array($key, $multisel) ? "\033[38;5;6m ◼  \033[m" : " ◻  \033[m") .
                         $value;
@@ -1334,29 +1352,29 @@ Class Prompts
                         (in_array($key, $multisel) ? "\033[38;5;6m ◼  \033[m" : "\033[38;5;248m ◻  \033[m") .
                         "\033[38;5;248m" . $value . "\033[m";
                 }
-                $spaces = self::$cols - 11 - strlen($value) - ($bar? 2 : 0);
-                $input .= "\033[38;5;240m ".str_repeat(' ', $spaces);
+                $spaces = self::$cols - 11 - strlen($value) - ($bar ? 2 : 0);
+                $input .= "\033[38;5;240m " . str_repeat(' ', $spaces);
                 if ($bar) {
                     $input .= $bar[$count];
                 }
-                $input .= " │ \033[m";    
-                $output[] = $input;                
+                $input .= " │ \033[m";
+                $output[] = $input;
                 $count++;
             }
             $real++;
-            if ($count==$scroll) break;
+            if ($count == $scroll) break;
         }
 
-        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
-        
+        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
+
         if (strlen($hint) > 0) {
             $output[] = "\033[38;5;240m  $hint\033[m";
         }
-        
+
         self::replaceCommandOutput($output);
     }
 
-    private static function drawMultichoiceRequired($text=null)
+    private static function drawMultichoiceRequired($text = null)
     {
         $title = self::$inputValues['title'];
         $values = self::$inputValues['values'];
@@ -1370,17 +1388,18 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;172m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;172m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;172m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;172m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $bar = self::getScrollbar($values, $showed, $scroll, false);
 
-        $count = 0; $real = 0;
+        $count = 0;
+        $real = 0;
         foreach ($realvalues as $key => $value) {
             if (in_array($value, $showed)) {
-                
+
                 $input = "\033[38;5;172m │ \033[m";
-                if ($real==$selected) {
+                if ($real == $selected) {
                     $input .= "\033[38;5;6m›\033[m" .
                         (in_array($key, $multisel) ? "\033[38;5;6m ◼  \033[m" : " ◻  \033[m") .
                         $value;
@@ -1389,22 +1408,22 @@ Class Prompts
                         (in_array($key, $multisel) ? "\033[38;5;6m ◼  \033[m" : "\033[38;5;248m ◻  \033[m") .
                         "\033[38;5;248m" . $value . "\033[m";
                 }
-                $spaces = self::$cols - 11 - strlen($value) - ($bar? 2 : 0);
-                $input .= "\033[38;5;240m ".str_repeat(' ', $spaces);
+                $spaces = self::$cols - 11 - strlen($value) - ($bar ? 2 : 0);
+                $input .= "\033[38;5;240m " . str_repeat(' ', $spaces);
                 if ($bar) {
                     $input .= $bar[$count];
                 }
-                $input .= "\033[38;5;172m │ \033[m";    
-                $output[] = $input;                
+                $input .= "\033[38;5;172m │ \033[m";
+                $output[] = $input;
                 $count++;
             }
             $real++;
-            if ($count==$scroll) break;
+            if ($count == $scroll) break;
         }
 
-        $output[] = "\033[38;5;172m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[38;5;172m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "\033[38;5;172m  ⚠ $required\033[m";
-        
+
         self::replaceCommandOutput($output);
     }
 
@@ -1420,34 +1439,35 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[31m ┌ \033[m" . $title . "\033[31m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[31m ┌ \033[m" . $title . "\033[31m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
-    
+
         $bar = self::getScrollbar($values, $showed, $scroll, false);
 
-        $count = 0; $real = 0;
+        $count = 0;
+        $real = 0;
         foreach ($values as $option) {
             if (in_array($option, $showed)) {
                 $input = "\033[31m │ \033[m";
-                $input .= "\033[38;5;248m" . ($real==$selected? "›" : " ") .
+                $input .= "\033[38;5;248m" . ($real == $selected ? "›" : " ") .
                     (in_array($option, $multisel) ? " ◼  " : " ◻  ") .
                     "\033[9;38;5;248m" . $option . "\033[m";
-                $spaces = self::$cols - 11 - strlen($option) - ($bar? 2 : 0);
-                $input .= "\033[38;5;240m ".str_repeat(' ', $spaces);
+                $spaces = self::$cols - 11 - strlen($option) - ($bar ? 2 : 0);
+                $input .= "\033[38;5;240m " . str_repeat(' ', $spaces);
                 if ($bar) {
                     $input .= $bar[$count];
                 }
                 $input .= "\033[31m │ \033[m";
-                $output[] = $input;                
+                $output[] = $input;
                 $count++;
             }
             $real++;
-            if ($count==$scroll) break;
+            if ($count == $scroll) break;
         }
 
-        $output[] = "\033[31m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[31m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "\033[31m  ⚠ Cancelled.\033[m";
-        
+
         self::replaceCommandOutput($output);
 
         self::restoreTty();
@@ -1462,27 +1482,27 @@ Class Prompts
         $scroll = self::$inputValues['scroll'];
         $multisel = self::$inputValues['multisel'];
         $realvalues = self::$inputValues['realvalues'];
-        
+
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;240m ┌ \033[m\033[38;5;248m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;240m ┌ \033[m\033[38;5;248m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
-    
-        $count = 0; 
+
+        $count = 0;
         foreach ($realvalues as $key => $value) {
-            if (in_array($key, $multisel)) { 
+            if (in_array($key, $multisel)) {
                 $input = "\033[38;5;240m │ \033[m" . $value;
                 $spaces = self::$cols - 6 - strlen($value);
-                $input .= "\033[38;5;240m ".str_repeat(' ', $spaces)." │ \033[m";    
+                $input .= "\033[38;5;240m " . str_repeat(' ', $spaces) . " │ \033[m";
                 $output[] = $input;
             }
             $count++;
         }
 
-        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         //$output[] = str_repeat("\n", abs($scroll - count($multisel)));
-        
+
         self::replaceCommandOutput($output);
 
         printf("\n\n");
@@ -1492,10 +1512,9 @@ Class Prompts
             echo "\r";
             echo "\033[K";
         } */
-
     }
 
-    private static function drawConfirm($action=null)
+    private static function drawConfirm($action = null)
     {
         $title = self::$inputValues['title'];
         $selected = self::$inputValues['selected'];
@@ -1503,41 +1522,41 @@ Class Prompts
         $no = self::$inputValues['no'];
         $hint = self::$inputValues['hint'];
 
-        if ($action=='CHANGE') {
-            $selected = $selected==0? 1 : 0;
+        if ($action == 'CHANGE') {
+            $selected = $selected == 0 ? 1 : 0;
             self::$inputValues['selected'] = $selected;
         }
 
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;240m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;240m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[38;5;240m │\033[m";
-        if ($selected==0) {
-            $input .= "\033[38;5;6m ●  \033[m".$yes."";
+        if ($selected == 0) {
+            $input .= "\033[38;5;6m ●  \033[m" . $yes . "";
         } else {
-            $input .= "\033[38;5;240m ○  ".$yes."\033[m";
+            $input .= "\033[38;5;240m ○  " . $yes . "\033[m";
         }
         $input .= "\033[38;5;240m /\033[m";
 
-        if ($selected==1) {
-            $input .= "\033[38;5;6m ●  \033[m".$no."";
+        if ($selected == 1) {
+            $input .= "\033[38;5;6m ●  \033[m" . $no . "";
         } else {
-            $input .= "\033[38;5;240m ○  ".$no."\033[m";
+            $input .= "\033[38;5;240m ○  " . $no . "\033[m";
         }
 
         $spaces = self::$cols - 15 - strlen($yes) - strlen($no);
-        $input .= "\033[38;5;240m ".str_repeat(' ', $spaces)." │ \033[m";
+        $input .= "\033[38;5;240m " . str_repeat(' ', $spaces) . " │ \033[m";
 
         $output[] = $input;
-        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
-        
+        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
+
         if (strlen($hint) > 0) {
             $output[] = "\033[38;5;240m  $hint\033[m";
         }
-        
+
         self::replaceCommandOutput($output);
     }
 
@@ -1549,37 +1568,37 @@ Class Prompts
         $no = self::$inputValues['no'];
         $required = self::$inputValues['required'];
 
-        if ($required===true) {
+        if ($required === true) {
             $required = 'Required.';
         }
 
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;172m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;172m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;172m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;172m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[38;5;172m │\033[m";
-        if ($selected==0) {
-            $input .= "\033[38;5;6m ●  \033[m".$yes."";
+        if ($selected == 0) {
+            $input .= "\033[38;5;6m ●  \033[m" . $yes . "";
         } else {
-            $input .= "\033[38;5;240m ○  ".$yes."\033[m";
+            $input .= "\033[38;5;240m ○  " . $yes . "\033[m";
         }
         $input .= "\033[38;5;240m /\033[m";
 
-        if ($selected==1) {
-            $input .= "\033[38;5;6m ●  \033[m".$no."";
+        if ($selected == 1) {
+            $input .= "\033[38;5;6m ●  \033[m" . $no . "";
         } else {
-            $input .= "\033[38;5;240m ○  ".$no."\033[m";
+            $input .= "\033[38;5;240m ○  " . $no . "\033[m";
         }
 
         $spaces = self::$cols - 15 - strlen($yes) - strlen($no);
-        $input .= "\033[38;5;172m ".str_repeat(' ', $spaces)." │ \033[m";
+        $input .= "\033[38;5;172m " . str_repeat(' ', $spaces) . " │ \033[m";
 
         $output[] = $input;
-        $output[] = "\033[38;5;172m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[38;5;172m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "\033[38;5;172m  ⚠ $required\033[m";
-        
+
         self::replaceCommandOutput($output);
     }
 
@@ -1593,30 +1612,30 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[31m ┌ \033[m" . $title . "\033[31m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[31m ┌ \033[m" . $title . "\033[31m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[31m │\033[m";
 
-        if ($selected==0) {
-            $input .= "\033[38;5;248m ●  \033[9;38;5;248m".$yes."\033[m";
+        if ($selected == 0) {
+            $input .= "\033[38;5;248m ●  \033[9;38;5;248m" . $yes . "\033[m";
         } else {
-            $input .= "\033[38;5;248m ○  \033[9;38;5;248m".$yes."\033[m";
+            $input .= "\033[38;5;248m ○  \033[9;38;5;248m" . $yes . "\033[m";
         }
 
-        if ($selected==1) {
-            $input .= "\033[38;5;248m ●  \033[9;38;5;248m".$no."\033[m";
+        if ($selected == 1) {
+            $input .= "\033[38;5;248m ●  \033[9;38;5;248m" . $no . "\033[m";
         } else {
-            $input .= "\033[38;5;248m ○  \033[9;38;5;248m".$no."\033[m";
+            $input .= "\033[38;5;248m ○  \033[9;38;5;248m" . $no . "\033[m";
         }
 
         $spaces = self::$cols - 13 - strlen($yes) - strlen($no);
-        $input .= "\033[31m ".str_repeat(' ', $spaces)." │ \033[m";
+        $input .= "\033[31m " . str_repeat(' ', $spaces) . " │ \033[m";
 
         $output[] = $input;
-        $output[] = "\033[31m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[31m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "\033[31m  ⚠ Cancelled.\033[m";
-        
+
         self::replaceCommandOutput($output);
 
         self::restoreTty();
@@ -1631,22 +1650,22 @@ Class Prompts
         $yes = self::$inputValues['yes'];
         $no = self::$inputValues['no'];
 
-        $value = $selected==0? $yes : $no;
+        $value = $selected == 0 ? $yes : $no;
 
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;240m ┌ \033[m\033[38;5;248m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;240m ┌ \033[m\033[38;5;248m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[38;5;240m │ \033[m" . $value;
         $spaces = self::$cols - 6 - strlen($value);
-        $input .= "\033[38;5;240m ".str_repeat(' ', $spaces)." │ \033[m";
+        $input .= "\033[38;5;240m " . str_repeat(' ', $spaces) . " │ \033[m";
 
         $output[] = $input;
-        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "                        ";
-        
+
         self::replaceCommandOutput($output);
     }
 
@@ -1669,7 +1688,7 @@ Class Prompts
 
         $text = array();
         foreach (str_split($prompt) as $char) {
-            if (ord($char)!=127) $text[] = $char;
+            if (ord($char) != 127) $text[] = $char;
         }
         $prompt = join($text);
 
@@ -1677,9 +1696,9 @@ Class Prompts
         // Filter options
         $filtered = array();
 
-        if (strlen($prompt)>0 && $prompt!=$lastprompt && count($values)>0) {
+        if (strlen($prompt) > 0 && $prompt != $lastprompt && count($values) > 0) {
             foreach ($values as $value) {
-                if (strpos(strtolower($value), strtolower($prompt))===0) {
+                if (strpos(strtolower($value), strtolower($prompt)) === 0) {
                     $filtered[] = $value;
                 }
             }
@@ -1687,42 +1706,37 @@ Class Prompts
             $showed = array_slice($filtered, 0, $scroll);
             $showoptions = true;
         } else {
-            $filtered = strlen($prompt)>0 ? $lastfilter : $values;
+            $filtered = strlen($prompt) > 0 ? $lastfilter : $values;
         }
 
-        if (count($filtered)>0) {
-            
-            if ($action=='UP') {
+        if (count($filtered) > 0) {
+
+            if ($action == 'UP') {
                 $selected--;
 
-                if ($selected==-2 && !$showoptions && strlen($prompt)==0) {
-                    $selected = count($filtered) -1;
+                if ($selected == -2 && !$showoptions && strlen($prompt) == 0) {
+                    $selected = count($filtered) - 1;
                     $showoptions = true;
-                }
-
-                elseif (strlen($prompt)==0 && $showoptions && $selected==-1) {
+                } elseif (strlen($prompt) == 0 && $showoptions && $selected == -1) {
                     $showoptions = false;
-                }
-
-                elseif (strlen($prompt)>0 && $showoptions && $selected==-2) {
-                    $selected = count($filtered) -1;
-                }
-
-            } 
-
-            if ($action=='DOWN') {
-                $selected++;
-                $showoptions = true;
-
-                if ($selected > (count($filtered) -1)) {
-                    $selected = -1;
-                    if (strlen($prompt)==0) $showoptions = false;
+                } elseif (strlen($prompt) > 0 && $showoptions && $selected == -2) {
+                    $selected = count($filtered) - 1;
                 }
             }
 
-            if ($action=='UP' && $selected > -1) {
-                if ($selected == count($filtered)-1) {
-                    $showed = array_slice($filtered, ($selected<0?0:$selected)-($scroll-1), $scroll);
+            if ($action == 'DOWN') {
+                $selected++;
+                $showoptions = true;
+
+                if ($selected > (count($filtered) - 1)) {
+                    $selected = -1;
+                    if (strlen($prompt) == 0) $showoptions = false;
+                }
+            }
+
+            if ($action == 'UP' && $selected > -1) {
+                if ($selected == count($filtered) - 1) {
+                    $showed = array_slice($filtered, ($selected < 0 ? 0 : $selected) - ($scroll - 1), $scroll);
                 }
                 if (!in_array($filtered[$selected], $showed)) {
                     array_pop($showed);
@@ -1730,7 +1744,7 @@ Class Prompts
                 }
             }
 
-            if ($action=='DOWN' && $selected > -1) {
+            if ($action == 'DOWN' && $selected > -1) {
                 if ($selected == 0) {
                     $showed = array_slice($filtered, 0, $scroll);
                 }
@@ -1743,45 +1757,43 @@ Class Prompts
             while (count($showed) > $scroll) {
                 array_pop($showed);
             }
-        } 
-        else 
-        {
+        } else {
             $selected = -1;
             $showoptions = false;
         }
 
-    
+
         self::$inputValues['selected'] = $selected;
         self::$inputValues['showoptions'] = $showoptions;
         self::$inputValues['lastprompt'] = $prompt;
         self::$inputValues['lastfilter'] = $filtered;
         self::$inputValues['showed'] = $showed;
 
-        if ($showoptions && $selected>-1 && count($filtered)>0) {
+        if ($showoptions && $selected > -1 && count($filtered) > 0) {
             self::$inputValues['current'] = $filtered[$selected];
         } else {
             self::$inputValues['current'] = strlen($prompt) > 0 ? $prompt : null;
         }
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;240m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;240m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[38;5;240m │ \033[m";
 
-        if (strlen($prompt)==0) {
-            if (strlen($placeholder)>0) {
-                $input .= ($selected<0 ? "\033[7;49;38m" : "\033[38;5;248m").$placeholder[0]."\033[m\033[38;5;248m".substr($placeholder, 1)."\033[m";
+        if (strlen($prompt) == 0) {
+            if (strlen($placeholder) > 0) {
+                $input .= ($selected < 0 ? "\033[7;49;38m" : "\033[38;5;248m") . $placeholder[0] . "\033[m\033[38;5;248m" . substr($placeholder, 1) . "\033[m";
                 $spaces = self::$cols - 6 - strlen($placeholder);
             } else {
-                $input .= ($selected<0 ? "\033[7;49;38m" : "\033[38;5;248m") . " \033[m";
+                $input .= ($selected < 0 ? "\033[7;49;38m" : "\033[38;5;248m") . " \033[m";
                 $spaces = self::$cols - 7;
             }
         } else {
             $i = 1;
             foreach (str_split($prompt) as $letter) {
-                if ($i==$position && $selected<0) {
-                    $input .= "\033[7;49;39m".$letter."\033[m";
+                if ($i == $position && $selected < 0) {
+                    $input .= "\033[7;49;39m" . $letter . "\033[m";
                 } else {
                     $input .= $letter;
                 }
@@ -1790,28 +1802,28 @@ Class Prompts
 
             $spaces = self::$cols - 6 - strlen($prompt);
 
-            if ($position>strlen($prompt) && $selected<0) {
+            if ($position > strlen($prompt) && $selected < 0) {
                 $input .= "\033[7;49;39m \033[m";
                 $spaces--;
             }
         }
 
-        if (count($filtered)>0 && strlen($prompt)==0 && !$showoptions) {
+        if (count($filtered) > 0 && strlen($prompt) == 0 && !$showoptions) {
             $input .= str_repeat(' ', $spaces);
             $input .= "\033[38;5;6m⌄\033[38;5;240m │ \033[m";
         } else {
-            $input .= "\033[38;5;240m ".str_repeat(' ', $spaces)." │ \033[m";
+            $input .= "\033[38;5;240m " . str_repeat(' ', $spaces) . " │ \033[m";
         }
 
         $output[] = $input;
-        
+
         if (!$showoptions) {
-            $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
-        } 
-        
+            $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
+        }
+
         // Show options box
         else {
-            $output[] = "\033[38;5;240m ├" . str_repeat('─', self::$cols-3) . "┤\033[m";
+            $output[] = "\033[38;5;240m ├" . str_repeat('─', self::$cols - 3) . "┤\033[m";
 
             $bar = self::getScrollbar($filtered, $showed, $scroll);
 
@@ -1832,29 +1844,30 @@ Class Prompts
                 $output[] = $input;                
                 $count++;
             } */
-            $count = 0; $real = 0;
+            $count = 0;
+            $real = 0;
             foreach ($filtered as $option) {
                 if (in_array($option, $showed)) {
                     $input = "\033[38;5;240m │ \033[m";
-                    if ($real==$selected) {
-                        $input .= "\033[38;5;6m› \033[m".$option."";
+                    if ($real == $selected) {
+                        $input .= "\033[38;5;6m› \033[m" . $option . "";
                     } else {
-                        $input .= "\033[38;5;248m  ".$option."\033[m";
+                        $input .= "\033[38;5;248m  " . $option . "\033[m";
                     }
-                    $spaces = self::$cols - 8 - strlen($option) - ($bar? 2 : 0);
-                    $input .= "\033[38;5;240m ".str_repeat(' ', $spaces);
+                    $spaces = self::$cols - 8 - strlen($option) - ($bar ? 2 : 0);
+                    $input .= "\033[38;5;240m " . str_repeat(' ', $spaces);
                     if ($bar) {
                         $input .= $bar[$count];
                     }
-                    $input .= " │ \033[m";    
-                    $output[] = $input;                
+                    $input .= " │ \033[m";
+                    $output[] = $input;
                     $count++;
                 }
                 $real++;
-                if ($count==$scroll) break;
+                if ($count == $scroll) break;
             }
 
-            $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+            $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         }
 
         if (strlen($hint) > 0) {
@@ -1873,31 +1886,30 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[31m ┌ \033[m" . $title . "\033[31m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[31m ┌ \033[m" . $title . "\033[31m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[31m │ \033[m";
 
-        if (strlen($prompt)==0) {
-            $input .= "\033[9;38;5;248m".$placeholder."\033[m";
+        if (strlen($prompt) == 0) {
+            $input .= "\033[9;38;5;248m" . $placeholder . "\033[m";
             $spaces = self::$cols - 6 - strlen($placeholder);
         } else {
-            $input .= "\033[9;38;5;248m".$prompt."\033[m";
+            $input .= "\033[9;38;5;248m" . $prompt . "\033[m";
             $spaces = self::$cols - 6 - strlen($prompt);
         }
-        $input .= "\033[31m ".str_repeat(' ', $spaces)." │ \033[m";
+        $input .= "\033[31m " . str_repeat(' ', $spaces) . " │ \033[m";
 
         $output[] = $input;
 
-        $output[] = "\033[31m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[31m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "\033[31m  ⚠ Cancelled.\033[m";
 
         self::replaceCommandOutput($output);
-        
+
         printf("\n\n");
 
         self::restoreTty();
-
     }
 
     private static function drawSuggestSelected()
@@ -1914,18 +1926,18 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;240m ┌ \033[m\033[38;5;248m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;240m ┌ \033[m\033[38;5;248m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
-    
+
         $input = "\033[38;5;240m │ \033[m";
         $input .= $prompt;
         $spaces = self::$cols - 6 - strlen($prompt);
-        $input .= "\033[38;5;240m ".str_repeat(' ', $spaces)." │ \033[m";    
+        $input .= "\033[38;5;240m " . str_repeat(' ', $spaces) . " │ \033[m";
         $output[] = $input;
 
-        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         //$output[] = str_repeat("\n", count($showed)-1);
-        
+
         self::replaceCommandOutput($output);
 
         printf("\n");
@@ -1935,7 +1947,6 @@ Class Prompts
             echo "\r";
             echo "\033[K";
         } */
-
     }
 
     private static function drawSuggestRequired($text = null)
@@ -1949,14 +1960,14 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;172m ┌ \033[m" . $title . "\033[38;5;172m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;172m ┌ \033[m" . $title . "\033[38;5;172m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[38;5;172m │ \033[m";
 
-        if (strlen($prompt)==0) {
-            if (strlen($placeholder)>0) {
-                $input .= "\033[7;49;38m".$placeholder[0]."\033[m\033[38;5;248m".substr($placeholder, 1)."\033[m";
+        if (strlen($prompt) == 0) {
+            if (strlen($placeholder) > 0) {
+                $input .= "\033[7;49;38m" . $placeholder[0] . "\033[m\033[38;5;248m" . substr($placeholder, 1) . "\033[m";
                 $spaces = self::$cols - 6 - strlen($placeholder);
             } else {
                 $spaces = self::$cols - 6;
@@ -1964,8 +1975,8 @@ Class Prompts
         } else {
             $i = 1;
             foreach (str_split($prompt) as $letter) {
-                if ($i==$position) {
-                    $input .= "\033[7;49;39m".$letter."\033[m";
+                if ($i == $position) {
+                    $input .= "\033[7;49;39m" . $letter . "\033[m";
                 } else {
                     $input .= $letter;
                 }
@@ -1974,16 +1985,16 @@ Class Prompts
 
             $spaces = self::$cols - 6 - strlen($prompt);
 
-            if ($position>strlen($prompt)) {
+            if ($position > strlen($prompt)) {
                 $input .= "\033[7;49;39m \033[m";
                 $spaces--;
             }
         }
 
-        $input .= "\033[38;5;172m ".str_repeat(' ', $spaces)." │ \033[m";
+        $input .= "\033[38;5;172m " . str_repeat(' ', $spaces) . " │ \033[m";
         $output[] = $input;
 
-        $output[] = "\033[38;5;172m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[38;5;172m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "\033[38;5;172m  ⚠ $required\033[m";
 
         self::replaceCommandOutput($output);
@@ -2009,7 +2020,7 @@ Class Prompts
 
         $text = array();
         foreach (str_split($prompt) as $char) {
-            if (ord($char)!=127) $text[] = $char;
+            if (ord($char) != 127) $text[] = $char;
         }
         $prompt = join($text);
 
@@ -2017,7 +2028,7 @@ Class Prompts
         // Filter options
         $filtered = array();
 
-        if (strlen($prompt)>0 && $prompt!=$lastprompt) {
+        if (strlen($prompt) > 0 && $prompt != $lastprompt) {
             list($class, $method) = getCallbackFromString($callback);
             $lastrealfilter = executeCallback($class, $method, array($prompt));
             $filtered = array_values($lastrealfilter);
@@ -2025,42 +2036,37 @@ Class Prompts
             $showed = array_slice($filtered, 0, $scroll);
             $showoptions = true;
         } else {
-            $filtered = strlen($prompt)>0 ? $lastfilter : array();
+            $filtered = strlen($prompt) > 0 ? $lastfilter : array();
         }
 
-        if (count($filtered)>0) {
-            
-            if ($action=='UP') {
+        if (count($filtered) > 0) {
+
+            if ($action == 'UP') {
                 $selected--;
 
-                if ($selected==-2 && !$showoptions && strlen($prompt)==0) {
-                    $selected = count($filtered) -1;
+                if ($selected == -2 && !$showoptions && strlen($prompt) == 0) {
+                    $selected = count($filtered) - 1;
                     $showoptions = true;
-                }
-
-                elseif (strlen($prompt)==0 && $showoptions && $selected==-1) {
+                } elseif (strlen($prompt) == 0 && $showoptions && $selected == -1) {
                     $showoptions = false;
-                }
-
-                elseif (strlen($prompt)>0 && $showoptions && $selected==-2) {
-                    $selected = count($filtered) -1;
-                }
-
-            } 
-
-            if ($action=='DOWN') {
-                $selected++;
-                $showoptions = true;
-
-                if ($selected > (count($filtered) -1)) {
-                    $selected = -1;
-                    if (strlen($prompt)==0) $showoptions = false;
+                } elseif (strlen($prompt) > 0 && $showoptions && $selected == -2) {
+                    $selected = count($filtered) - 1;
                 }
             }
 
-            if ($action=='UP' && $selected > -1) {
-                if ($selected == count($filtered)-1) {
-                    $showed = array_slice($filtered, ($selected<0?0:$selected)-($scroll-1), $scroll);
+            if ($action == 'DOWN') {
+                $selected++;
+                $showoptions = true;
+
+                if ($selected > (count($filtered) - 1)) {
+                    $selected = -1;
+                    if (strlen($prompt) == 0) $showoptions = false;
+                }
+            }
+
+            if ($action == 'UP' && $selected > -1) {
+                if ($selected == count($filtered) - 1) {
+                    $showed = array_slice($filtered, ($selected < 0 ? 0 : $selected) - ($scroll - 1), $scroll);
                 }
                 if (!in_array($filtered[$selected], $showed)) {
                     array_pop($showed);
@@ -2068,7 +2074,7 @@ Class Prompts
                 }
             }
 
-            if ($action=='DOWN' && $selected > -1) {
+            if ($action == 'DOWN' && $selected > -1) {
                 if ($selected == 0) {
                     $showed = array_slice($filtered, 0, $scroll);
                 }
@@ -2081,9 +2087,7 @@ Class Prompts
             while (count($showed) > $scroll) {
                 array_pop($showed);
             }
-        } 
-        else 
-        {
+        } else {
             $selected = -1;
             $showoptions = false;
         }
@@ -2096,7 +2100,7 @@ Class Prompts
         self::$inputValues['showed'] = $showed;
 
 
-        if ($showoptions && $selected>-1 && count($filtered)>0) {
+        if ($showoptions && $selected > -1 && count($filtered) > 0) {
             if (is_assoc($lastrealfilter)) {
                 $sel = array_keys($lastrealfilter);
                 self::$inputValues['current'] = $sel[$selected];
@@ -2106,28 +2110,28 @@ Class Prompts
         } else {
             self::$inputValues['current'] = null;
         }
-        
-        
+
+
         $spaces = self::$cols - 5 - strlen($title);
         if ($spaces < 0) $spaces = 0;
-        $input = "\033[38;5;240m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;240m ┌ \033[m\033[38;5;6m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[38;5;240m │ \033[m";
 
-        if (strlen($prompt)==0) {
-            if (strlen($placeholder)>0) {
-                $input .= ($selected<0 ? "\033[7;49;38m" : "\033[38;5;248m").$placeholder[0]."\033[m\033[38;5;248m".substr($placeholder, 1)."\033[m";
+        if (strlen($prompt) == 0) {
+            if (strlen($placeholder) > 0) {
+                $input .= ($selected < 0 ? "\033[7;49;38m" : "\033[38;5;248m") . $placeholder[0] . "\033[m\033[38;5;248m" . substr($placeholder, 1) . "\033[m";
                 $spaces = self::$cols - 6 - strlen($placeholder);
             } else {
-                $input .= ($selected<0 ? "\033[7;49;38m" : "\033[38;5;248m") . " \033[m";
+                $input .= ($selected < 0 ? "\033[7;49;38m" : "\033[38;5;248m") . " \033[m";
                 $spaces = self::$cols - 7;
             }
         } else {
             $i = 1;
             foreach (str_split($prompt) as $letter) {
-                if ($i==$position && $selected<0) {
-                    $input .= "\033[7;49;39m".$letter."\033[m";
+                if ($i == $position && $selected < 0) {
+                    $input .= "\033[7;49;39m" . $letter . "\033[m";
                 } else {
                     $input .= $letter;
                 }
@@ -2136,28 +2140,28 @@ Class Prompts
 
             $spaces = self::$cols - 6 - strlen($prompt);
 
-            if ($position>strlen($prompt) && $selected<0) {
+            if ($position > strlen($prompt) && $selected < 0) {
                 $input .= "\033[7;49;39m \033[m";
                 $spaces--;
             }
         }
 
-        if (count($filtered)>0 && strlen($prompt)==0 && !$showoptions) {
+        if (count($filtered) > 0 && strlen($prompt) == 0 && !$showoptions) {
             $input .= str_repeat(' ', $spaces);
             $input .= "\033[38;5;6m⌄\033[38;5;240m │ \033[m";
         } else {
-            $input .= "\033[38;5;240m ".str_repeat(' ', $spaces)." │ \033[m";
+            $input .= "\033[38;5;240m " . str_repeat(' ', $spaces) . " │ \033[m";
         }
 
         $output[] = $input;
-        
+
         if (!$showoptions) {
-            $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
-        } 
-        
+            $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
+        }
+
         // Show options box
         else {
-            $output[] = "\033[38;5;240m ├" . str_repeat('─', self::$cols-3) . "┤\033[m";
+            $output[] = "\033[38;5;240m ├" . str_repeat('─', self::$cols - 3) . "┤\033[m";
 
             $bar = self::getScrollbar($filtered, $showed, $scroll);
 
@@ -2178,30 +2182,31 @@ Class Prompts
                 $output[] = $input;                
                 $count++;
             } */
-            $count = 0; $real = 0;
+            $count = 0;
+            $real = 0;
             foreach ($filtered as $option) {
                 if (in_array($option, $showed)) {
                     $input = "\033[38;5;240m │ \033[m";
-                    if ($real==$selected) {
-                        $input .= "\033[38;5;6m› \033[m".$option."";
+                    if ($real == $selected) {
+                        $input .= "\033[38;5;6m› \033[m" . $option . "";
                     } else {
-                        $input .= "\033[38;5;248m  ".$option."\033[m";
+                        $input .= "\033[38;5;248m  " . $option . "\033[m";
                     }
-                    $spaces = self::$cols - 8 - strlen($option) - ($bar? 2 : 0);
-                    $input .= "\033[38;5;240m ".str_repeat(' ', $spaces);
+                    $spaces = self::$cols - 8 - strlen($option) - ($bar ? 2 : 0);
+                    $input .= "\033[38;5;240m " . str_repeat(' ', $spaces);
                     if ($bar) {
                         $input .= $bar[$count];
                     }
-                    $input .= " │ \033[m";    
-                    $output[] = $input;                
+                    $input .= " │ \033[m";
+                    $output[] = $input;
                     $count++;
                 }
                 $real++;
-                if ($count==$scroll) break;
+                if ($count == $scroll) break;
             }
 
 
-            $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+            $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         }
 
         if (strlen($hint) > 0) {
@@ -2220,31 +2225,30 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[31m ┌ \033[m" . $title . "\033[31m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[31m ┌ \033[m" . $title . "\033[31m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[31m │ \033[m";
 
-        if (strlen($prompt)==0) {
-            $input .= "\033[9;38;5;248m".$placeholder."\033[m";
+        if (strlen($prompt) == 0) {
+            $input .= "\033[9;38;5;248m" . $placeholder . "\033[m";
             $spaces = self::$cols - 6 - strlen($placeholder);
         } else {
-            $input .= "\033[9;38;5;248m".$prompt."\033[m";
+            $input .= "\033[9;38;5;248m" . $prompt . "\033[m";
             $spaces = self::$cols - 6 - strlen($prompt);
         }
-        $input .= "\033[31m ".str_repeat(' ', $spaces)." │ \033[m";
+        $input .= "\033[31m " . str_repeat(' ', $spaces) . " │ \033[m";
 
         $output[] = $input;
 
-        $output[] = "\033[31m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[31m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "\033[31m  ⚠ Cancelled.\033[m";
 
         self::replaceCommandOutput($output);
-        
+
         printf("\n\n");
 
         self::restoreTty();
-
     }
 
     private static function drawSearchSelected()
@@ -2264,18 +2268,18 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;240m ┌ \033[m\033[38;5;248m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;240m ┌ \033[m\033[38;5;248m" . $title . "\033[m\033[38;5;240m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
-    
+
         $input = "\033[38;5;240m │ \033[m";
         $input .= $prompt;
         $spaces = self::$cols - 6 - strlen($prompt);
-        $input .= "\033[38;5;240m ".str_repeat(' ', $spaces)." │ \033[m";    
+        $input .= "\033[38;5;240m " . str_repeat(' ', $spaces) . " │ \033[m";
         $output[] = $input;
 
-        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[38;5;240m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         //$output[] = str_repeat("\n", count($showed)-1);
-        
+
         self::replaceCommandOutput($output);
 
         printf("\n");
@@ -2285,7 +2289,6 @@ Class Prompts
             echo "\r";
             echo "\033[K";
         } */
-
     }
 
     private static function drawSearchRequired($text = null)
@@ -2299,14 +2302,14 @@ Class Prompts
         $output = array();
 
         $spaces = self::$cols - 5 - strlen($title);
-        $input = "\033[38;5;172m ┌ \033[m" . $title . "\033[38;5;172m " . str_repeat('─', $spaces)."┐\033[m";
+        $input = "\033[38;5;172m ┌ \033[m" . $title . "\033[38;5;172m " . str_repeat('─', $spaces) . "┐\033[m";
         $output[] = $input;
 
         $input = "\033[38;5;172m │ \033[m";
 
-        if (strlen($prompt)==0) {
-            if (strlen($placeholder)>0) {
-                $input .= "\033[7;49;38m".$placeholder[0]."\033[m\033[38;5;248m".substr($placeholder, 1)."\033[m";
+        if (strlen($prompt) == 0) {
+            if (strlen($placeholder) > 0) {
+                $input .= "\033[7;49;38m" . $placeholder[0] . "\033[m\033[38;5;248m" . substr($placeholder, 1) . "\033[m";
                 $spaces = self::$cols - 6 - strlen($placeholder);
             } else {
                 $spaces = self::$cols - 6;
@@ -2314,8 +2317,8 @@ Class Prompts
         } else {
             $i = 1;
             foreach (str_split($prompt) as $letter) {
-                if ($i==$position) {
-                    $input .= "\033[7;49;39m".$letter."\033[m";
+                if ($i == $position) {
+                    $input .= "\033[7;49;39m" . $letter . "\033[m";
                 } else {
                     $input .= $letter;
                 }
@@ -2324,19 +2327,18 @@ Class Prompts
 
             $spaces = self::$cols - 6 - strlen($prompt);
 
-            if ($position>strlen($prompt)) {
+            if ($position > strlen($prompt)) {
                 $input .= "\033[7;49;39m \033[m";
                 $spaces--;
             }
         }
 
-        $input .= "\033[38;5;172m ".str_repeat(' ', $spaces)." │ \033[m";
+        $input .= "\033[38;5;172m " . str_repeat(' ', $spaces) . " │ \033[m";
         $output[] = $input;
 
-        $output[] = "\033[38;5;172m └" . str_repeat('─', self::$cols-3) . "┘\033[m";
+        $output[] = "\033[38;5;172m └" . str_repeat('─', self::$cols - 3) . "┘\033[m";
         $output[] = "\033[38;5;172m  ⚠ $required\033[m";
 
         self::replaceCommandOutput($output);
     }
-
 }
